@@ -1,0 +1,114 @@
+import { NextRequest, NextResponse } from "next/server";
+import { odoo } from "@/lib/odoo";
+
+export async function GET(request: NextRequest) {
+  const q = request.nextUrl.searchParams.get("q") || "";
+
+  try {
+    // Get color and size attribute IDs
+    const attributes = await odoo.searchRead(
+      "product.attribute",
+      [["name", "in", ["Color", "Talle"]]],
+      ["id", "name"],
+    );
+
+    const colorAttr = attributes.find(
+      (a: { id: number; name: string }) => a.name === "Color",
+    );
+    const sizeAttr = attributes.find(
+      (a: { id: number; name: string }) => a.name === "Talle",
+    );
+
+    // Search product templates
+    const templates = await odoo.searchRead(
+      "product.template",
+      [["name", "ilike", q]],
+      ["id", "name", "attribute_line_ids"],
+      { limit: 20 },
+    );
+
+    if (templates.length === 0) return NextResponse.json([]);
+
+    // Get all attribute line IDs
+    const allLineIds: number[] = templates.flatMap(
+      (t: { attribute_line_ids: number[] }) => t.attribute_line_ids || [],
+    );
+
+    if (allLineIds.length === 0) {
+      return NextResponse.json(
+        templates.map((t: { id: number; name: string }) => ({
+          id: t.id,
+          name: t.name,
+          colors: [],
+          sizes: [],
+        })),
+      );
+    }
+
+    const lines = await odoo.read(
+      "product.template.attribute.line",
+      [...new Set(allLineIds)],
+      ["id", "attribute_id", "value_ids", "product_tmpl_id"],
+    );
+
+    // Get all value IDs
+    const allValueIds: number[] = lines.flatMap(
+      (l: { value_ids: number[] }) => l.value_ids || [],
+    );
+
+    let valueMap: Record<number, { id: number; name: string }> = {};
+    if (allValueIds.length > 0) {
+      const values = await odoo.read(
+        "product.attribute.value",
+        [...new Set(allValueIds)],
+        ["id", "name"],
+      );
+      for (const v of values) {
+        valueMap[v.id] = { id: v.id, name: v.name };
+      }
+    }
+
+    // Build a map: templateId → { colors, sizes }
+    const templateAttrMap: Record<
+      number,
+      { colors: { id: number; name: string }[]; sizes: { id: number; name: string }[] }
+    > = {};
+
+    for (const line of lines) {
+      const tmplId = Array.isArray(line.product_tmpl_id)
+        ? line.product_tmpl_id[0]
+        : line.product_tmpl_id;
+      const attrId = Array.isArray(line.attribute_id)
+        ? line.attribute_id[0]
+        : line.attribute_id;
+
+      if (!templateAttrMap[tmplId]) {
+        templateAttrMap[tmplId] = { colors: [], sizes: [] };
+      }
+
+      const vals = (line.value_ids || []).map(
+        (vid: number) => valueMap[vid] || { id: vid, name: String(vid) },
+      );
+
+      if (colorAttr && attrId === colorAttr.id) {
+        templateAttrMap[tmplId].colors.push(...vals);
+      } else if (sizeAttr && attrId === sizeAttr.id) {
+        templateAttrMap[tmplId].sizes.push(...vals);
+      }
+    }
+
+    const result = templates.map((t: { id: number; name: string }) => ({
+      id: t.id,
+      name: t.name,
+      colors: templateAttrMap[t.id]?.colors || [],
+      sizes: templateAttrMap[t.id]?.sizes || [],
+    }));
+
+    return NextResponse.json(result);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Error fetching products" },
+      { status: 500 },
+    );
+  }
+}
