@@ -8,15 +8,15 @@ export async function GET(request: NextRequest) {
     // Get color and size attribute IDs
     const attributes = await odoo.searchRead(
       "product.attribute",
-      [["name", "in", ["Color", "Talle"]]],
+      ["|", ["name", "ilike", "Color"], ["name", "ilike", "Talle"]],
       ["id", "name"],
     );
 
-    const colorAttr = attributes.find(
-      (a: { id: number; name: string }) => a.name === "Color",
+    const colorAttr = attributes.find((a: { id: number; name: string }) =>
+      a.name.toLowerCase().includes("color"),
     );
-    const sizeAttr = attributes.find(
-      (a: { id: number; name: string }) => a.name === "Talle",
+    const sizeAttr = attributes.find((a: { id: number; name: string }) =>
+      a.name.toLowerCase().includes("talle"),
     );
 
     // Search product templates
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       (l: { value_ids: number[] }) => l.value_ids || [],
     );
 
-    let valueMap: Record<number, { id: number; name: string }> = {};
+    const valueMap: Record<number, { id: number; name: string }> = {};
     if (allValueIds.length > 0) {
       const values = await odoo.read(
         "product.attribute.value",
@@ -71,7 +71,10 @@ export async function GET(request: NextRequest) {
     // Build a map: templateId → { colors, sizes }
     const templateAttrMap: Record<
       number,
-      { colors: { id: number; name: string }[]; sizes: { id: number; name: string }[] }
+      {
+        colors: { id: number; name: string }[];
+        sizes: { id: number; name: string }[];
+      }
     > = {};
 
     for (const line of lines) {
@@ -107,7 +110,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Error fetching products" },
+      {
+        error:
+          error instanceof Error ? error.message : "Error fetching products",
+      },
       { status: 500 },
     );
   }

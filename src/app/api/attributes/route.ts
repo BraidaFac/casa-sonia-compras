@@ -8,7 +8,6 @@ export async function GET() {
       ["|", ["name", "ilike", "Color"], ["name", "ilike", "Talle"]],
       ["id", "name"],
     );
-    console.log(attributes);
     const colorAttr = attributes.find((a: { id: number; name: string }) =>
       a.name.toLowerCase().includes("color"),
     );
