@@ -50,11 +50,6 @@ export function LoginForm() {
     <Center mih="100vh" p="md" bg="var(--bg)">
       <Paper w="100%" maw={380} p={40} radius="md" withBorder>
         <Stack align="center" mb="xl" gap="xs">
-          <img
-            src="/CS.png"
-            alt="Casa Sonia"
-            style={{ height: 32, width: "auto", flexShrink: 0 }}
-          />
           <Text ff="var(--font-display)" fw={700} size="xl">
             Casa Sonia Compras
           </Text>
