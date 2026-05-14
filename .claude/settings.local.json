@@ -16,7 +16,9 @@
       "Bash(pnpm tsc:*)",
       "Bash(npx tsc:*)",
       "Bash(python3 -c ':*)",
-      "Bash(xxd \"C:/Users/frbra/Desktop/Proyectos/orden-compra/casa-sonia-compras/public/CS.png\")"
+      "Bash(xxd \"C:/Users/frbra/Desktop/Proyectos/orden-compra/casa-sonia-compras/public/CS.png\")",
+      "Bash(pnpm run:*)",
+      "Bash(npx next:*)"
     ]
   }
 }

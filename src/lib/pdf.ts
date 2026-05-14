@@ -304,7 +304,6 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
   page.drawRectangle({
     x: MARGIN, y: y - LOGO_H, width: LOGO_W, height: LOGO_H,
     color: colorBlack,
-    borderRadius: 4,
   });
   const csW = fontBold.widthOfTextAtSize("CS", 16);
   page.drawText("CS", {
