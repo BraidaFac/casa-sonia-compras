@@ -1,5 +1,6 @@
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { odoo } from "./odoo";
+import type { Article, PrintColumn, PrintValues } from "@/types";
 
 interface OrderLine {
   productName: string;
@@ -243,6 +244,317 @@ export async function generateOrderPDF(orderId: number): Promise<Uint8Array> {
     `Generado el ${new Date().toLocaleString("es-AR")}`,
     { x: margin, y: margin + 10, size: 8, font: fontRegular, color: muted },
   );
+
+  return pdfDoc.save();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Grid PDF — formato tabla por artículo (A4 landscape)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface GridOrderData {
+  name: string;
+  partner_id: [number, string] | number | string;
+  date_order: string;
+  amount_total?: number;
+}
+
+interface GridPdfData {
+  order: GridOrderData;
+  articles: Article[];
+  printColumns: PrintColumn[];
+  printValues: PrintValues;
+}
+
+export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
+  const { order, articles, printColumns, printValues } = data;
+
+  const pdfDoc = await PDFDocument.create();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const colorAccent = rgb(0.851, 0.467, 0.024);
+  const colorBlack = rgb(0, 0, 0);
+  const colorWhite = rgb(1, 1, 1);
+  const colorMuted = rgb(0.4, 0.4, 0.4);
+  const colorBorderCell = rgb(0.82, 0.81, 0.80);
+  const colorRowEven = rgb(1, 1, 1);
+  const colorRowOdd = rgb(0.97, 0.965, 0.96);
+  const colorTotalRow = rgb(0.91, 0.895, 0.88);
+  const colorArticleHeader = rgb(0.94, 0.925, 0.91);
+  const colorEmptyCell = rgb(0.955, 0.948, 0.942);
+
+  const PAGE_W = 841.89; // A4 landscape
+  const PAGE_H = 595.28;
+  const MARGIN = 30;
+  const ROW_H = 16;
+  const HEADER_ROW_H = 18;
+  const PRINT_COL_W = 70;
+  const COLOR_COL_W = 80;
+
+  const LOGO_H = 28;
+  const LOGO_W = 34;
+
+  let page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+  let y = PAGE_H - MARGIN;
+
+  // ── ORDER HEADER (first page only) ─────────────────────────────────────────
+
+  // Logo — "CS" text block
+  page.drawRectangle({
+    x: MARGIN, y: y - LOGO_H, width: LOGO_W, height: LOGO_H,
+    color: colorBlack,
+    borderRadius: 4,
+  });
+  const csW = fontBold.widthOfTextAtSize("CS", 16);
+  page.drawText("CS", {
+    x: MARGIN + (LOGO_W - csW) / 2,
+    y: y - LOGO_H + 7,
+    size: 16,
+    font: fontBold,
+    color: colorWhite,
+  });
+
+  page.drawText("ORDEN DE COMPRA", {
+    x: MARGIN + LOGO_W + 10, y: y - 8, size: 16, font: fontBold, color: colorBlack,
+  });
+
+  const orderName = String(order.name);
+  page.drawText(orderName, {
+    x: MARGIN + LOGO_W + 10, y: y - 22, size: 10, font, color: colorMuted,
+  });
+
+  const supplierName = Array.isArray(order.partner_id)
+    ? String(order.partner_id[1])
+    : String(order.partner_id);
+
+  page.drawText(`Proveedor: ${supplierName}`, {
+    x: PAGE_W - MARGIN - 260, y: y - 8, size: 10, font: fontBold, color: colorBlack,
+  });
+
+  const dateStr = order.date_order
+    ? new Date(order.date_order).toLocaleDateString("es-AR")
+    : "-";
+  page.drawText(`Fecha: ${dateStr}`, {
+    x: PAGE_W - MARGIN - 260, y: y - 22, size: 10, font, color: colorMuted,
+  });
+
+  y -= 35;
+  page.drawLine({
+    start: { x: MARGIN, y },
+    end: { x: PAGE_W - MARGIN, y },
+    thickness: 1,
+    color: colorAccent,
+  });
+  y -= 15;
+
+  // ── PER-ARTICLE GRIDS ───────────────────────────────────────────────────────
+
+  for (const article of articles) {
+    const hasMeta = !!(article.referencia || article.price);
+    const articleHeaderH = 20 + (hasMeta ? 14 : 0) + 4;
+    const tableH = HEADER_ROW_H + article.rows.length * ROW_H + ROW_H; // +1 for total row
+    const needed = articleHeaderH + tableH + 20;
+
+    if (y - needed < MARGIN) {
+      page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+      y = PAGE_H - MARGIN;
+    }
+
+    // ── Article header bar ────────────────────────────────────────────────────
+
+    page.drawRectangle({
+      x: MARGIN, y: y - 20, width: PAGE_W - MARGIN * 2, height: 20,
+      color: colorArticleHeader,
+    });
+
+    const articleLabel = truncate(article.name.toUpperCase(), 55);
+    page.drawText(articleLabel, {
+      x: MARGIN + 6, y: y - 14, size: 10, font: fontBold, color: colorBlack,
+    });
+
+    const totalUnits = article.rows.reduce(
+      (sum, row) =>
+        sum +
+        article.sizes.reduce(
+          (s, sz) => s + (parseInt(row.quantities[sz.name] || "0", 10) || 0),
+          0,
+        ),
+      0,
+    );
+    const unitsLabel = `${totalUnits} u.`;
+    const unitsW = fontBold.widthOfTextAtSize(unitsLabel, 10);
+    page.drawText(unitsLabel, {
+      x: PAGE_W - MARGIN - unitsW - 4, y: y - 14, size: 10, font: fontBold, color: colorAccent,
+    });
+
+    y -= 20;
+
+    if (hasMeta) {
+      const metaParts: string[] = [];
+      if (article.referencia) metaParts.push(`Ref: ${article.referencia}`);
+      if (article.price) metaParts.push(`Costo: $${parseFloat(article.price).toLocaleString("es-AR")}`);
+      page.drawText(metaParts.join("  |  "), {
+        x: MARGIN + 6, y: y - 10, size: 8, font, color: colorMuted,
+      });
+      y -= 14;
+    }
+    y -= 4;
+
+    // ── Column widths ─────────────────────────────────────────────────────────
+
+    const available = PAGE_W - MARGIN * 2;
+    const fixedW = printColumns.length * PRINT_COL_W + COLOR_COL_W;
+    const sizeColW = article.sizes.length > 0
+      ? Math.min(50, Math.max(25, (available - fixedW) / article.sizes.length))
+      : 40;
+
+    // ── Table header row ──────────────────────────────────────────────────────
+
+    let x = MARGIN;
+
+    for (const col of printColumns) {
+      page.drawRectangle({
+        x, y: y - HEADER_ROW_H, width: PRINT_COL_W, height: HEADER_ROW_H,
+        color: colorAccent, borderColor: colorBorderCell, borderWidth: 0.5,
+      });
+      const txt = truncate(col.header || "—", 11);
+      const tw = fontBold.widthOfTextAtSize(txt, 8);
+      page.drawText(txt, {
+        x: x + (PRINT_COL_W - tw) / 2, y: y - HEADER_ROW_H + 5,
+        size: 8, font: fontBold, color: colorWhite,
+      });
+      x += PRINT_COL_W;
+    }
+
+    page.drawRectangle({
+      x, y: y - HEADER_ROW_H, width: COLOR_COL_W, height: HEADER_ROW_H,
+      color: colorAccent, borderColor: colorBorderCell, borderWidth: 0.5,
+    });
+    page.drawText("COLOR", {
+      x: x + 5, y: y - HEADER_ROW_H + 5, size: 8, font: fontBold, color: colorWhite,
+    });
+    x += COLOR_COL_W;
+
+    for (const sz of article.sizes) {
+      page.drawRectangle({
+        x, y: y - HEADER_ROW_H, width: sizeColW, height: HEADER_ROW_H,
+        color: colorAccent, borderColor: colorBorderCell, borderWidth: 0.5,
+      });
+      const szTxt = truncate(sz.name, 6);
+      const szW = fontBold.widthOfTextAtSize(szTxt, 8);
+      page.drawText(szTxt, {
+        x: x + (sizeColW - szW) / 2, y: y - HEADER_ROW_H + 5,
+        size: 8, font: fontBold, color: colorWhite,
+      });
+      x += sizeColW;
+    }
+
+    y -= HEADER_ROW_H;
+
+    // ── Data rows ─────────────────────────────────────────────────────────────
+
+    const totalsBySize: Record<string, number> = {};
+    article.sizes.forEach((sz) => (totalsBySize[sz.name] = 0));
+
+    article.rows.forEach((row, rowIdx) => {
+      const rowBg = rowIdx % 2 === 0 ? colorRowEven : colorRowOdd;
+      x = MARGIN;
+
+      for (const col of printColumns) {
+        const val = truncate(printValues[`${article.id}:${row.id}:${col.id}`] || "", 11);
+        page.drawRectangle({
+          x, y: y - ROW_H, width: PRINT_COL_W, height: ROW_H,
+          color: rowBg, borderColor: colorBorderCell, borderWidth: 0.5,
+        });
+        if (val) {
+          const vw = font.widthOfTextAtSize(val, 8);
+          page.drawText(val, {
+            x: x + (PRINT_COL_W - vw) / 2, y: y - ROW_H + 4,
+            size: 8, font, color: colorBlack,
+          });
+        }
+        x += PRINT_COL_W;
+      }
+
+      const colorName = truncate(row.color?.name || "—", 13);
+      page.drawRectangle({
+        x, y: y - ROW_H, width: COLOR_COL_W, height: ROW_H,
+        color: rowBg, borderColor: colorBorderCell, borderWidth: 0.5,
+      });
+      page.drawText(colorName, {
+        x: x + 4, y: y - ROW_H + 4, size: 8, font, color: colorBlack,
+      });
+      x += COLOR_COL_W;
+
+      for (const sz of article.sizes) {
+        const qty = parseInt(row.quantities[sz.name] || "0", 10) || 0;
+        totalsBySize[sz.name] = (totalsBySize[sz.name] || 0) + qty;
+
+        page.drawRectangle({
+          x, y: y - ROW_H, width: sizeColW, height: ROW_H,
+          color: qty > 0 ? rowBg : colorEmptyCell,
+          borderColor: colorBorderCell, borderWidth: 0.5,
+        });
+        if (qty > 0) {
+          const qStr = String(qty);
+          const qw = font.widthOfTextAtSize(qStr, 8);
+          page.drawText(qStr, {
+            x: x + (sizeColW - qw) / 2, y: y - ROW_H + 4,
+            size: 8, font, color: colorBlack,
+          });
+        }
+        x += sizeColW;
+      }
+
+      y -= ROW_H;
+    });
+
+    // ── Total row ─────────────────────────────────────────────────────────────
+
+    x = MARGIN;
+
+    for (const _col of printColumns) {
+      page.drawRectangle({
+        x, y: y - ROW_H, width: PRINT_COL_W, height: ROW_H,
+        color: colorTotalRow, borderColor: colorBorderCell, borderWidth: 0.5,
+      });
+      x += PRINT_COL_W;
+    }
+
+    page.drawRectangle({
+      x, y: y - ROW_H, width: COLOR_COL_W, height: ROW_H,
+      color: colorTotalRow, borderColor: colorBorderCell, borderWidth: 0.5,
+    });
+    page.drawText("TOTAL", {
+      x: x + 5, y: y - ROW_H + 4, size: 8, font: fontBold, color: colorBlack,
+    });
+    x += COLOR_COL_W;
+
+    for (const sz of article.sizes) {
+      const total = totalsBySize[sz.name] || 0;
+      page.drawRectangle({
+        x, y: y - ROW_H, width: sizeColW, height: ROW_H,
+        color: colorTotalRow, borderColor: colorBorderCell, borderWidth: 0.5,
+      });
+      if (total > 0) {
+        const tStr = String(total);
+        const tw = fontBold.widthOfTextAtSize(tStr, 8);
+        page.drawText(tStr, {
+          x: x + (sizeColW - tw) / 2, y: y - ROW_H + 4,
+          size: 8, font: fontBold, color: colorAccent,
+        });
+      }
+      x += sizeColW;
+    }
+
+    y -= ROW_H + 20;
+  }
+
+  // Footer on last page
+  page.drawText(`Generado el ${new Date().toLocaleString("es-AR")} — Casa Sonia`, {
+    x: MARGIN, y: MARGIN - 10, size: 7, font, color: rgb(0.6, 0.6, 0.6),
+  });
 
   return pdfDoc.save();
 }

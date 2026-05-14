@@ -1,18 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { odoo } from "@/lib/odoo";
 
-export async function GET(request: NextRequest) {
-  const q = request.nextUrl.searchParams.get("q") || "";
-
+export async function GET() {
   try {
     const suppliers = await odoo.searchRead(
       "res.partner",
-      [
-        ["supplier_rank", ">", 0],
-        ["name", "ilike", q],
-      ],
+      [["supplier_rank", ">", 0]],
       ["id", "name"],
-      { limit: 20 },
+      { limit: 500 },
     );
 
     return NextResponse.json(suppliers);

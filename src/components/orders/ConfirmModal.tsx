@@ -1,15 +1,27 @@
 "use client";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { X, CheckCircle, Loader } from "lucide-react";
-import type { Article, Supplier } from "@/types";
+import {
+  Modal,
+  Table,
+  Button,
+  Text,
+  Group,
+  Stack,
+  Loader,
+} from "@mantine/core";
+import { CheckCircle } from "lucide-react";
+import type { Article, Supplier, PrintColumn, PrintValues } from "@/types";
 
 interface Props {
   supplier: Supplier;
   date: string;
   articles: Article[];
+  printColumns: PrintColumn[];
+  printValues: PrintValues;
   onClose: () => void;
   onConfirmed: () => void;
+  onValidationError: (errors: { articleName: string; type: "color" | "size"; value: string }[]) => void;
 }
 
 interface OrderResult {
@@ -20,6 +32,7 @@ interface OrderResult {
 interface OrderError {
   error: string;
   createdProductIds?: number[];
+  validationErrors?: { articleName: string; type: "color" | "size"; value: string }[];
 }
 
 async function createOrder(body: {
@@ -64,7 +77,8 @@ function calcArticleSummary(article: Article) {
   const generalPrice = parseFloat(article.price) || 0;
   if (!article.priceGranular) {
     amount = units * generalPrice;
-    return { units, variants: variantSet.size, priceDisplay: `$${generalPrice.toFixed(2)}`, amount };
+    const fmtG = (n: number) => n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return { units, variants: variantSet.size, priceDisplay: `$${fmtG(generalPrice)}`, amount };
   }
 
   const allPrices: number[] = [];
@@ -77,15 +91,17 @@ function calcArticleSummary(article: Article) {
   }
   const minP = allPrices.length ? Math.min(...allPrices) : 0;
   const maxP = allPrices.length ? Math.max(...allPrices) : 0;
-  const priceDisplay = minP === maxP ? `$${minP.toFixed(2)}` : `$${minP.toFixed(2)} - $${maxP.toFixed(2)}`;
+  const fmt = (n: number) => n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const priceDisplay = minP === maxP ? `$${fmt(minP)}` : `$${fmt(minP)} - $${fmt(maxP)}`;
 
   return { units, variants: variantSet.size, priceDisplay, amount };
 }
 
-export function ConfirmModal({ supplier, date, articles, onClose, onConfirmed }: Props) {
+export function ConfirmModal({ supplier, date, articles, printColumns, printValues, onClose, onConfirmed, onValidationError }: Props) {
   const [step, setStep] = useState<"preview" | "submitting" | "done">("preview");
   const [result, setResult] = useState<OrderResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const mutation = useMutation({
     mutationFn: createOrder,
@@ -98,8 +114,13 @@ export function ConfirmModal({ supplier, date, articles, onClose, onConfirmed }:
       setStep("done");
     },
     onError: (error: OrderError) => {
-      setSubmitError(error.error || "Error al crear la orden");
-      setStep("preview");
+      if (error.validationErrors && error.validationErrors.length > 0) {
+        onValidationError(error.validationErrors);
+        onClose();
+      } else {
+        setSubmitError(error.error || "Error al crear la orden");
+        setStep("preview");
+      }
     },
   });
 
@@ -107,228 +128,136 @@ export function ConfirmModal({ supplier, date, articles, onClose, onConfirmed }:
     mutation.mutate({ supplierId: supplier.id, date, articles });
   }
 
+  async function downloadPdf() {
+    if (!result) return;
+    setDownloadingPdf(true);
+    try {
+      const res = await fetch("/api/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: result.purchaseOrderId,
+          printColumns,
+          printValues,
+          articles,
+        }),
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `OC-${result.purchaseOrderName}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
+
   const summaries = articles.map((a) => ({ ...a, ...calcArticleSummary(a) }));
   const grandTotal = summaries.reduce((s, a) => s + a.amount, 0);
   const grandUnits = summaries.reduce((s, a) => s + a.units, 0);
 
-  const overlayStyle: React.CSSProperties = {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,0.7)",
-    zIndex: 200,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  };
-
-  const modalStyle: React.CSSProperties = {
-    background: "var(--surface)",
-    border: "1px solid var(--border)",
-    borderRadius: 12,
-    width: "100%",
-    maxWidth: 720,
-    maxHeight: "90vh",
-    overflowY: "auto",
-    padding: 32,
-  };
-
   return (
-    <div style={overlayStyle} onClick={(e) => { if (e.target === e.currentTarget) { step === "done" ? onConfirmed() : onClose(); } }}>
-      <div style={modalStyle}>
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 24 }}>
-          <div>
-            <h2 style={{ margin: 0, fontFamily: "var(--font-display)", fontSize: 20, color: "var(--text)" }}>
-              Confirmar orden de compra
-            </h2>
-            <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text2)" }}>
-              {supplier.name} · {new Date(date).toLocaleDateString("es-AR")}
-            </p>
-          </div>
-          {step !== "submitting" && (
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                marginLeft: "auto",
-                background: "none",
-                border: "none",
-                color: "var(--text3)",
-                cursor: "pointer",
-              }}
-            >
-              <X size={20} />
-            </button>
-          )}
+    <Modal
+      opened
+      onClose={step === "done" ? onConfirmed : onClose}
+      title={
+        <div>
+          <Text fw={700} ff="var(--font-display)" size="lg">
+            Confirmar orden de compra
+          </Text>
+          <Text size="sm" c="dimmed">
+            {supplier.name} · {new Date(date).toLocaleDateString("es-AR")}
+          </Text>
         </div>
-
-        {step === "done" && result ? (
-          <div style={{ textAlign: "center", padding: "24px 0" }}>
-            <CheckCircle size={48} color="var(--green)" style={{ margin: "0 auto 16px" }} />
-            <h3 style={{ color: "var(--text)", marginBottom: 8 }}>
-              Orden creada: {result.purchaseOrderName}
-            </h3>
-            <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 24 }}>
-              <a
-                href={`/api/pdf?orderId=${result.purchaseOrderId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  background: "var(--accent)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 6,
-                  padding: "10px 20px",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  textDecoration: "none",
-                  cursor: "pointer",
-                }}
-              >
-                Descargar PDF
-              </a>
-              <button
-                type="button"
-                onClick={onConfirmed}
-                style={{
-                  background: "var(--surface2)",
-                  color: "var(--text)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 6,
-                  padding: "10px 20px",
-                  fontSize: 14,
-                  cursor: "pointer",
-                }}
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* Articles table */}
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, marginBottom: 16 }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border2)" }}>
-                  {["Artículo", "Variantes", "Unidades", "Precio unit.", "Subtotal"].map((h) => (
-                    <th
-                      key={h}
-                      style={{
-                        textAlign: "left",
-                        padding: "6px 8px",
-                        color: "var(--text2)",
-                        fontWeight: 600,
-                        fontSize: 12,
-                      }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {summaries.map((a) => (
-                  <tr key={a.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                    <td style={{ padding: "8px 8px", color: "var(--text)" }}>{a.name}</td>
-                    <td style={{ padding: "8px 8px", color: "var(--text2)" }}>{a.variants}</td>
-                    <td style={{ padding: "8px 8px", color: "var(--text)" }}>{a.units}</td>
-                    <td style={{ padding: "8px 8px", color: "var(--text2)" }}>
-                      {a.priceDisplay}
-                    </td>
-                    <td style={{ padding: "8px 8px", color: "var(--text)", fontWeight: 600 }}>
-                      ${a.amount.toFixed(2)}
-                    </td>
-                  </tr>
+      }
+      size="lg"
+      centered
+      closeOnClickOutside={step !== "submitting"}
+      withCloseButton={step !== "submitting"}
+    >
+      {step === "done" && result ? (
+        <Stack align="center" py="lg" gap="md">
+          <CheckCircle size={48} color="var(--green)" />
+          <Text fw={600} size="lg">
+            Orden creada: {result.purchaseOrderName}
+          </Text>
+          <Group>
+            <Button color="amber" loading={downloadingPdf} onClick={downloadPdf}>
+              Descargar PDF
+            </Button>
+            <Button variant="default" onClick={onConfirmed}>
+              Cerrar
+            </Button>
+          </Group>
+        </Stack>
+      ) : (
+        <Stack gap="md">
+          <Table striped highlightOnHover withTableBorder withColumnBorders fz="sm">
+            <Table.Thead>
+              <Table.Tr>
+                {["Artículo", "Variantes", "Unidades", "Precio unit.", "Subtotal"].map((h) => (
+                  <Table.Th key={h}>{h}</Table.Th>
                 ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td colSpan={2} style={{ padding: "10px 8px", color: "var(--text2)", fontSize: 12 }}>
-                    TOTAL
-                  </td>
-                  <td style={{ padding: "10px 8px", color: "var(--accent)", fontWeight: 700 }}>
-                    {grandUnits} u.
-                  </td>
-                  <td />
-                  <td style={{ padding: "10px 8px", color: "var(--accent)", fontWeight: 700 }}>
-                    ${grandTotal.toFixed(2)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {summaries.map((a) => (
+                <Table.Tr key={a.id}>
+                  <Table.Td>{a.name}</Table.Td>
+                  <Table.Td>{a.variants}</Table.Td>
+                  <Table.Td>{a.units}</Table.Td>
+                  <Table.Td>{a.priceDisplay}</Table.Td>
+                  <Table.Td fw={600}>${a.amount.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+            <Table.Tfoot>
+              <Table.Tr>
+                <Table.Td colSpan={2}>
+                  <Text size="xs" c="dimmed" tt="uppercase" fw={600}>Total</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text c="amber" fw={700}>{grandUnits} u.</Text>
+                </Table.Td>
+                <Table.Td />
+                <Table.Td>
+                  <Text c="amber" fw={700}>${grandTotal.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                </Table.Td>
+              </Table.Tr>
+            </Table.Tfoot>
+          </Table>
 
-            {/* Step indicator */}
-            {step === "submitting" && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 16,
-                  color: "var(--text2)",
-                  fontSize: 13,
-                }}
-              >
-                <Loader size={14} style={{ animation: "spin 1s linear infinite" }} />
-                Creando productos → Variantes → Orden de compra...
-              </div>
+          {step === "submitting" && (
+            <Group gap="xs" c="dimmed">
+              <Loader size="xs" color="amber" />
+              <Text size="sm">Creando productos → Variantes → Orden de compra...</Text>
+            </Group>
+          )}
+
+          {submitError && (
+            <Text c="red" size="sm">{submitError}</Text>
+          )}
+
+          <Group justify="flex-end" gap="sm">
+            {step !== "submitting" && (
+              <Button variant="default" onClick={onClose}>
+                Cancelar
+              </Button>
             )}
-
-            {submitError && (
-              <p style={{ color: "var(--red)", fontSize: 13, marginBottom: 12 }}>
-                {submitError}
-              </p>
-            )}
-
-            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-              {step !== "submitting" && (
-                <button
-                  type="button"
-                  onClick={onClose}
-                  style={{
-                    background: "var(--surface2)",
-                    color: "var(--text)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 6,
-                    padding: "10px 20px",
-                    fontSize: 14,
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancelar
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={step === "submitting"}
-                style={{
-                  background: step === "submitting" ? "var(--surface3)" : "var(--accent)",
-                  color: step === "submitting" ? "var(--text3)" : "#fff",
-                  border: "none",
-                  borderRadius: 6,
-                  padding: "10px 20px",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: step === "submitting" ? "not-allowed" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                {step === "submitting" ? (
-                  <>
-                    <Loader size={14} />
-                    Enviando...
-                  </>
-                ) : (
-                  "Enviar a Odoo →"
-                )}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+            <Button
+              color="amber"
+              onClick={handleSubmit}
+              loading={step === "submitting"}
+              disabled={step === "submitting"}
+            >
+              Enviar a Odoo →
+            </Button>
+          </Group>
+        </Stack>
+      )}
+    </Modal>
   );
 }

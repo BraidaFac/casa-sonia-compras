@@ -7,42 +7,159 @@ interface ResolvedAttributeValue {
   name: string;
 }
 
-async function resolveOrCreateAttributeValue(
-  name: string,
-  attributeId: number,
-): Promise<number> {
-  const existing = await odoo.searchRead(
-    "product.attribute.value",
-    [
-      ["name", "=", name],
-      ["attribute_id", "=", attributeId],
-    ],
-    ["id"],
-  );
-
-  if (existing.length > 0) return existing[0].id;
-
-  const newId = await odoo.create("product.attribute.value", {
-    name,
-    attribute_id: attributeId,
-  });
-  return newId;
+interface ValidationError {
+  articleName: string;
+  type: "color" | "size";
+  value: string;
 }
 
 async function resolveAttributeValues(
   values: AttributeValue[],
   attributeId: number,
-): Promise<ResolvedAttributeValue[]> {
+): Promise<{ resolved: ResolvedAttributeValue[]; notFound: string[] }> {
   const resolved: ResolvedAttributeValue[] = [];
+  const notFound: string[] = [];
+
   for (const val of values) {
-    if (val.isNew) {
-      const id = await resolveOrCreateAttributeValue(val.name, attributeId);
-      resolved.push({ id, name: val.name });
+    const existing = await odoo.searchRead(
+      "product.attribute.value",
+      [
+        ["name", "ilike", val.name],
+        ["attribute_id", "=", attributeId],
+      ],
+      ["id", "name"],
+    );
+
+    const match = existing.find(
+      (e: { id: number; name: string }) =>
+        e.name.toLowerCase() === val.name.toLowerCase(),
+    );
+
+    if (match) {
+      resolved.push({ id: match.id, name: match.name });
     } else {
-      resolved.push({ id: val.id, name: val.name });
+      notFound.push(val.name);
     }
   }
-  return resolved;
+
+  return { resolved, notFound };
+}
+
+// Returns created ID (for rollback) or null if updated existing
+async function createOrUpdateSupplierInfo(
+  templateId: number,
+  supplierId: number,
+  price: number,
+  minQty: number,
+): Promise<number | null> {
+  if (price <= 0) return null;
+
+  const existing = await odoo.searchRead(
+    "product.supplierinfo",
+    [
+      ["product_tmpl_id", "=", templateId],
+      ["partner_id", "=", supplierId],
+    ],
+    ["id"],
+  );
+
+  if (existing.length > 0) {
+    await odoo.write("product.supplierinfo", [existing[0].id], {
+      price,
+      min_qty: minQty,
+    });
+    return null;
+  } else {
+    const id = await odoo.create("product.supplierinfo", {
+      product_tmpl_id: templateId,
+      partner_id: supplierId,
+      price,
+      min_qty: minQty,
+    });
+    return id;
+  }
+}
+
+// Returns created ID (for rollback) or null if updated existing
+async function createOrUpdatePricelistItem(
+  templateId: number,
+  salePrice: number,
+): Promise<number | null> {
+  if (salePrice <= 0) return null;
+
+  const pricelists = await odoo.searchRead(
+    "product.pricelist",
+    [],
+    ["id"],
+    { limit: 1 },
+  );
+  if (pricelists.length === 0) return null;
+  const pricelistId = pricelists[0].id;
+
+  const existing = await odoo.searchRead(
+    "product.pricelist.item",
+    [
+      ["pricelist_id", "=", pricelistId],
+      ["product_tmpl_id", "=", templateId],
+      ["applied_on", "=", "1_product"],
+    ],
+    ["id"],
+  );
+
+  if (existing.length > 0) {
+    await odoo.write("product.pricelist.item", [existing[0].id], {
+      fixed_price: salePrice,
+      min_quantity: 0,
+    });
+    return null;
+  } else {
+    const id = await odoo.create("product.pricelist.item", {
+      pricelist_id: pricelistId,
+      product_tmpl_id: templateId,
+      applied_on: "1_product",
+      compute_price: "fixed",
+      fixed_price: salePrice,
+      min_quantity: 0,
+    });
+    return id;
+  }
+}
+
+async function syncExtraAttributes(templateId: number, article: Article) {
+  for (const attr of article.attributes) {
+    if (attr.generatesVariants) continue;
+    if (attr.values.length === 0) continue;
+
+    const existingLines = await odoo.searchRead(
+      "product.template.attribute.line",
+      [
+        ["product_tmpl_id", "=", templateId],
+        ["attribute_id", "=", attr.attributeId],
+      ],
+      ["id", "value_ids"],
+    );
+
+    if (existingLines.length > 0) {
+      await odoo.write(
+        "product.template.attribute.line",
+        [existingLines[0].id],
+        { value_ids: [[6, 0, attr.values.map((v) => v.id)]] },
+      );
+    } else {
+      await odoo.write("product.template", [templateId], {
+        attribute_line_ids: [
+          [
+            0,
+            0,
+            {
+              attribute_id: attr.attributeId,
+              value_ids: [[6, 0, attr.values.map((v) => v.id)]],
+            },
+          ],
+        ],
+      });
+    }
+  }
 }
 
 async function getOrCreateProduct(
@@ -55,7 +172,14 @@ async function getOrCreateProduct(
   if (article.existingProductId) {
     const templateId = article.existingProductId;
 
-    // Get existing attribute lines for this template
+    // Update scalar fields
+    await odoo.write("product.template", [templateId], {
+      list_price: parseFloat(article.salePrice) || 0,
+      default_code: article.referencia || "",
+      x_studio_referencia: article.referencia || "",
+      description_picking: article.description || "",
+    });
+
     const lines = await odoo.searchRead(
       "product.template.attribute.line",
       [["product_tmpl_id", "=", templateId]],
@@ -73,11 +197,9 @@ async function getOrCreateProduct(
         sizeAttributeId,
     );
 
-    // Add missing color values
     const newColors = resolvedColors.filter(
       (c) => !colorLine?.value_ids?.includes(c.id),
     );
-    // Add missing size values
     const newSizes = resolvedSizes.filter(
       (s) => !sizeLine?.value_ids?.includes(s.id),
     );
@@ -128,10 +250,10 @@ async function getOrCreateProduct(
       });
     }
 
+    await syncExtraAttributes(templateId, article);
     return templateId;
   }
 
-  // Create new product template
   const attributeLines = [];
 
   if (resolvedColors.length > 0) {
@@ -156,12 +278,27 @@ async function getOrCreateProduct(
     ]);
   }
 
+  for (const attr of article.attributes) {
+    if (attr.generatesVariants) continue;
+    if (attr.values.length === 0) continue;
+    attributeLines.push([
+      0,
+      0,
+      {
+        attribute_id: attr.attributeId,
+        value_ids: [[6, 0, attr.values.map((v) => v.id)]],
+      },
+    ]);
+  }
+
   const templateId = await odoo.create("product.template", {
     name: article.name,
     standard_price: parseFloat(article.price) || 0,
-    ...(attributeLines.length > 0
-      ? { attribute_line_ids: attributeLines }
-      : {}),
+    list_price: parseFloat(article.salePrice) || 0,
+    default_code: article.referencia || "",
+    x_studio_referencia: article.referencia || "",
+    description_picking: article.description || "",
+    ...(attributeLines.length > 0 ? { attribute_line_ids: attributeLines } : {}),
   });
 
   return templateId;
@@ -180,7 +317,6 @@ async function getVariants(templateId: number): Promise<OdooVariant[]> {
   );
 }
 
-// Get the product.template.attribute.value records to map variant → color/size
 async function mapVariantToColorSize(
   variants: OdooVariant[],
   resolvedColors: ResolvedAttributeValue[],
@@ -200,7 +336,6 @@ async function mapVariantToColorSize(
     ["id", "attribute_id", "product_attribute_value_id"],
   );
 
-  // Map ptav id → { attributeId, productAttributeValueId }
   const ptavMap: Record<number, { attributeId: number; pavId: number }> = {};
   for (const ptav of ptavRecords) {
     ptavMap[ptav.id] = {
@@ -213,7 +348,6 @@ async function mapVariantToColorSize(
     };
   }
 
-  // Map (colorId, sizeId) → variantId
   const result = new Map<string, number>();
 
   for (const variant of variants) {
@@ -249,7 +383,6 @@ export async function POST(request: NextRequest) {
     articles: Article[];
   };
 
-  // Get attribute IDs
   const attributes = await odoo.searchRead(
     "product.attribute",
     ["|", ["name", "ilike", "Color"], ["name", "ilike", "Talle"]],
@@ -273,32 +406,66 @@ export async function POST(request: NextRequest) {
   const colorAttributeId = colorAttr.id;
   const sizeAttributeId = sizeAttr.id;
 
+  // ── Validation pass: resolve all attributes, collect errors ──────────────
+  interface ArticleResolved {
+    article: Article;
+    resolvedColors: ResolvedAttributeValue[];
+    resolvedSizes: ResolvedAttributeValue[];
+  }
+
+  const resolvedArticles: ArticleResolved[] = [];
+  const allValidationErrors: ValidationError[] = [];
+
+  for (const article of articles) {
+    const allColorsUsed: AttributeValue[] = [];
+    const seenColorNames = new Set<string>();
+    for (const row of article.rows) {
+      if (row.color && !seenColorNames.has(row.color.name)) {
+        allColorsUsed.push(row.color);
+        seenColorNames.add(row.color.name);
+      }
+    }
+
+    const { resolved: resolvedColors, notFound: colorsNotFound } =
+      await resolveAttributeValues(allColorsUsed, colorAttributeId);
+
+    const { resolved: resolvedSizes, notFound: sizesNotFound } =
+      await resolveAttributeValues(article.sizes, sizeAttributeId);
+
+    allValidationErrors.push(
+      ...colorsNotFound.map((name) => ({
+        articleName: article.name,
+        type: "color" as const,
+        value: name,
+      })),
+      ...sizesNotFound.map((name) => ({
+        articleName: article.name,
+        type: "size" as const,
+        value: name,
+      })),
+    );
+
+    resolvedArticles.push({ article, resolvedColors, resolvedSizes });
+  }
+
+  if (allValidationErrors.length > 0) {
+    return NextResponse.json(
+      {
+        error: "Algunos atributos no existen en Odoo",
+        validationErrors: allValidationErrors,
+      },
+      { status: 422 },
+    );
+  }
+
+  // ── Creation pass ─────────────────────────────────────────────────────────
   const createdProductIds: number[] = [];
+  const createdSupplierInfoIds: number[] = [];
+  const createdPricelistItemIds: number[] = [];
   const allOrderLines: [number, number, object][] = [];
 
   try {
-    for (const article of articles) {
-      // Step 1: Collect all colors and sizes used in this article
-      const allColorsUsed: AttributeValue[] = [];
-      const seenColorNames = new Set<string>();
-      for (const row of article.rows) {
-        if (row.color && !seenColorNames.has(row.color.name)) {
-          allColorsUsed.push(row.color);
-          seenColorNames.add(row.color.name);
-        }
-      }
-
-      // Sizes come from article.sizes
-      const resolvedColors = await resolveAttributeValues(
-        allColorsUsed,
-        colorAttributeId,
-      );
-      const resolvedSizes = await resolveAttributeValues(
-        article.sizes,
-        sizeAttributeId,
-      );
-
-      // Step 2: Resolve product template
+    for (const { article, resolvedColors, resolvedSizes } of resolvedArticles) {
       const templateId = await getOrCreateProduct(
         article,
         resolvedColors,
@@ -311,7 +478,23 @@ export async function POST(request: NextRequest) {
         createdProductIds.push(templateId);
       }
 
-      // Step 3: Get variant IDs
+      // Sync supplier info and pricelist item
+      const costPrice = parseFloat(article.price) || 0;
+      const salePrice = parseFloat(article.salePrice) || 0;
+      const totalQty = article.rows.reduce(
+        (sum, row) =>
+          sum +
+          article.sizes.reduce((s2, size) => {
+            const q = parseInt(row.quantities[size.name] || "0", 10);
+            return s2 + (isNaN(q) ? 0 : q);
+          }, 0),
+        0,
+      );
+      const supplierInfoId = await createOrUpdateSupplierInfo(templateId, supplierId, costPrice, totalQty);
+      if (supplierInfoId) createdSupplierInfoIds.push(supplierInfoId);
+      const pricelistItemId = await createOrUpdatePricelistItem(templateId, salePrice);
+      if (pricelistItemId) createdPricelistItemIds.push(pricelistItemId);
+
       const variants = await getVariants(templateId);
 
       const variantMap = await mapVariantToColorSize(
@@ -322,7 +505,6 @@ export async function POST(request: NextRequest) {
         sizeAttributeId,
       );
 
-      // Step 4: Build order lines
       for (const row of article.rows as ArticleRow[]) {
         for (const size of article.sizes) {
           const qty = parseInt(row.quantities[size.name] || "0", 10);
@@ -331,7 +513,6 @@ export async function POST(request: NextRequest) {
           const resolvedSize = resolvedSizes.find((s) => s.name === size.name);
           if (!resolvedSize) continue;
 
-          // Build variant key: color optional
           const resolvedColor = row.color
             ? resolvedColors.find((c) => c.name === row.color!.name)
             : null;
@@ -360,7 +541,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 5: Create purchase order
     if (allOrderLines.length === 0) {
       throw new Error(
         "No se encontraron variantes para las cantidades ingresadas. Verificá que los productos tengan colores y talles configurados en Odoo.",
@@ -373,14 +553,12 @@ export async function POST(request: NextRequest) {
       order_line: allOrderLines,
     });
 
-    // Fetch the order name
     const orderData = await odoo.searchRead(
       "purchase.order",
       [["id", "=", purchaseOrderId]],
       ["name"],
     );
 
-    // Confirmar RFQ → Purchase Order
     await odoo.call("purchase.order", "button_confirm", {
       ids: purchaseOrderId,
     });
@@ -390,12 +568,24 @@ export async function POST(request: NextRequest) {
       purchaseOrderName: orderData[0]?.name || `P/${purchaseOrderId}`,
     });
   } catch (error) {
-    // Rollback: eliminar productos creados en esta operación
+    if (createdPricelistItemIds.length > 0) {
+      try {
+        await odoo.unlink("product.pricelist.item", createdPricelistItemIds);
+      } catch {
+        console.error("Rollback failed for product.pricelist.item ids:", createdPricelistItemIds);
+      }
+    }
+    if (createdSupplierInfoIds.length > 0) {
+      try {
+        await odoo.unlink("product.supplierinfo", createdSupplierInfoIds);
+      } catch {
+        console.error("Rollback failed for product.supplierinfo ids:", createdSupplierInfoIds);
+      }
+    }
     if (createdProductIds.length > 0) {
       try {
         await odoo.unlink("product.template", createdProductIds);
       } catch {
-        // Rollback parcial — loguear pero no bloquear la respuesta de error
         console.error(
           "Rollback failed for product.template ids:",
           createdProductIds,

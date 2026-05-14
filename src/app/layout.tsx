@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Syne, DM_Sans, DM_Mono } from "next/font/google";
 import { QueryProvider } from "@/providers/QueryProvider";
+import { AppMantineProvider } from "@/providers/AppMantineProvider";
+import "@mantine/core/styles.css";
+import "@mantine/dates/styles.css";
 import "./globals.css";
 
 const syne = Syne({
@@ -38,7 +41,9 @@ export default function RootLayout({
       className={`${syne.variable} ${dmSans.variable} ${dmMono.variable} h-full`}
     >
       <body className="min-h-full">
-        <QueryProvider>{children}</QueryProvider>
+        <AppMantineProvider>
+          <QueryProvider>{children}</QueryProvider>
+        </AppMantineProvider>
       </body>
     </html>
   );

@@ -6,7 +6,15 @@ export interface Supplier {
 export interface AttributeValue {
   id: number;
   name: string;
-  isNew?: boolean;
+}
+
+// Generic attribute for the Attributes tab
+export interface ProductAttribute {
+  attributeId: number;
+  attributeName: string;
+  values: AttributeValue[];
+  // true if generates variants (Color or Talle)
+  generatesVariants: boolean;
 }
 
 export interface ArticleRow {
@@ -20,10 +28,15 @@ export interface Article {
   id: string; // local UUID
   name: string;
   existingProductId: number | null;
-  price: string;
+  referencia: string;
+  price: string; // Costo Neto
+  salePrice: string; // Precio Venta
   priceGranular: boolean;
   rows: ArticleRow[];
-  sizes: AttributeValue[]; // columns for this article
+  sizes: AttributeValue[];
+  attributes: ProductAttribute[];
+  description: string;
+  maxCoeficiente: number; // 0 if new article or no Tipo de Producto
 }
 
 export interface OrderPayload {
@@ -35,8 +48,13 @@ export interface OrderPayload {
 export interface OdooProduct {
   id: number;
   name: string;
+  referencia: string;
+  defaultCode: string;
+  listPrice: number;
+  maxCoeficiente: number;
   colors: AttributeValue[];
   sizes: AttributeValue[];
+  extraAttributes: ProductAttribute[];
 }
 
 export interface AttributesData {
@@ -45,3 +63,12 @@ export interface AttributesData {
   colorAttributeId: number;
   sizeAttributeId: number;
 }
+
+// Columna extra para impresión — global para toda la orden
+export interface PrintColumn {
+  id: string;
+  header: string;
+}
+
+// key: `${articleId}:${rowId}:${printColumnId}` → valor string
+export type PrintValues = Record<string, string>;

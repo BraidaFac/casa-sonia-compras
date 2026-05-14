@@ -1,14 +1,24 @@
 "use client";
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { Group, Text, Badge } from "@mantine/core";
+
+import { DatePickerInput } from "@mantine/dates";
+import "dayjs/locale/es";
 import { SupplierSearch } from "@/components/orders/SupplierSearch";
 import { OrderGrid } from "@/components/orders/OrderGrid";
 import type { Supplier } from "@/types";
 
 export default function NewOrderPage() {
   const [supplier, setSupplier] = useState<Supplier | null>(null);
-  const [date, setDate] = useState(
-    () => new Date().toISOString().split("T")[0],
-  );
+  const [date, setDate] = useState<Date | null>(new Date());
+  const [totals, setTotals] = useState({ units: 0, amount: 0 });
+  const handleTotalsChange = useCallback((units: number, amount: number) => {
+    setTotals({ units, amount });
+  }, []);
+
+  const dateStr = date
+    ? date.toISOString().split("T")[0]
+    : new Date().toISOString().split("T")[0];
 
   return (
     <div
@@ -48,83 +58,73 @@ export default function NewOrderPage() {
         >
           Nueva Orden de Compra
         </h1>
+
+        {(supplier || totals.units > 0) && (
+          <Group gap="sm" ml="auto" wrap="nowrap">
+            {supplier && (
+              <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+                {supplier.name}
+              </Text>
+            )}
+            {totals.units > 0 && (
+              <>
+                <Badge color="amber" variant="light" size="md">
+                  {totals.units} u.
+                </Badge>
+                <Badge color="amber" variant="outline" size="md">
+                  $
+                  {totals.amount.toLocaleString("es-AR", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </Badge>
+              </>
+            )}
+          </Group>
+        )}
       </header>
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 24px 0" }}>
         {/* Supplier + Date bar */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 20,
-            marginBottom: 24,
-            flexWrap: "wrap",
-          }}
-        >
+        <Group gap="xl" mb="xs" align="flex-end" wrap="wrap">
           <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: 12,
-                color: "var(--text2)",
-                marginBottom: 6,
-                fontWeight: 500,
-              }}
-            >
+            <Text size="xs" c="dimmed" fw={500} mb={6}>
               Proveedor
-            </label>
+            </Text>
             <SupplierSearch value={supplier} onChange={setSupplier} />
           </div>
 
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: 12,
-                color: "var(--text2)",
-                marginBottom: 6,
-                fontWeight: 500,
-              }}
-            >
-              Fecha
-            </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              style={{
-                background: "var(--surface2)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-                borderRadius: 6,
-                padding: "8px 12px",
-                fontSize: 14,
-                outline: "none",
-              }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
-              onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
-            />
-          </div>
+          <DatePickerInput
+            label={
+              <Text size="xs" c="dimmed" fw={500}>
+                Fecha
+              </Text>
+            }
+            value={date}
+            onChange={(val) => setDate(val as Date | null)}
+            valueFormat="DD/MM/YYYY"
+            locale="es"
+            w={180}
+          />
 
           {supplier && (
-            <div
-              style={{
-                marginLeft: "auto",
-                background: "var(--accent-bg)",
-                border: "1px solid var(--accent)",
-                borderRadius: 6,
-                padding: "6px 12px",
-                fontSize: 13,
-                color: "var(--accent)",
-              }}
+            <Badge
+              color="amber"
+              variant="outline"
+              size="lg"
+              style={{ marginLeft: "auto" }}
             >
               {supplier.name}
-            </div>
+            </Badge>
           )}
-        </div>
+        </Group>
 
         {/* Order grid */}
-        <OrderGrid supplier={supplier} date={date} />
+        <OrderGrid
+          supplier={supplier}
+          date={dateStr}
+          onTotalsChange={handleTotalsChange}
+        />
       </div>
     </div>
   );

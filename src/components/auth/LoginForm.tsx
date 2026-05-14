@@ -1,7 +1,15 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import {
+  TextInput,
+  PasswordInput,
+  Button,
+  Stack,
+  Text,
+  Paper,
+  Center,
+} from "@mantine/core";
 
 export function LoginForm() {
   const router = useRouter();
@@ -38,150 +46,61 @@ export function LoginForm() {
     }
   }
 
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    background: "var(--surface2)",
-    border: "1px solid var(--border)",
-    color: "var(--text)",
-    borderRadius: 6,
-    padding: "10px 14px",
-    fontSize: 15,
-    outline: "none",
-    transition: "border-color 0.15s",
-  };
-
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "var(--bg)",
-        padding: 16,
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 380,
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          borderRadius: 12,
-          padding: "40px 36px",
-        }}
-      >
-        {/* Logo / Brand */}
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
+    <Center mih="100vh" p="md" bg="var(--bg)">
+      <Paper w="100%" maw={380} p={40} radius="md" withBorder>
+        <Stack align="center" mb="xl" gap="xs">
           <img
             src="/CS.png"
             alt="Casa Sonia"
-            style={{ height: 56, width: "auto", margin: "0 auto 16px", display: "block" }}
+            style={{ height: 32, width: "auto", flexShrink: 0 }}
           />
-          <h1
-            style={{
-              fontFamily: "var(--font-display)",
-              fontWeight: 700,
-              fontSize: 20,
-              color: "var(--text)",
-              margin: 0,
-            }}
-          >
+          <Text ff="var(--font-display)" fw={700} size="xl">
             Casa Sonia Compras
-          </h1>
-        </div>
+          </Text>
+        </Stack>
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: 13,
-                color: "var(--text2)",
-                marginBottom: 6,
-                fontWeight: 500,
-              }}
-            >
-              Usuario
-            </label>
-            <input
-              type="text"
+        <form onSubmit={handleSubmit}>
+          <Stack gap="md">
+            <TextInput
+              label="Usuario"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => setUsername(e.currentTarget.value)}
               disabled={loading}
-              style={inputStyle}
               autoComplete="username"
               autoFocus
-              onFocus={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
-              onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+              size="md"
             />
-          </div>
 
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: 13,
-                color: "var(--text2)",
-                marginBottom: 6,
-                fontWeight: 500,
-              }}
-            >
-              Contraseña
-            </label>
-            <input
-              type="password"
+            <PasswordInput
+              label="Contraseña"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.currentTarget.value)}
               disabled={loading}
-              style={inputStyle}
               autoComplete="current-password"
-              onFocus={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
-              onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+              size="md"
             />
-          </div>
 
-          {error && (
-            <p style={{ color: "var(--red)", fontSize: 13, margin: 0 }}>
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading || !username || !password}
-            style={{
-              background: loading || !username || !password
-                ? "var(--surface3)"
-                : "var(--accent)",
-              color: loading || !username || !password
-                ? "var(--text3)"
-                : "#fff",
-              border: "none",
-              borderRadius: 6,
-              padding: "11px 0",
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: loading || !username || !password ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              transition: "background 0.15s",
-              marginTop: 4,
-            }}
-          >
-            {loading ? (
-              <>
-                <LoadingSpinner size={16} />
-                Ingresando...
-              </>
-            ) : (
-              <>Ingresar →</>
+            {error && (
+              <Text c="red" size="sm">
+                {error}
+              </Text>
             )}
-          </button>
+
+            <Button
+              type="submit"
+              fullWidth
+              size="md"
+              color="amber"
+              loading={loading}
+              disabled={!username || !password}
+              mt="xs"
+            >
+              Ingresar →
+            </Button>
+          </Stack>
         </form>
-      </div>
-    </div>
+      </Paper>
+    </Center>
   );
 }

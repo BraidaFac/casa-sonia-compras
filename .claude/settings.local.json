@@ -2,7 +2,21 @@
   "permissions": {
     "allow": [
       "WebSearch",
-      "WebFetch(domain:www.odoo.com)"
+      "WebFetch(domain:www.odoo.com)",
+      "Bash(pnpm add:*)",
+      "Bash(npm add:*)",
+      "Bash(npm install:*)",
+      "Bash(npm --version)",
+      "Read(//c/Users/frbra/AppData/Roaming/**)",
+      "Read(//c/Users/frbra/AppData/Local/**)",
+      "Bash(npx pnpm:*)",
+      "Bash(export PATH=\"/c/Users/frbra/AppData/Local/pnpm/bin:$PATH\")",
+      "Bash(pnpm exec:*)",
+      "Bash(ls C:\\\\Users\\\\frbra\\\\Desktop\\\\Proyectos\\\\orden-compra\\\\casa-sonia-compras\\\\.env*)",
+      "Bash(pnpm tsc:*)",
+      "Bash(npx tsc:*)",
+      "Bash(python3 -c ':*)",
+      "Bash(xxd \"C:/Users/frbra/Desktop/Proyectos/orden-compra/casa-sonia-compras/public/CS.png\")"
     ]
   }
 }

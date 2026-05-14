@@ -41,8 +41,11 @@ export const odoo = {
   ) => request(model, "search_read", { domain, fields, ...options }),
 
   // JSON-2 API uses 'vals_list' as param name (not 'values')
-  create: (model: string, values: object) =>
-    request(model, "create", { vals_list: values }),
+  // Normalize: Odoo may return [id] (array) — always return plain number
+  create: async (model: string, values: object): Promise<number> => {
+    const result = await request(model, "create", { vals_list: values });
+    return Array.isArray(result) ? result[0] : result;
+  },
 
   write: (model: string, ids: number[], values: object) =>
     request(model, "write", { ids, vals: values }),
