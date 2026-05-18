@@ -264,10 +264,11 @@ interface GridPdfData {
   articles: Article[];
   printColumns: PrintColumn[];
   printValues: PrintValues;
+  comment?: string;
 }
 
 export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
-  const { order, articles, printColumns, printValues } = data;
+  const { order, articles, printColumns, printValues, comment } = data;
 
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -548,6 +549,54 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
     }
 
     y -= ROW_H + 20;
+  }
+
+  // Total valorizado
+  const grandTotal = articles.reduce((sum, article) =>
+    sum + article.rows.reduce((s2, row) =>
+      s2 + article.sizes.reduce((s3, sz) => {
+        const qty = parseInt(row.quantities[sz.name] || "0", 10) || 0;
+        if (qty <= 0) return s3;
+        const price = article.priceGranular
+          ? parseFloat(row.prices?.[sz.name] || article.price) || 0
+          : parseFloat(article.price) || 0;
+        return s3 + qty * price;
+      }, 0), 0), 0);
+
+  const grandUnits = articles.reduce((sum, article) =>
+    sum + article.rows.reduce((s2, row) =>
+      s2 + article.sizes.reduce((s3, sz) =>
+        s3 + (parseInt(row.quantities[sz.name] || "0", 10) || 0), 0), 0), 0);
+
+  y -= 8;
+  page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 1, color: colorAccent });
+  y -= 14;
+  page.drawText(`Total unidades: ${grandUnits}`, { x: MARGIN, y, size: 9, font, color: colorBlack });
+  const totalStr = `TOTAL: $${grandTotal.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const totalW = fontBold.widthOfTextAtSize(totalStr, 11);
+  page.drawText(totalStr, { x: PAGE_W - MARGIN - totalW, y, size: 11, font: fontBold, color: colorAccent });
+  y -= 20;
+
+  // Comment
+  if (comment && comment.trim()) {
+    page.drawText("Comentario:", { x: MARGIN, y, size: 8, font: fontBold, color: colorBlack });
+    y -= 12;
+    const words = comment.trim().split(" ");
+    let line = "";
+    for (const word of words) {
+      const test = line ? `${line} ${word}` : word;
+      if (font.widthOfTextAtSize(test, 8) > PAGE_W - MARGIN * 2 - 10) {
+        page.drawText(line, { x: MARGIN + 6, y, size: 8, font, color: colorMuted });
+        y -= 11;
+        line = word;
+      } else {
+        line = test;
+      }
+    }
+    if (line) {
+      page.drawText(line, { x: MARGIN + 6, y, size: 8, font, color: colorMuted });
+      y -= 14;
+    }
   }
 
   // Footer on last page

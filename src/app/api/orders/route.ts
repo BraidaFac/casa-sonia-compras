@@ -293,6 +293,7 @@ async function getOrCreateProduct(
     list_price: parseFloat(article.salePrice) || 0,
     default_code: article.referencia || "",
     description_picking: article.description || "",
+    available_in_pos: true,
     ...(attributeLines.length > 0
       ? { attribute_line_ids: attributeLines }
       : {}),

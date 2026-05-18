@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { orderId, printColumns, printValues, articles } = body;
+    const { orderId, printColumns, printValues, articles, comment } = body;
 
     if (!orderId) {
       return NextResponse.json({ error: "orderId requerido" }, { status: 400 });
@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
       articles: articles || [],
       printColumns: printColumns || [],
       printValues: printValues || {},
+      comment: comment || "",
     });
 
     const buffer = Buffer.from(pdfBytes);

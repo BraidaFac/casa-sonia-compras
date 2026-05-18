@@ -9,6 +9,7 @@ import {
   Group,
   Stack,
   Loader,
+  Textarea,
 } from "@mantine/core";
 import { CheckCircle } from "lucide-react";
 import type { Article, Supplier, PrintColumn, PrintValues } from "@/types";
@@ -102,6 +103,8 @@ export function ConfirmModal({ supplier, date, articles, printColumns, printValu
   const [result, setResult] = useState<OrderResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [showCommentModal, setShowCommentModal] = useState(false);
+  const [pdfComment, setPdfComment] = useState("");
 
   const mutation = useMutation({
     mutationFn: createOrder,
@@ -128,8 +131,9 @@ export function ConfirmModal({ supplier, date, articles, printColumns, printValu
     mutation.mutate({ supplierId: supplier.id, date, articles });
   }
 
-  async function downloadPdf() {
+  async function downloadPdf(comment: string) {
     if (!result) return;
+    setShowCommentModal(false);
     setDownloadingPdf(true);
     try {
       const res = await fetch("/api/pdf", {
@@ -140,6 +144,7 @@ export function ConfirmModal({ supplier, date, articles, printColumns, printValu
           printColumns,
           printValues,
           articles,
+          comment,
         }),
       });
       if (!res.ok) return;
@@ -185,13 +190,36 @@ export function ConfirmModal({ supplier, date, articles, printColumns, printValu
             Orden creada: {result.purchaseOrderName}
           </Text>
           <Group>
-            <Button color="amber" loading={downloadingPdf} onClick={downloadPdf}>
+            <Button color="amber" loading={downloadingPdf} onClick={() => { setPdfComment(""); setShowCommentModal(true); }}>
               Descargar PDF
             </Button>
             <Button variant="default" onClick={onConfirmed}>
               Cerrar
             </Button>
           </Group>
+
+          <Modal
+            opened={showCommentModal}
+            onClose={() => setShowCommentModal(false)}
+            title="Comentario para el proveedor"
+            size="sm"
+            centered
+          >
+            <Stack gap="md">
+              <Textarea
+                placeholder="Opcional — aparecerá en el PDF"
+                autosize
+                minRows={3}
+                maxRows={6}
+                value={pdfComment}
+                onChange={(e) => setPdfComment(e.currentTarget.value)}
+              />
+              <Group justify="flex-end">
+                <Button variant="default" onClick={() => setShowCommentModal(false)}>Cancelar</Button>
+                <Button color="amber" onClick={() => downloadPdf(pdfComment)}>Descargar PDF</Button>
+              </Group>
+            </Stack>
+          </Modal>
         </Stack>
       ) : (
         <Stack gap="md">
