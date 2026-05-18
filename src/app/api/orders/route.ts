@@ -87,12 +87,9 @@ async function createOrUpdatePricelistItem(
 ): Promise<number | null> {
   if (salePrice <= 0) return null;
 
-  const pricelists = await odoo.searchRead(
-    "product.pricelist",
-    [],
-    ["id"],
-    { limit: 1 },
-  );
+  const pricelists = await odoo.searchRead("product.pricelist", [], ["id"], {
+    limit: 1,
+  });
   if (pricelists.length === 0) return null;
   const pricelistId = pricelists[0].id;
 
@@ -176,7 +173,6 @@ async function getOrCreateProduct(
     await odoo.write("product.template", [templateId], {
       list_price: parseFloat(article.salePrice) || 0,
       default_code: article.referencia || "",
-      x_studio_referencia: article.referencia || "",
       description_picking: article.description || "",
     });
 
@@ -296,9 +292,10 @@ async function getOrCreateProduct(
     standard_price: parseFloat(article.price) || 0,
     list_price: parseFloat(article.salePrice) || 0,
     default_code: article.referencia || "",
-    x_studio_referencia: article.referencia || "",
     description_picking: article.description || "",
-    ...(attributeLines.length > 0 ? { attribute_line_ids: attributeLines } : {}),
+    ...(attributeLines.length > 0
+      ? { attribute_line_ids: attributeLines }
+      : {}),
   });
 
   return templateId;
@@ -490,9 +487,17 @@ export async function POST(request: NextRequest) {
           }, 0),
         0,
       );
-      const supplierInfoId = await createOrUpdateSupplierInfo(templateId, supplierId, costPrice, totalQty);
+      const supplierInfoId = await createOrUpdateSupplierInfo(
+        templateId,
+        supplierId,
+        costPrice,
+        totalQty,
+      );
       if (supplierInfoId) createdSupplierInfoIds.push(supplierInfoId);
-      const pricelistItemId = await createOrUpdatePricelistItem(templateId, salePrice);
+      const pricelistItemId = await createOrUpdatePricelistItem(
+        templateId,
+        salePrice,
+      );
       if (pricelistItemId) createdPricelistItemIds.push(pricelistItemId);
 
       const variants = await getVariants(templateId);
@@ -572,14 +577,20 @@ export async function POST(request: NextRequest) {
       try {
         await odoo.unlink("product.pricelist.item", createdPricelistItemIds);
       } catch {
-        console.error("Rollback failed for product.pricelist.item ids:", createdPricelistItemIds);
+        console.error(
+          "Rollback failed for product.pricelist.item ids:",
+          createdPricelistItemIds,
+        );
       }
     }
     if (createdSupplierInfoIds.length > 0) {
       try {
         await odoo.unlink("product.supplierinfo", createdSupplierInfoIds);
       } catch {
-        console.error("Rollback failed for product.supplierinfo ids:", createdSupplierInfoIds);
+        console.error(
+          "Rollback failed for product.supplierinfo ids:",
+          createdSupplierInfoIds,
+        );
       }
     }
     if (createdProductIds.length > 0) {

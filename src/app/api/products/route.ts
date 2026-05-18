@@ -44,6 +44,8 @@ export async function GET(request: NextRequest) {
       { limit: 20 },
     );
 
+    console.log(templates);
+
     if (templates.length === 0) return NextResponse.json([]);
 
     // Get all attribute line IDs

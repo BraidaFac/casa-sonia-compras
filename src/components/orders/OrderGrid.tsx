@@ -6,6 +6,7 @@ import { ArticleRow } from "./ArticleRow";
 import { ConfirmModal } from "./ConfirmModal";
 import { useAttributes } from "@/hooks/useAttributes";
 import { useBrands } from "@/hooks/useBrands";
+import { useCompradora } from "@/hooks/useCompradora";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import type { Article, AttributeValue, Supplier, PrintColumn, PrintValues } from "@/types";
 
@@ -21,17 +22,27 @@ interface AttrValidationError {
   value: string;
 }
 
-function createEmptyArticle(globalBrand?: { attributeId: number; brand: AttributeValue } | null): Article {
-  const attributes = globalBrand
-    ? [
-        {
-          attributeId: globalBrand.attributeId,
-          attributeName: "Marca",
-          values: [globalBrand.brand],
-          generatesVariants: false,
-        },
-      ]
-    : [];
+function createEmptyArticle(
+  globalBrand?: { attributeId: number; brand: AttributeValue } | null,
+  globalCompradora?: { attributeId: number; compradora: AttributeValue } | null,
+): Article {
+  const attributes = [];
+  if (globalBrand) {
+    attributes.push({
+      attributeId: globalBrand.attributeId,
+      attributeName: "Marca",
+      values: [globalBrand.brand],
+      generatesVariants: false,
+    });
+  }
+  if (globalCompradora) {
+    attributes.push({
+      attributeId: globalCompradora.attributeId,
+      attributeName: "Compradora",
+      values: [globalCompradora.compradora],
+      generatesVariants: false,
+    });
+  }
 
   return {
     id: crypto.randomUUID(),
@@ -57,9 +68,12 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
   const [attrValidationErrors, setAttrValidationErrors] = useState<AttrValidationError[]>([]);
   const [globalBrand, setGlobalBrand] = useState<AttributeValue | null>(null);
   const [brandSearch, setBrandSearch] = useState("");
+  const [globalCompradora, setGlobalCompradora] = useState<AttributeValue | null>(null);
+  const [compradoaSearch, setCompradoaSearch] = useState("");
 
-  const { data: attrData, isLoading: attrLoading, error: attrError } = useAttributes();
+  const { data: attrData, isLoading: attrLoading, error: attrError, refetch: refetchAttrs } = useAttributes();
   const { data: brandsData } = useBrands();
+  const { data: compradoaData } = useCompradora();
 
   const allColors = attrData?.colors || [];
   const allSizes = attrData?.sizes || [];
@@ -67,13 +81,23 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
   const sizeAttributeId = attrData?.sizeAttributeId ?? 0;
   const brandAttributeId = brandsData?.attributeId ?? 0;
   const allBrands = brandsData?.brands || [];
+  const compradoaAttributeId = compradoaData?.attributeId ?? 0;
+  const allCompradoas = compradoaData?.compradoras || [];
 
   const filteredBrands = allBrands.filter((b) =>
     b.name.toLowerCase().includes(brandSearch.toLowerCase()),
   );
 
+  const filteredCompradoas = allCompradoas.filter((c) =>
+    c.name.toLowerCase().includes(compradoaSearch.toLowerCase()),
+  );
+
   const brandCombobox = useCombobox({
     onDropdownClose: () => brandCombobox.resetSelectedOption(),
+  });
+
+  const compradoaCombobox = useCombobox({
+    onDropdownClose: () => compradoaCombobox.resetSelectedOption(),
   });
 
   function applyGlobalBrand(brand: AttributeValue | null) {
@@ -94,6 +118,32 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
               attributeId: brandAttributeId,
               attributeName: "Marca",
               values: [brand],
+              generatesVariants: false,
+            },
+          ],
+        };
+      }),
+    );
+  }
+
+  function applyGlobalCompradora(compradora: AttributeValue | null) {
+    setGlobalCompradora(compradora);
+    if (!compradora || !compradoaAttributeId) return;
+
+    setArticles((prev) =>
+      prev.map((a) => {
+        const hasCompradora = a.attributes.some((attr) =>
+          attr.attributeName.toLowerCase().includes("compradora"),
+        );
+        if (hasCompradora) return a;
+        return {
+          ...a,
+          attributes: [
+            ...a.attributes,
+            {
+              attributeId: compradoaAttributeId,
+              attributeName: "Compradora",
+              values: [compradora],
               generatesVariants: false,
             },
           ],
@@ -147,7 +197,11 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
       globalBrand && brandAttributeId
         ? { attributeId: brandAttributeId, brand: globalBrand }
         : null;
-    setArticles((prev) => [...prev, createEmptyArticle(brandInfo)]);
+    const compradoaInfo =
+      globalCompradora && compradoaAttributeId
+        ? { attributeId: compradoaAttributeId, compradora: globalCompradora }
+        : null;
+    setArticles((prev) => [...prev, createEmptyArticle(brandInfo, compradoaInfo)]);
   }
 
   function validateAttributesExist(): AttrValidationError[] {
@@ -218,6 +272,24 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
     onTotalsChange?.(totalUnits, totalAmount);
   }, [totalUnits, totalAmount, onTotalsChange]);
 
+  const hasDirtyData =
+    articles.length > 1 ||
+    (articles.length === 1 &&
+      (articles[0].name.trim() !== "" ||
+        articles[0].sizes.length > 0 ||
+        articles[0].rows.some((r) =>
+          Object.values(r.quantities).some((q) => parseInt(q || "0", 10) > 0),
+        )));
+
+  useEffect(() => {
+    if (!hasDirtyData) return;
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault();
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasDirtyData]);
+
   const hasValidationErrors = articles.some((a) => {
     const hasQty = a.rows.some((r) =>
       a.sizes.some((s) => parseInt(r.quantities[s.name] || "0", 10) > 0),
@@ -279,65 +351,126 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
 
   return (
     <div>
-      {/* Brand selector */}
-      {allBrands.length > 0 && (
+      {/* Brand + Compradora selectors */}
+      {(allBrands.length > 0 || allCompradoas.length > 0) && (
         <Group mb="md" align="flex-end">
-          <div>
-            <Text size="xs" c="dimmed" fw={500} mb={6}>
-              Marca (global)
-            </Text>
-            <Combobox
-              store={brandCombobox}
-              onOptionSubmit={(val) => {
-                const brand = allBrands.find((b) => String(b.id) === val) || null;
-                setBrandSearch(brand?.name || "");
-                applyGlobalBrand(brand);
-                brandCombobox.closeDropdown();
-              }}
-              withinPortal
-            >
-              <Combobox.Target>
-                <InputBase
-                  value={brandSearch}
-                  placeholder="Seleccionar marca..."
-                  size="sm"
-                  w={200}
-                  onChange={(e) => {
-                    setBrandSearch(e.currentTarget.value);
-                    brandCombobox.openDropdown();
-                  }}
-                  onFocus={() => brandCombobox.openDropdown()}
-                  onBlur={() => {
-                    brandCombobox.closeDropdown();
-                    setBrandSearch(globalBrand?.name || "");
-                  }}
-                  rightSection={
-                    globalBrand ? (
-                      <ActionIconClear
-                        onClick={() => {
-                          setGlobalBrand(null);
-                          setBrandSearch("");
-                        }}
-                      />
-                    ) : null
-                  }
-                />
-              </Combobox.Target>
-              <Combobox.Dropdown>
-                <Combobox.Options>
-                  {filteredBrands.length > 0 ? (
-                    filteredBrands.map((b) => (
-                      <Combobox.Option key={b.id} value={String(b.id)}>
-                        {b.name}
-                      </Combobox.Option>
-                    ))
-                  ) : (
-                    <Combobox.Empty>Sin resultados</Combobox.Empty>
-                  )}
-                </Combobox.Options>
-              </Combobox.Dropdown>
-            </Combobox>
-          </div>
+          {allBrands.length > 0 && (
+            <div>
+              <Text size="xs" c="dimmed" fw={500} mb={6}>
+                Marca (global)
+              </Text>
+              <Combobox
+                store={brandCombobox}
+                onOptionSubmit={(val) => {
+                  const brand = allBrands.find((b) => String(b.id) === val) || null;
+                  setBrandSearch(brand?.name || "");
+                  applyGlobalBrand(brand);
+                  brandCombobox.closeDropdown();
+                }}
+                withinPortal
+              >
+                <Combobox.Target>
+                  <InputBase
+                    value={brandSearch}
+                    placeholder="Seleccionar marca..."
+                    size="sm"
+                    w={200}
+                    onChange={(e) => {
+                      setBrandSearch(e.currentTarget.value);
+                      brandCombobox.openDropdown();
+                    }}
+                    onFocus={() => brandCombobox.openDropdown()}
+                    onBlur={() => {
+                      brandCombobox.closeDropdown();
+                      setBrandSearch(globalBrand?.name || "");
+                    }}
+                    rightSection={
+                      globalBrand ? (
+                        <ActionIconClear
+                          onClick={() => {
+                            setGlobalBrand(null);
+                            setBrandSearch("");
+                          }}
+                        />
+                      ) : null
+                    }
+                  />
+                </Combobox.Target>
+                <Combobox.Dropdown>
+                  <Combobox.Options>
+                    {filteredBrands.length > 0 ? (
+                      filteredBrands.map((b) => (
+                        <Combobox.Option key={b.id} value={String(b.id)}>
+                          {b.name}
+                        </Combobox.Option>
+                      ))
+                    ) : (
+                      <Combobox.Empty>Sin resultados</Combobox.Empty>
+                    )}
+                  </Combobox.Options>
+                </Combobox.Dropdown>
+              </Combobox>
+            </div>
+          )}
+
+          {allCompradoas.length > 0 && (
+            <div>
+              <Text size="xs" c="dimmed" fw={500} mb={6}>
+                Compradora (global)
+              </Text>
+              <Combobox
+                store={compradoaCombobox}
+                onOptionSubmit={(val) => {
+                  const compradora = allCompradoas.find((c) => String(c.id) === val) || null;
+                  setCompradoaSearch(compradora?.name || "");
+                  applyGlobalCompradora(compradora);
+                  compradoaCombobox.closeDropdown();
+                }}
+                withinPortal
+              >
+                <Combobox.Target>
+                  <InputBase
+                    value={compradoaSearch}
+                    placeholder="Seleccionar compradora..."
+                    size="sm"
+                    w={200}
+                    onChange={(e) => {
+                      setCompradoaSearch(e.currentTarget.value);
+                      compradoaCombobox.openDropdown();
+                    }}
+                    onFocus={() => compradoaCombobox.openDropdown()}
+                    onBlur={() => {
+                      compradoaCombobox.closeDropdown();
+                      setCompradoaSearch(globalCompradora?.name || "");
+                    }}
+                    rightSection={
+                      globalCompradora ? (
+                        <ActionIconClear
+                          onClick={() => {
+                            setGlobalCompradora(null);
+                            setCompradoaSearch("");
+                          }}
+                        />
+                      ) : null
+                    }
+                  />
+                </Combobox.Target>
+                <Combobox.Dropdown>
+                  <Combobox.Options>
+                    {filteredCompradoas.length > 0 ? (
+                      filteredCompradoas.map((c) => (
+                        <Combobox.Option key={c.id} value={String(c.id)}>
+                          {c.name}
+                        </Combobox.Option>
+                      ))
+                    ) : (
+                      <Combobox.Empty>Sin resultados</Combobox.Empty>
+                    )}
+                  </Combobox.Options>
+                </Combobox.Dropdown>
+              </Combobox>
+            </div>
+          )}
         </Group>
       )}
 
@@ -380,6 +513,7 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
             }
             onChange={(updated) => updateArticle(article.id, updated)}
             onRemove={() => removeArticle(article.id)}
+            onOpenSizeModal={() => refetchAttrs()}
           />
         );
       })}
@@ -409,7 +543,8 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
               color="amber"
               size="md"
               disabled={!!disabledReason}
-              onClick={() => {
+              onClick={async () => {
+                await refetchAttrs();
                 const errors = validateAttributesExist();
                 if (errors.length > 0) {
                   setAttrValidationErrors(errors);
@@ -434,11 +569,15 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
           printValues={printValues}
           onClose={() => setShowConfirm(false)}
           onConfirmed={() => {
-            setArticles([createEmptyArticle(
+            const brandInfo =
               globalBrand && brandAttributeId
                 ? { attributeId: brandAttributeId, brand: globalBrand }
-                : null,
-            )]);
+                : null;
+            const compradoaInfo =
+              globalCompradora && compradoaAttributeId
+                ? { attributeId: compradoaAttributeId, compradora: globalCompradora }
+                : null;
+            setArticles([createEmptyArticle(brandInfo, compradoaInfo)]);
             setAttrValidationErrors([]);
             setShowConfirm(false);
           }}
@@ -451,7 +590,7 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
   );
 }
 
-// Small inline clear button for brand combobox
+// Small inline clear button for comboboxes
 function ActionIconClear({ onClick }: { onClick: () => void }) {
   return (
     <button

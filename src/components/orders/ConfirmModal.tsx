@@ -147,7 +147,7 @@ export function ConfirmModal({ supplier, date, articles, printColumns, printValu
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `OC-${result.purchaseOrderName}.pdf`;
+      a.download = `${supplier.name}-${date}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {

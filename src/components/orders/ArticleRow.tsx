@@ -61,6 +61,7 @@ interface Props {
   onUpdatePrintValue: (rowId: string, columnId: string, value: string) => void;
   onChange: (article: Article) => void;
   onRemove: () => void;
+  onOpenSizeModal?: () => void;
 }
 
 const COLOR_COL = "__color__";
@@ -85,6 +86,7 @@ export function ArticleRow({
   onUpdatePrintValue,
   onChange,
   onRemove,
+  onOpenSizeModal,
 }: Props) {
   const [debouncedNameQuery, setDebouncedNameQuery] = useState("");
   const [sizeRangeModalOpen, setSizeRangeModalOpen] = useState(false);
@@ -94,7 +96,6 @@ export function ArticleRow({
   const nameTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   const [colWidths, setColWidths] = useState<Record<string, number>>({});
-  const [hiddenSizes, setHiddenSizes] = useState<Set<string>>(new Set());
   const [hiddenPrintCols, setHiddenPrintCols] = useState<Set<string>>(
     new Set(),
   );
@@ -150,15 +151,6 @@ export function ArticleRow({
     }
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
-  }
-
-  function toggleHideSize(name: string) {
-    setHiddenSizes((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
   }
 
   function toggleHidePrintCol(id: string) {
@@ -374,8 +366,7 @@ export function ArticleRow({
     zIndex: 1,
   };
 
-  const visibleSizes = article.sizes.filter((s) => !hiddenSizes.has(s.name));
-  const hiddenSizesList = article.sizes.filter((s) => hiddenSizes.has(s.name));
+  const visibleSizes = article.sizes;
   const visiblePrintColumns = printColumns.filter(
     (c) => !hiddenPrintCols.has(c.id),
   );
@@ -728,51 +719,6 @@ export function ArticleRow({
             </div>
           )}
 
-          {/* Hidden sizes chips */}
-          {hiddenSizesList.length > 0 && (
-            <div
-              style={{
-                display: "flex",
-                gap: 4,
-                marginBottom: 8,
-                flexWrap: "wrap",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 11,
-                  color: "var(--text3)",
-                  alignSelf: "center",
-                }}
-              >
-                Ocultos:
-              </span>
-              {hiddenSizesList.map((size) => (
-                <button
-                  key={size.id}
-                  type="button"
-                  onClick={() => toggleHideSize(size.name)}
-                  title="Mostrar talle"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 3,
-                    background: "var(--surface2)",
-                    border: "1px solid var(--border)",
-                    color: "var(--text3)",
-                    borderRadius: 4,
-                    padding: "2px 7px",
-                    fontSize: 11,
-                    cursor: "pointer",
-                  }}
-                >
-                  <Eye size={10} />
-                  {size.name}
-                </button>
-              ))}
-            </div>
-          )}
-
           {/* Grid */}
           <div style={{ overflowX: "auto" }}>
             <table
@@ -944,16 +890,6 @@ export function ArticleRow({
                           }}
                         >
                           {size.name}
-                          <ActionIcon
-                            variant="subtle"
-                            color="gray"
-                            size={14}
-                            onClick={() => toggleHideSize(size.name)}
-                            title="Ocultar talle"
-                            style={{ padding: 0 }}
-                          >
-                            <EyeOff size={9} />
-                          </ActionIcon>
                         </div>
                         <div
                           style={resizeHandle}
@@ -968,7 +904,7 @@ export function ArticleRow({
                   <th style={headerCellStyle}>
                     <button
                       type="button"
-                      onClick={() => setSizeRangeModalOpen(true)}
+                      onClick={() => { onOpenSizeModal?.(); setSizeRangeModalOpen(true); }}
                       style={{
                         background: "none",
                         border: "1px dashed var(--border2)",

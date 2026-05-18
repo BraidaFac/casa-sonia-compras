@@ -54,12 +54,15 @@ export async function POST(request: NextRequest) {
     });
 
     const buffer = Buffer.from(pdfBytes);
-    const orderName = String(orders[0].name);
+    const partnerName = Array.isArray(orders[0].partner_id)
+      ? String(orders[0].partner_id[1])
+      : String(orders[0].partner_id);
+    const dateOrder = String(orders[0].date_order).split(" ")[0];
 
     return new NextResponse(buffer, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="OC-${orderName}.pdf"`,
+        "Content-Disposition": `attachment; filename="${partnerName}-${dateOrder}.pdf"`,
       },
     });
   } catch (error) {
