@@ -1,6 +1,6 @@
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { odoo } from "./odoo";
-import type { Article, PrintColumn, PrintValues } from "@/types";
+import type { Article, PrintColumn, PrintValues, Warehouse } from "@/types";
 
 interface OrderLine {
   productName: string;
@@ -265,10 +265,11 @@ interface GridPdfData {
   printColumns: PrintColumn[];
   printValues: PrintValues;
   comment?: string;
+  selectedWarehouses?: Warehouse[];
 }
 
 export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
-  const { order, articles, printColumns, printValues, comment } = data;
+  const { order, articles, printColumns, printValues, comment, selectedWarehouses = [] } = data;
 
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -291,7 +292,8 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
   const ROW_H = 16;
   const HEADER_ROW_H = 18;
   const PRINT_COL_W = 70;
-  const COLOR_COL_W = 80;
+  const COLOR_COL_W = 90;
+  const COLOR_BASE_COL_W = 75;
 
   const LOGO_H = 28;
   const LOGO_W = 34;
@@ -373,15 +375,16 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
       x: MARGIN + 6, y: y - 14, size: 10, font: fontBold, color: colorBlack,
     });
 
-    const totalUnits = article.rows.reduce(
-      (sum, row) =>
-        sum +
-        article.sizes.reduce(
-          (s, sz) => s + (parseInt(row.quantities[sz.name] || "0", 10) || 0),
-          0,
-        ),
-      0,
-    );
+    const totalUnits = article.rows.reduce((sum, row) => {
+      if (selectedWarehouses.length > 0) {
+        return sum + Object.values(row.warehouseQuantities || {}).reduce(
+          (s, v) => s + (parseInt(v || "0", 10) || 0), 0
+        );
+      }
+      return sum + article.sizes.reduce(
+        (s, sz) => s + (parseInt(row.quantities[sz.name] || "0", 10) || 0), 0
+      );
+    }, 0);
     const unitsLabel = `${totalUnits} u.`;
     const unitsW = fontBold.widthOfTextAtSize(unitsLabel, 10);
     page.drawText(unitsLabel, {
@@ -403,8 +406,9 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
 
     // ── Column widths ─────────────────────────────────────────────────────────
 
+    const warehouseColW = selectedWarehouses.length > 0 ? 70 : 0;
     const available = PAGE_W - MARGIN * 2;
-    const fixedW = printColumns.length * PRINT_COL_W + COLOR_COL_W;
+    const fixedW = printColumns.length * PRINT_COL_W + COLOR_COL_W + COLOR_BASE_COL_W + warehouseColW;
     const sizeColW = article.sizes.length > 0
       ? Math.min(50, Math.max(25, (available - fixedW) / article.sizes.length))
       : 40;
@@ -431,10 +435,30 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
       x, y: y - HEADER_ROW_H, width: COLOR_COL_W, height: HEADER_ROW_H,
       color: colorAccent, borderColor: colorBorderCell, borderWidth: 0.5,
     });
-    page.drawText("COLOR", {
-      x: x + 5, y: y - HEADER_ROW_H + 5, size: 8, font: fontBold, color: colorWhite,
+    page.drawText("COLOR PROVEEDOR", {
+      x: x + 4, y: y - HEADER_ROW_H + 5, size: 7, font: fontBold, color: colorWhite,
     });
     x += COLOR_COL_W;
+
+    page.drawRectangle({
+      x, y: y - HEADER_ROW_H, width: COLOR_BASE_COL_W, height: HEADER_ROW_H,
+      color: colorAccent, borderColor: colorBorderCell, borderWidth: 0.5,
+    });
+    page.drawText("COLOR BASE", {
+      x: x + 4, y: y - HEADER_ROW_H + 5, size: 7, font: fontBold, color: colorWhite,
+    });
+    x += COLOR_BASE_COL_W;
+
+    if (selectedWarehouses.length > 0) {
+      page.drawRectangle({
+        x, y: y - HEADER_ROW_H, width: warehouseColW, height: HEADER_ROW_H,
+        color: colorAccent, borderColor: colorBorderCell, borderWidth: 0.5,
+      });
+      page.drawText("SUCURSAL", {
+        x: x + 4, y: y - HEADER_ROW_H + 5, size: 8, font: fontBold, color: colorWhite,
+      });
+      x += warehouseColW;
+    }
 
     for (const sz of article.sizes) {
       page.drawRectangle({
@@ -459,55 +483,186 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
 
     article.rows.forEach((row, rowIdx) => {
       const rowBg = rowIdx % 2 === 0 ? colorRowEven : colorRowOdd;
-      x = MARGIN;
 
-      for (const col of printColumns) {
-        const val = truncate(printValues[`${article.id}:${row.id}:${col.id}`] || "", 11);
+      if (selectedWarehouses.length === 0) {
+        // ── No warehouses — original single row ──────────────────────────────
+        x = MARGIN;
+
+        for (const col of printColumns) {
+          const val = truncate(printValues[`${article.id}:${row.id}:${col.id}`] || "", 11);
+          page.drawRectangle({
+            x, y: y - ROW_H, width: PRINT_COL_W, height: ROW_H,
+            color: rowBg, borderColor: colorBorderCell, borderWidth: 0.5,
+          });
+          if (val) {
+            const vw = font.widthOfTextAtSize(val, 8);
+            page.drawText(val, {
+              x: x + (PRINT_COL_W - vw) / 2, y: y - ROW_H + 4,
+              size: 8, font, color: colorBlack,
+            });
+          }
+          x += PRINT_COL_W;
+        }
+
+        const colorName = truncate(row.color?.name || "—", 13);
+        const xColorStart = x;
         page.drawRectangle({
-          x, y: y - ROW_H, width: PRINT_COL_W, height: ROW_H,
+          x, y: y - ROW_H, width: COLOR_COL_W, height: ROW_H,
           color: rowBg, borderColor: colorBorderCell, borderWidth: 0.5,
         });
-        if (val) {
-          const vw = font.widthOfTextAtSize(val, 8);
-          page.drawText(val, {
-            x: x + (PRINT_COL_W - vw) / 2, y: y - ROW_H + 4,
-            size: 8, font, color: colorBlack,
+        let colorTextX = xColorStart + 4;
+        if (row.color?.hexColor) {
+          const hex = row.color.hexColor;
+          const r = parseInt(hex.slice(1, 3), 16) / 255;
+          const g = parseInt(hex.slice(3, 5), 16) / 255;
+          const b = parseInt(hex.slice(5, 7), 16) / 255;
+          page.drawCircle({
+            x: xColorStart + 7,
+            y: y - ROW_H / 2,
+            size: 4,
+            color: rgb(r, g, b),
+            borderColor: rgb(0.7, 0.7, 0.7),
+            borderWidth: 0.5,
           });
+          colorTextX = xColorStart + 15;
         }
-        x += PRINT_COL_W;
-      }
-
-      const colorName = truncate(row.color?.name || "—", 13);
-      page.drawRectangle({
-        x, y: y - ROW_H, width: COLOR_COL_W, height: ROW_H,
-        color: rowBg, borderColor: colorBorderCell, borderWidth: 0.5,
-      });
-      page.drawText(colorName, {
-        x: x + 4, y: y - ROW_H + 4, size: 8, font, color: colorBlack,
-      });
-      x += COLOR_COL_W;
-
-      for (const sz of article.sizes) {
-        const qty = parseInt(row.quantities[sz.name] || "0", 10) || 0;
-        totalsBySize[sz.name] = (totalsBySize[sz.name] || 0) + qty;
-
-        page.drawRectangle({
-          x, y: y - ROW_H, width: sizeColW, height: ROW_H,
-          color: qty > 0 ? rowBg : colorEmptyCell,
-          borderColor: colorBorderCell, borderWidth: 0.5,
+        page.drawText(colorName, {
+          x: colorTextX, y: y - ROW_H + 4, size: 8, font, color: colorBlack,
         });
-        if (qty > 0) {
-          const qStr = String(qty);
-          const qw = font.widthOfTextAtSize(qStr, 8);
-          page.drawText(qStr, {
-            x: x + (sizeColW - qw) / 2, y: y - ROW_H + 4,
-            size: 8, font, color: colorBlack,
-          });
-        }
-        x += sizeColW;
-      }
+        x += COLOR_COL_W;
 
-      y -= ROW_H;
+        // Color Base cell
+        const colorBaseName = truncate(row.color?.colorBase || "—", 12);
+        page.drawRectangle({
+          x, y: y - ROW_H, width: COLOR_BASE_COL_W, height: ROW_H,
+          color: rowBg, borderColor: colorBorderCell, borderWidth: 0.5,
+        });
+        page.drawText(colorBaseName, {
+          x: x + 4, y: y - ROW_H + 4, size: 8, font, color: colorBlack,
+        });
+        x += COLOR_BASE_COL_W;
+
+        for (const sz of article.sizes) {
+          const qty = parseInt(row.quantities[sz.name] || "0", 10) || 0;
+          totalsBySize[sz.name] = (totalsBySize[sz.name] || 0) + qty;
+
+          page.drawRectangle({
+            x, y: y - ROW_H, width: sizeColW, height: ROW_H,
+            color: qty > 0 ? rowBg : colorEmptyCell,
+            borderColor: colorBorderCell, borderWidth: 0.5,
+          });
+          if (qty > 0) {
+            const qStr = String(qty);
+            const qw = font.widthOfTextAtSize(qStr, 8);
+            page.drawText(qStr, {
+              x: x + (sizeColW - qw) / 2, y: y - ROW_H + 4,
+              size: 8, font, color: colorBlack,
+            });
+          }
+          x += sizeColW;
+        }
+
+        y -= ROW_H;
+      } else {
+        // ── With warehouses — N subrows per color ────────────────────────────
+        const nSub = selectedWarehouses.length;
+        const colorCellH = ROW_H * nSub;
+
+        // Draw color cell spanning all subrows (simulated rowSpan)
+        const xPrintStart = MARGIN + printColumns.length * PRINT_COL_W;
+        for (let ci = 0; ci < printColumns.length; ci++) {
+          const col = printColumns[ci];
+          const val = truncate(printValues[`${article.id}:${row.id}:${col.id}`] || "", 11);
+          const xP = MARGIN + ci * PRINT_COL_W;
+          page.drawRectangle({
+            x: xP, y: y - colorCellH, width: PRINT_COL_W, height: colorCellH,
+            color: rowBg, borderColor: colorBorderCell, borderWidth: 0.5,
+          });
+          if (val) {
+            const vw = font.widthOfTextAtSize(val, 8);
+            page.drawText(val, {
+              x: xP + (PRINT_COL_W - vw) / 2, y: y - colorCellH / 2 - 3,
+              size: 8, font, color: colorBlack,
+            });
+          }
+        }
+
+        const colorName = truncate(row.color?.name || "—", 13);
+        page.drawRectangle({
+          x: xPrintStart, y: y - colorCellH, width: COLOR_COL_W, height: colorCellH,
+          color: rowBg, borderColor: colorBorderCell, borderWidth: 0.5,
+        });
+        let wColorTextX = xPrintStart + 4;
+        if (row.color?.hexColor) {
+          const hex = row.color.hexColor;
+          const r = parseInt(hex.slice(1, 3), 16) / 255;
+          const g = parseInt(hex.slice(3, 5), 16) / 255;
+          const b = parseInt(hex.slice(5, 7), 16) / 255;
+          page.drawCircle({
+            x: xPrintStart + 7,
+            y: y - colorCellH / 2,
+            size: 4,
+            color: rgb(r, g, b),
+            borderColor: rgb(0.7, 0.7, 0.7),
+            borderWidth: 0.5,
+          });
+          wColorTextX = xPrintStart + 15;
+        }
+        page.drawText(colorName, {
+          x: wColorTextX, y: y - colorCellH / 2 - 3,
+          size: 8, font, color: colorBlack,
+        });
+
+        // Color Base cell spanning all subrows
+        const xColorBase = xPrintStart + COLOR_COL_W;
+        const colorBaseName = truncate(row.color?.colorBase || "—", 11);
+        page.drawRectangle({
+          x: xColorBase, y: y - colorCellH, width: COLOR_BASE_COL_W, height: colorCellH,
+          color: rowBg, borderColor: colorBorderCell, borderWidth: 0.5,
+        });
+        page.drawText(colorBaseName, {
+          x: xColorBase + 4, y: y - colorCellH / 2 - 3,
+          size: 8, font, color: colorBlack,
+        });
+
+        // Draw each warehouse subrow
+        selectedWarehouses.forEach((warehouse) => {
+          const xW = xPrintStart + COLOR_COL_W + COLOR_BASE_COL_W;
+
+          page.drawRectangle({
+            x: xW, y: y - ROW_H, width: warehouseColW, height: ROW_H,
+            color: rowBg, borderColor: colorBorderCell, borderWidth: 0.5,
+          });
+          page.drawText(truncate(warehouse.name, 10), {
+            x: xW + 4, y: y - ROW_H + 4, size: 7, font, color: colorBlack,
+          });
+
+          let xS = xW + warehouseColW;
+          for (const sz of article.sizes) {
+            const qty = parseInt(
+              row.warehouseQuantities?.[`${warehouse.id}:${sz.name}`] || "0", 10,
+            ) || 0;
+            totalsBySize[sz.name] = (totalsBySize[sz.name] || 0) + qty;
+
+            page.drawRectangle({
+              x: xS, y: y - ROW_H, width: sizeColW, height: ROW_H,
+              color: qty > 0 ? rowBg : colorEmptyCell,
+              borderColor: colorBorderCell, borderWidth: 0.5,
+            });
+            if (qty > 0) {
+              const qStr = String(qty);
+              const qw = font.widthOfTextAtSize(qStr, 8);
+              page.drawText(qStr, {
+                x: xS + (sizeColW - qw) / 2, y: y - ROW_H + 4,
+                size: 8, font, color: colorBlack,
+              });
+            }
+            xS += sizeColW;
+          }
+
+          y -= ROW_H;
+        });
+      }
     });
 
     // ── Total row ─────────────────────────────────────────────────────────────
@@ -531,6 +686,20 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
     });
     x += COLOR_COL_W;
 
+    page.drawRectangle({
+      x, y: y - ROW_H, width: COLOR_BASE_COL_W, height: ROW_H,
+      color: colorTotalRow, borderColor: colorBorderCell, borderWidth: 0.5,
+    });
+    x += COLOR_BASE_COL_W;
+
+    if (selectedWarehouses.length > 0) {
+      page.drawRectangle({
+        x, y: y - ROW_H, width: warehouseColW, height: ROW_H,
+        color: colorTotalRow, borderColor: colorBorderCell, borderWidth: 0.5,
+      });
+      x += warehouseColW;
+    }
+
     for (const sz of article.sizes) {
       const total = totalsBySize[sz.name] || 0;
       page.drawRectangle({
@@ -552,21 +721,41 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
   }
 
   // Total valorizado
+  const warehouseMode = selectedWarehouses.length > 0;
+
   const grandTotal = articles.reduce((sum, article) =>
-    sum + article.rows.reduce((s2, row) =>
-      s2 + article.sizes.reduce((s3, sz) => {
+    sum + article.rows.reduce((s2, row) => {
+      if (warehouseMode) {
+        return s2 + Object.entries(row.warehouseQuantities || {}).reduce((s3, [key, val]) => {
+          const qty = parseInt(val || "0", 10) || 0;
+          if (qty <= 0) return s3;
+          const sizeName = key.split(":").slice(1).join(":");
+          const price = article.priceGranular
+            ? parseFloat(row.prices?.[sizeName] || article.price) || 0
+            : parseFloat(article.price) || 0;
+          return s3 + qty * price;
+        }, 0);
+      }
+      return s2 + article.sizes.reduce((s3, sz) => {
         const qty = parseInt(row.quantities[sz.name] || "0", 10) || 0;
         if (qty <= 0) return s3;
         const price = article.priceGranular
           ? parseFloat(row.prices?.[sz.name] || article.price) || 0
           : parseFloat(article.price) || 0;
         return s3 + qty * price;
-      }, 0), 0), 0);
+      }, 0);
+    }, 0), 0);
 
   const grandUnits = articles.reduce((sum, article) =>
-    sum + article.rows.reduce((s2, row) =>
-      s2 + article.sizes.reduce((s3, sz) =>
-        s3 + (parseInt(row.quantities[sz.name] || "0", 10) || 0), 0), 0), 0);
+    sum + article.rows.reduce((s2, row) => {
+      if (warehouseMode) {
+        return s2 + Object.values(row.warehouseQuantities || {}).reduce(
+          (s, v) => s + (parseInt(v || "0", 10) || 0), 0
+        );
+      }
+      return s2 + article.sizes.reduce((s3, sz) =>
+        s3 + (parseInt(row.quantities[sz.name] || "0", 10) || 0), 0);
+    }, 0), 0);
 
   y -= 8;
   page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 1, color: colorAccent });
@@ -581,22 +770,30 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
   if (comment && comment.trim()) {
     page.drawText("Comentario:", { x: MARGIN, y, size: 8, font: fontBold, color: colorBlack });
     y -= 12;
-    const words = comment.trim().split(" ");
-    let line = "";
-    for (const word of words) {
-      const test = line ? `${line} ${word}` : word;
-      if (font.widthOfTextAtSize(test, 8) > PAGE_W - MARGIN * 2 - 10) {
+    const paragraphs = comment.trim().split(/\r?\n/);
+    for (const paragraph of paragraphs) {
+      if (paragraph.trim() === "") {
+        y -= 11;
+        continue;
+      }
+      const words = paragraph.split(" ");
+      let line = "";
+      for (const word of words) {
+        const test = line ? `${line} ${word}` : word;
+        if (font.widthOfTextAtSize(test, 8) > PAGE_W - MARGIN * 2 - 10) {
+          page.drawText(line, { x: MARGIN + 6, y, size: 8, font, color: colorMuted });
+          y -= 11;
+          line = word;
+        } else {
+          line = test;
+        }
+      }
+      if (line) {
         page.drawText(line, { x: MARGIN + 6, y, size: 8, font, color: colorMuted });
         y -= 11;
-        line = word;
-      } else {
-        line = test;
       }
     }
-    if (line) {
-      page.drawText(line, { x: MARGIN + 6, y, size: 8, font, color: colorMuted });
-      y -= 14;
-    }
+    y -= 3;
   }
 
   // Footer on last page

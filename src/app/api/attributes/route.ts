@@ -24,7 +24,7 @@ export async function GET() {
     const values = await odoo.searchRead(
       "product.attribute.value",
       [["attribute_id", "in", [colorAttr.id, sizeAttr.id]]],
-      ["id", "name", "attribute_id"],
+      ["id", "name", "attribute_id", "html_color", "x_studio_color_base"],
     );
 
     const colors = values
@@ -34,7 +34,13 @@ export async function GET() {
             ? v.attribute_id[0]
             : v.attribute_id) === colorAttr.id,
       )
-      .map((v: { id: number; name: string }) => ({ id: v.id, name: v.name }));
+      .map((v: { id: number; name: string; html_color?: string; x_studio_color_base?: string }) => ({
+        id: v.id,
+        name: v.name,
+        colorBase: v.x_studio_color_base || "",
+        hexColor: v.html_color || "",
+        isNew: false,
+      }));
 
     const sizes = values
       .filter(

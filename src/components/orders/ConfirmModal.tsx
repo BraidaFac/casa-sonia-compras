@@ -12,12 +12,13 @@ import {
   Textarea,
 } from "@mantine/core";
 import { CheckCircle } from "lucide-react";
-import type { Article, Supplier, PrintColumn, PrintValues } from "@/types";
+import type { Article, Supplier, PrintColumn, PrintValues, Warehouse } from "@/types";
 
 interface Props {
   supplier: Supplier;
   date: string;
   articles: Article[];
+  selectedWarehouses: Warehouse[];
   printColumns: PrintColumn[];
   printValues: PrintValues;
   onClose: () => void;
@@ -40,6 +41,10 @@ async function createOrder(body: {
   supplierId: number;
   date: string;
   articles: Article[];
+  warehouseIds: number[];
+  printColumns: import("@/types").PrintColumn[];
+  printValues: import("@/types").PrintValues;
+  selectedWarehouses: import("@/types").Warehouse[];
 }): Promise<OrderResult> {
   const res = await fetch("/api/orders", {
     method: "POST",
@@ -55,21 +60,38 @@ async function createOrder(body: {
   return res.json();
 }
 
-function calcArticleSummary(article: Article) {
+function calcArticleSummary(article: Article, warehouseMode: boolean) {
   let units = 0;
   let amount = 0;
   const variantSet = new Set<string>();
 
-  for (const row of article.rows) {
-    for (const size of article.sizes) {
-      const qty = parseInt(row.quantities[size.name] || "0", 10);
-      if (qty > 0) {
+  if (warehouseMode) {
+    for (const row of article.rows) {
+      for (const [key, val] of Object.entries(row.warehouseQuantities || {})) {
+        const qty = parseInt(val || "0", 10);
+        if (qty <= 0) continue;
         units += qty;
-        variantSet.add(`${row.color?.name || "?"}/${size.name}`);
+        const sizeName = key.split(":").slice(1).join(":");
+        variantSet.add(`${row.color?.name || "?"}/${sizeName}`);
         if (article.priceGranular) {
-          const specific = row.prices?.[size.name];
+          const specific = row.prices?.[sizeName];
           const price = specific ? parseFloat(specific) || 0 : parseFloat(article.price) || 0;
           amount += price * qty;
+        }
+      }
+    }
+  } else {
+    for (const row of article.rows) {
+      for (const size of article.sizes) {
+        const qty = parseInt(row.quantities[size.name] || "0", 10);
+        if (qty > 0) {
+          units += qty;
+          variantSet.add(`${row.color?.name || "?"}/${size.name}`);
+          if (article.priceGranular) {
+            const specific = row.prices?.[size.name];
+            const price = specific ? parseFloat(specific) || 0 : parseFloat(article.price) || 0;
+            amount += price * qty;
+          }
         }
       }
     }
@@ -98,7 +120,7 @@ function calcArticleSummary(article: Article) {
   return { units, variants: variantSet.size, priceDisplay, amount };
 }
 
-export function ConfirmModal({ supplier, date, articles, printColumns, printValues, onClose, onConfirmed, onValidationError }: Props) {
+export function ConfirmModal({ supplier, date, articles, selectedWarehouses, printColumns, printValues, onClose, onConfirmed, onValidationError }: Props) {
   const [step, setStep] = useState<"preview" | "submitting" | "done">("preview");
   const [result, setResult] = useState<OrderResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -128,7 +150,15 @@ export function ConfirmModal({ supplier, date, articles, printColumns, printValu
   });
 
   function handleSubmit() {
-    mutation.mutate({ supplierId: supplier.id, date, articles });
+    mutation.mutate({
+      supplierId: supplier.id,
+      date,
+      articles,
+      warehouseIds: selectedWarehouses.map((w) => w.id),
+      printColumns,
+      printValues,
+      selectedWarehouses,
+    });
   }
 
   async function downloadPdf(comment: string) {
@@ -144,6 +174,7 @@ export function ConfirmModal({ supplier, date, articles, printColumns, printValu
           printColumns,
           printValues,
           articles,
+          selectedWarehouses,
           comment,
         }),
       });
@@ -152,7 +183,7 @@ export function ConfirmModal({ supplier, date, articles, printColumns, printValu
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${supplier.name}-${date}.pdf`;
+      a.download = `${result.purchaseOrderName} - ${supplier.name} - ${date}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -160,9 +191,14 @@ export function ConfirmModal({ supplier, date, articles, printColumns, printValu
     }
   }
 
-  const summaries = articles.map((a) => ({ ...a, ...calcArticleSummary(a) }));
+  const warehouseMode = selectedWarehouses.length > 0;
+  const summaries = articles.map((a) => ({ ...a, ...calcArticleSummary(a, warehouseMode) }));
   const grandTotal = summaries.reduce((s, a) => s + a.amount, 0);
   const grandUnits = summaries.reduce((s, a) => s + a.units, 0);
+
+  const missingSizeAttribute = articles.some(
+    (a) => !a.sizeAttributeId && a.sizes.length > 0,
+  );
 
   return (
     <Modal
@@ -257,6 +293,12 @@ export function ConfirmModal({ supplier, date, articles, printColumns, printValu
               </Table.Tr>
             </Table.Tfoot>
           </Table>
+
+          {missingSizeAttribute && (
+            <Text size="xs" c="orange">
+              Advertencia: algunos artículos no tienen tipo de talle seleccionado. La confirmación puede fallar.
+            </Text>
+          )}
 
           {step === "submitting" && (
             <Group gap="xs" c="dimmed">

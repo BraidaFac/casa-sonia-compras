@@ -3,9 +3,35 @@ export interface Supplier {
   name: string;
 }
 
+export interface ProductCategory {
+  id: number;
+  name: string;
+  completeName: string;
+}
+
 export interface AttributeValue {
   id: number;
   name: string;
+}
+
+export interface ColorValue {
+  id: number | null;  // null if new color not yet in Odoo
+  name: string;
+  colorBase: string;  // x_studio_color_base value
+  hexColor: string;   // html_color value (e.g. "#1a2b3c")
+  isNew: boolean;     // true if created from the app, not yet in Odoo
+}
+
+export interface SizeValue {
+  id: number;
+  name: string;
+  equivalencia: string;
+}
+
+export interface SizeAttribute {
+  id: number;
+  name: string;
+  values: SizeValue[];
 }
 
 // Generic attribute for the Attributes tab
@@ -17,12 +43,34 @@ export interface ProductAttribute {
   generatesVariants: boolean;
 }
 
+export interface Warehouse {
+  id: number;
+  name: string;
+  code: string;
+}
+
 export interface ArticleRow {
   id: string; // local UUID
-  color: AttributeValue | null;
-  quantities: Record<string, string>; // size name → quantity string
+  color: ColorValue | null;
+  quantities: Record<string, string>; // size name → quantity string (no-warehouse mode)
   prices?: Record<string, string>; // size name → price (granular mode)
+  // key: `${warehouseId}:${sizeName}` → quantity string (warehouse mode)
+  warehouseQuantities: Record<string, string>;
 }
+
+// Imagen subida a Drive — por variante de color
+export interface ProductImage {
+  id: string;           // UUID local
+  fileId: string;       // ID del archivo en Google Drive
+  thumbnailUrl: string; // URL thumbnail para Odoo y preview
+  downloadUrl: string;  // URL de descarga directa
+  fileName: string;     // nombre original del archivo
+  uploading?: boolean;  // true mientras se está subiendo
+  error?: string;       // mensaje de error si falló
+}
+
+// Imágenes por color — key: colorName → array de imágenes
+export type ColorImages = Record<string, ProductImage[]>;
 
 export interface Article {
   id: string; // local UUID
@@ -30,12 +78,15 @@ export interface Article {
   existingProductId: number | null;
   referencia: string;
   price: string; // Costo Neto
-  salePrice: string; // Precio Venta
+  salePrice: string; // Precio Venta — obligatorio
   priceGranular: boolean;
+  category: ProductCategory | null; // obligatorio
   rows: ArticleRow[];
-  sizes: AttributeValue[];
+  sizes: SizeValue[];
+  sizeAttributeId: number | null;
   attributes: ProductAttribute[];
   description: string;
+  colorImages: ColorImages; // imágenes por variante de color
   maxCoeficiente: number; // 0 if new article or no Tipo de Producto
 }
 
@@ -52,13 +103,15 @@ export interface OdooProduct {
   defaultCode: string;
   listPrice: number;
   maxCoeficiente: number;
+  category: ProductCategory | null;
   colors: AttributeValue[];
-  sizes: AttributeValue[];
+  sizes: SizeValue[];
+  sizeAttributeId: number | null;
   extraAttributes: ProductAttribute[];
 }
 
 export interface AttributesData {
-  colors: AttributeValue[];
+  colors: ColorValue[];
   sizes: AttributeValue[];
   colorAttributeId: number;
   sizeAttributeId: number;

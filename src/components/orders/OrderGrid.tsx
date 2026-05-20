@@ -1,14 +1,18 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Button, Badge, Group, Text, Alert, Combobox, useCombobox, InputBase, Tooltip } from "@mantine/core";
+import { Button, Badge, Group, Text, Alert, Combobox, useCombobox, InputBase, Tooltip, MultiSelect } from "@mantine/core";
 import { Plus } from "lucide-react";
 import { ArticleRow } from "./ArticleRow";
 import { ConfirmModal } from "./ConfirmModal";
 import { useAttributes } from "@/hooks/useAttributes";
 import { useBrands } from "@/hooks/useBrands";
 import { useCompradora } from "@/hooks/useCompradora";
+import { useCategories } from "@/hooks/useCategories";
+import { useWarehouses } from "@/hooks/useWarehouses";
+import { useSizeAttributes } from "@/hooks/useSizeAttributes";
+import { useColorBaseOptions } from "@/hooks/useColorBaseOptions";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import type { Article, AttributeValue, Supplier, PrintColumn, PrintValues } from "@/types";
+import type { Article, AttributeValue, Supplier, PrintColumn, PrintValues, Warehouse } from "@/types";
 
 interface Props {
   supplier: Supplier | null;
@@ -52,10 +56,13 @@ function createEmptyArticle(
     price: "",
     salePrice: "",
     priceGranular: false,
-    rows: [{ id: crypto.randomUUID(), color: null, quantities: {} }],
+    category: null,
+    rows: [{ id: crypto.randomUUID(), color: null, quantities: {}, warehouseQuantities: {} }],
     sizes: [],
+    sizeAttributeId: null,
     attributes,
     description: "",
+    colorImages: {},
     maxCoeficiente: 0,
   };
 }
@@ -70,10 +77,15 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
   const [brandSearch, setBrandSearch] = useState("");
   const [globalCompradora, setGlobalCompradora] = useState<AttributeValue | null>(null);
   const [compradoaSearch, setCompradoaSearch] = useState("");
+  const [selectedWarehouses, setSelectedWarehouses] = useState<Warehouse[]>([]);
 
   const { data: attrData, isLoading: attrLoading, error: attrError, refetch: refetchAttrs } = useAttributes();
+  const { data: sizeAttributes = [] } = useSizeAttributes();
   const { data: brandsData } = useBrands();
   const { data: compradoaData } = useCompradora();
+  const { data: categories = [] } = useCategories();
+  const { data: allWarehouses = [] } = useWarehouses();
+  const { data: colorBaseOptions = [] } = useColorBaseOptions();
 
   const allColors = attrData?.colors || [];
   const allSizes = attrData?.sizes || [];
@@ -192,6 +204,37 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
     setArticles((prev) => prev.filter((a) => a.id !== id));
   }
 
+  function duplicateArticle(id: string) {
+    const original = articles.find((a) => a.id === id);
+    if (!original) return;
+
+    const duplicated: Article = {
+      ...original,
+      id: crypto.randomUUID(),
+      name: "",
+      referencia: "",
+      existingProductId: null,
+      colorImages: {},
+      rows: original.rows.map((row) => ({
+        ...row,
+        id: crypto.randomUUID(),
+        warehouseQuantities: { ...row.warehouseQuantities },
+      })),
+      sizes: original.sizes.map((size) => ({ ...size })),
+      attributes: original.attributes.map((attr) => ({
+        ...attr,
+        values: [...attr.values],
+      })),
+    };
+
+    setArticles((prev) => {
+      const idx = prev.findIndex((a) => a.id === id);
+      const next = [...prev];
+      next.splice(idx + 1, 0, duplicated);
+      return next;
+    });
+  }
+
   function addArticle() {
     const brandInfo =
       globalBrand && brandAttributeId
@@ -215,6 +258,9 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
         );
         if (!hasQty) continue;
 
+        // Skip new colors — they'll be created on confirm
+        if (row.color.isNew) continue;
+
         const colorExists = allColors.some(
           (c) => c.name.toLowerCase() === row.color!.name.toLowerCase(),
         );
@@ -223,8 +269,9 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
         }
       }
 
+      const allSizeValues = sizeAttributes.flatMap((a) => a.values);
       for (const size of article.sizes) {
-        const sizeExists = allSizes.some(
+        const sizeExists = allSizeValues.some(
           (s) => s.name.toLowerCase() === size.name.toLowerCase(),
         );
         if (!sizeExists) {
@@ -240,6 +287,11 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
     return (
       sum +
       article.rows.reduce((s2, row) => {
+        if (selectedWarehouses.length > 0) {
+          return s2 + Object.values(row.warehouseQuantities || {}).reduce(
+            (s, v) => s + (parseInt(v || "0", 10) || 0), 0
+          );
+        }
         return (
           s2 +
           article.sizes.reduce((s3, size) => {
@@ -253,6 +305,21 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
 
   const totalAmount = articles.reduce((sum, article) => {
     return sum + article.rows.reduce((s2, row) => {
+      if (selectedWarehouses.length > 0) {
+        return s2 + Object.entries(row.warehouseQuantities || {}).reduce((s3, [key, val]) => {
+          const qty = parseInt(val || "0", 10);
+          if (isNaN(qty) || qty <= 0) return s3;
+          const sizeName = key.split(":").slice(1).join(":");
+          let price: number;
+          if (article.priceGranular) {
+            const specific = row.prices?.[sizeName];
+            price = specific ? parseFloat(specific) || 0 : parseFloat(article.price) || 0;
+          } else {
+            price = parseFloat(article.price) || 0;
+          }
+          return s3 + price * qty;
+        }, 0);
+      }
       return s2 + article.sizes.reduce((s3, size) => {
         const qty = parseInt(row.quantities[size.name] || "0", 10);
         if (isNaN(qty) || qty <= 0) return s3;
@@ -325,8 +392,44 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
     if (!supplier) return "Seleccioná un proveedor";
     if (!date) return "Seleccioná una fecha";
     if (!hasAnyQty) return "Ingresá al menos una cantidad";
+
+    const missingSalePrice = articles.some((a) => {
+      const hasQty = a.rows.some((r) =>
+        a.sizes.some((s) => parseInt(r.quantities[s.name] || "0", 10) > 0),
+      );
+      return hasQty && !a.salePrice;
+    });
+    if (missingSalePrice) return "Todos los artículos deben tener Precio de Venta";
+
+    const missingCategory = articles.some((a) => {
+      const hasQty = a.rows.some((r) =>
+        a.sizes.some((s) => parseInt(r.quantities[s.name] || "0", 10) > 0),
+      );
+      return hasQty && !a.category;
+    });
+    if (missingCategory) return "Todos los artículos deben tener Categoría asignada";
+
+    const missingSizeAttr = articles.some((a) => {
+      const hasQty = a.rows.some((r) =>
+        a.sizes.some((s) => parseInt(r.quantities[s.name] || "0", 10) > 0),
+      );
+      return hasQty && !a.sizeAttributeId;
+    });
+    if (missingSizeAttr) return "Todos los artículos deben tener tipo de talle seleccionado";
+
     if (missingBrand) return "Todos los artículos deben tener Marca asignada";
     if (hasValidationErrors) return "Hay artículos con precio o color faltante";
+
+    const missingColorBaseOrHex = articles.some((a) =>
+      a.rows.some(
+        (r) =>
+          r.color?.isNew &&
+          (!r.color.colorBase || !r.color.hexColor),
+      ),
+    );
+    if (missingColorBaseOrHex)
+      return "Hay colores nuevos sin Color Base o HEX asignado";
+
     return null;
   }
 
@@ -351,8 +454,8 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
 
   return (
     <div>
-      {/* Brand + Compradora selectors */}
-      {(allBrands.length > 0 || allCompradoas.length > 0) && (
+      {/* Brand + Compradora + Sucursales selectors */}
+      {(allBrands.length > 0 || allCompradoas.length > 0 || allWarehouses.length > 0) && (
         <Group mb="md" align="flex-end">
           {allBrands.length > 0 && (
             <div>
@@ -471,6 +574,31 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
               </Combobox>
             </div>
           )}
+
+          {allWarehouses.length > 0 && (
+            <div>
+              <Text size="xs" c="dimmed" fw={500} mb={6}>
+                Sucursales (global)
+              </Text>
+              <MultiSelect
+                placeholder="Seleccionar sucursales..."
+                data={allWarehouses.map((w) => ({
+                  value: String(w.id),
+                  label: w.name,
+                }))}
+                value={selectedWarehouses.map((w) => String(w.id))}
+                onChange={(vals) => {
+                  const selected = allWarehouses.filter((w) =>
+                    vals.includes(String(w.id)),
+                  );
+                  setSelectedWarehouses(selected);
+                }}
+                w={260}
+                size="sm"
+                clearable
+              />
+            </div>
+          )}
         </Group>
       )}
 
@@ -498,9 +626,11 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
             key={article.id}
             article={article}
             allColors={allColors}
-            allSizes={allSizes}
+            colorBaseOptions={colorBaseOptions}
+            sizeAttributes={sizeAttributes}
             colorAttributeId={colorAttributeId}
             sizeAttributeId={sizeAttributeId}
+            categories={categories}
             invalidColors={artErrors.filter((e) => e.type === "color").map((e) => e.value)}
             invalidSizes={artErrors.filter((e) => e.type === "size").map((e) => e.value)}
             printColumns={printColumns}
@@ -511,8 +641,10 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
             onUpdatePrintValue={(rowId, columnId, value) =>
               updatePrintValue(article.id, rowId, columnId, value)
             }
+            selectedWarehouses={selectedWarehouses}
             onChange={(updated) => updateArticle(article.id, updated)}
             onRemove={() => removeArticle(article.id)}
+            onDuplicate={() => duplicateArticle(article.id)}
             onOpenSizeModal={() => refetchAttrs()}
           />
         );
@@ -565,6 +697,7 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
           supplier={supplier}
           date={date}
           articles={articles}
+          selectedWarehouses={selectedWarehouses}
           printColumns={printColumns}
           printValues={printValues}
           onClose={() => setShowConfirm(false)}

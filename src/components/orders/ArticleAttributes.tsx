@@ -134,15 +134,18 @@ export function ArticleAttributes({
       const newColors = values.filter((v) => !existingColorIds.has(v.id));
       const newRows = newColors.map((color) => ({
         id: crypto.randomUUID(),
-        color,
+        color: { id: color.id, name: color.name, colorBase: "", hexColor: "", isNew: false },
         quantities: Object.fromEntries(article.sizes.map((s) => [s.name, ""])),
+        warehouseQuantities: {},
       }));
       updatedRows = [...article.rows, ...newRows];
     }
 
     if (isSize) {
       const existingSizeIds = new Set(article.sizes.map((s) => s.id));
-      const newSizes = values.filter((v) => !existingSizeIds.has(v.id));
+      const newSizes = values
+        .filter((v) => !existingSizeIds.has(v.id))
+        .map((v) => ({ ...v, equivalencia: "" }));
       updatedSizes = [...article.sizes, ...newSizes];
       updatedRows = updatedRows.map((r) => ({
         ...r,
@@ -194,7 +197,7 @@ export function ArticleAttributes({
     let updatedSizes = article.sizes;
 
     if (isColor) {
-      updatedRows = [{ id: crypto.randomUUID(), color: null, quantities: {} }];
+      updatedRows = [{ id: crypto.randomUUID(), color: null, quantities: {}, warehouseQuantities: {} }];
     }
     if (isSize) {
       updatedSizes = [];
@@ -213,8 +216,11 @@ export function ArticleAttributes({
   const colorRow = article.rows.some((r) => r.color !== null)
     ? { attributeId: colorAttributeId, attributeName: "Color o Diseño", values: article.rows.filter((r) => r.color).map((r) => r.color!), generatesVariants: true }
     : null;
+  const sizeAttrName = article.sizeAttributeId
+    ? (allAttributes.find((a) => a.id === article.sizeAttributeId)?.name ?? "Talle")
+    : "Talle";
   const sizeRow = article.sizes.length > 0
-    ? { attributeId: sizeAttributeId, attributeName: "Talle", values: article.sizes, generatesVariants: true }
+    ? { attributeId: article.sizeAttributeId ?? sizeAttributeId, attributeName: sizeAttrName, values: article.sizes, generatesVariants: true }
     : null;
 
   // Filter out color/size from editable attributes (shown as read-only)
