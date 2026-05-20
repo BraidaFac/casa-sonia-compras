@@ -357,64 +357,48 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasDirtyData]);
 
+  function articleRowHasQty(article: Article, row: { quantities: Record<string, string>; warehouseQuantities?: Record<string, string> }): boolean {
+    if (selectedWarehouses.length > 0) {
+      return Object.values(row.warehouseQuantities || {}).some(
+        (v) => parseInt(v || "0", 10) > 0,
+      );
+    }
+    return article.sizes.some((s) => parseInt(row.quantities[s.name] || "0", 10) > 0);
+  }
+
+  function articleHasQty(article: Article): boolean {
+    return article.rows.some((r) => articleRowHasQty(article, r));
+  }
+
   const hasValidationErrors = articles.some((a) => {
-    const hasQty = a.rows.some((r) =>
-      a.sizes.some((s) => parseInt(r.quantities[s.name] || "0", 10) > 0),
-    );
+    const hasQty = articleHasQty(a);
     const missingPrice = !a.priceGranular && !a.price && hasQty;
-    const missingColor = a.rows.some((r) =>
-      a.sizes.some((s) => parseInt(r.quantities[s.name] || "0", 10) > 0 && !r.color),
-    );
+    const missingColor = a.rows.some((r) => articleRowHasQty(a, r) && !r.color);
     return missingPrice || missingColor;
   });
 
   const missingBrand = articles.some((a) => {
-    const hasQty = a.rows.some((r) =>
-      a.sizes.some((s) => parseInt(r.quantities[s.name] || "0", 10) > 0),
-    );
-    if (!hasQty) return false;
+    if (!articleHasQty(a)) return false;
     const brandAttr = a.attributes.find((attr) =>
       attr.attributeName.toLowerCase().includes("marca"),
     );
     return !brandAttr || brandAttr.values.length === 0;
   });
 
-  const hasAnyQty = articles.some((a) =>
-    a.rows.some((r) =>
-      a.sizes.some((s) => {
-        const qty = parseInt(r.quantities[s.name] || "0", 10);
-        return qty > 0;
-      }),
-    ),
-  );
+  const hasAnyQty = articles.some((a) => articleHasQty(a));
 
   function getDisabledReason(): string | null {
     if (!supplier) return "Seleccioná un proveedor";
     if (!date) return "Seleccioná una fecha";
     if (!hasAnyQty) return "Ingresá al menos una cantidad";
 
-    const missingSalePrice = articles.some((a) => {
-      const hasQty = a.rows.some((r) =>
-        a.sizes.some((s) => parseInt(r.quantities[s.name] || "0", 10) > 0),
-      );
-      return hasQty && !a.salePrice;
-    });
+    const missingSalePrice = articles.some((a) => articleHasQty(a) && !a.salePrice);
     if (missingSalePrice) return "Todos los artículos deben tener Precio de Venta";
 
-    const missingCategory = articles.some((a) => {
-      const hasQty = a.rows.some((r) =>
-        a.sizes.some((s) => parseInt(r.quantities[s.name] || "0", 10) > 0),
-      );
-      return hasQty && !a.category;
-    });
+    const missingCategory = articles.some((a) => articleHasQty(a) && !a.category);
     if (missingCategory) return "Todos los artículos deben tener Categoría asignada";
 
-    const missingSizeAttr = articles.some((a) => {
-      const hasQty = a.rows.some((r) =>
-        a.sizes.some((s) => parseInt(r.quantities[s.name] || "0", 10) > 0),
-      );
-      return hasQty && !a.sizeAttributeId;
-    });
+    const missingSizeAttr = articles.some((a) => articleHasQty(a) && !a.sizeAttributeId);
     if (missingSizeAttr) return "Todos los artículos deben tener tipo de talle seleccionado";
 
     if (missingBrand) return "Todos los artículos deben tener Marca asignada";
