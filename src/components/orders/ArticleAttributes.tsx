@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Select,
   MultiSelect,
@@ -29,6 +29,7 @@ interface Props {
   productTypes: ProductType[];
   onChangeTab?: (tab: string) => void;
   onChange: (article: Article) => void;
+  missingRequiredKeys?: string[];
 }
 
 interface ConfirmDeleteState {
@@ -36,6 +37,32 @@ interface ConfirmDeleteState {
   idx: number;
   isColor: boolean;
   isSize: boolean;
+}
+
+// Familias de atributos requeridos (agrupados por sinónimos con/sin tilde)
+export const REQUIRED_ATTR_FAMILIES: { key: string; label: string; names: string[] }[] = [
+  { key: "marca", label: "Marca", names: ["marca"] },
+  { key: "material", label: "Material", names: ["material"] },
+  { key: "genero", label: "Género", names: ["genero", "género"] },
+  { key: "temporada", label: "Temporada", names: ["temporada"] },
+  { key: "ocacion", label: "Ocasión", names: ["ocacion", "ocasión", "ocación"] },
+  { key: "tipo de producto", label: "Tipo de Producto", names: ["tipo de producto"] },
+];
+
+// Flat list para uso interno
+const REQUIRED_ATTR_NAMES = REQUIRED_ATTR_FAMILIES.flatMap((f) => f.names);
+// Atributos que se pre-cargan pero se pueden eliminar (opcionales)
+export const OPTIONAL_PRELOADED_NAMES = ["cuello", "corte"];
+const ALL_PRELOADED_NAMES = [...REQUIRED_ATTR_NAMES, ...OPTIONAL_PRELOADED_NAMES];
+
+function isRequiredAttr(name: string): boolean {
+  const lower = name.toLowerCase();
+  return REQUIRED_ATTR_NAMES.some((r) => lower.includes(r));
+}
+
+function isPreloadedAttr(name: string): boolean {
+  const lower = name.toLowerCase();
+  return ALL_PRELOADED_NAMES.some((r) => lower.includes(r));
 }
 
 function AttributeValueSelector({
@@ -48,6 +75,7 @@ function AttributeValueSelector({
   onSelect: (values: AttributeValue[]) => void;
 }) {
   const { data, isLoading } = useAttributeValues(attributeId > 0 ? attributeId : null);
+  const [opened, setOpened] = useState(false);
 
   if (isLoading) return <Loader size="xs" color="amber" />;
 
@@ -64,7 +92,11 @@ function AttributeValueSelector({
           return found ? { id: found.id, name: found.name } : null;
         }).filter(Boolean) as AttributeValue[];
         onSelect(selected);
+        setOpened(false);
       }}
+      dropdownOpened={opened}
+      onDropdownOpen={() => setOpened(true)}
+      onDropdownClose={() => setOpened(false)}
       placeholder="Seleccionar valores..."
       size="xs"
       searchable
@@ -81,6 +113,7 @@ export function ArticleAttributes({
   productTypes,
   onChangeTab,
   onChange,
+  missingRequiredKeys = [],
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<ConfirmDeleteState>({
     open: false,
@@ -88,6 +121,39 @@ export function ArticleAttributes({
     isColor: false,
     isSize: false,
   });
+
+  // Track which (articleId + existingProductId) combos have been seeded
+  const seededRef = useRef<Set<string>>(new Set());
+
+  // Seed default attributes when allAttributes loads or when existing product changes
+  useEffect(() => {
+    if (allAttributes.length === 0) return;
+    const seedKey = `${article.id}::${article.existingProductId ?? "new"}`;
+    if (seededRef.current.has(seedKey)) return;
+    seededRef.current.add(seedKey);
+
+    const currentIds = new Set(article.attributes.map((a) => a.attributeId));
+
+    const toAdd = allAttributes.filter((a) => {
+      return isPreloadedAttr(a.name) && !currentIds.has(a.id);
+    });
+
+    if (toAdd.length === 0) return;
+
+    onChange({
+      ...article,
+      attributes: [
+        ...article.attributes,
+        ...toAdd.map((a) => ({
+          attributeId: a.id,
+          attributeName: a.name,
+          values: [],
+          generatesVariants: false,
+        })),
+      ],
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allAttributes, article.id, article.existingProductId]);
 
   const usedAttributeIds = new Set(article.attributes.map((a) => a.attributeId));
 
@@ -223,10 +289,16 @@ export function ArticleAttributes({
     ? { attributeId: article.sizeAttributeId ?? sizeAttributeId, attributeName: sizeAttrName, values: article.sizes, generatesVariants: true }
     : null;
 
-  // Filter out color/size from editable attributes (shown as read-only)
-  const editableAttributes = article.attributes.filter(
-    (a) => a.attributeId !== colorAttributeId && a.attributeId !== sizeAttributeId,
-  );
+  // Filter out color/size from editable attributes, cuello/corte go last
+  const editableAttributes = article.attributes
+    .filter((a) => a.attributeId !== colorAttributeId && a.attributeId !== sizeAttributeId)
+    .sort((a, b) => {
+      const aOptional = a.attributeId > 0 && OPTIONAL_PRELOADED_NAMES.some((n) => a.attributeName.toLowerCase().includes(n));
+      const bOptional = b.attributeId > 0 && OPTIONAL_PRELOADED_NAMES.some((n) => b.attributeName.toLowerCase().includes(n));
+      if (aOptional && !bOptional) return 1;
+      if (!aOptional && bOptional) return -1;
+      return 0;
+    });
 
   const selectableAttributes = allAttributes
     .filter((a) => !usedAttributeIds.has(a.id) || a.id === 0)
@@ -339,47 +411,71 @@ export function ArticleAttributes({
           {/* Editable attribute rows */}
           {editableAttributes.map((attr) => {
             const actualIdx = article.attributes.indexOf(attr);
+            const required = attr.attributeId > 0 && isRequiredAttr(attr.attributeName);
+            const canRemove = !required;
+
+            // Determine if this attr is in the missing list (highlight red)
+            const isMissingHighlight = required && attr.values.length === 0 && missingRequiredKeys.length > 0 &&
+              REQUIRED_ATTR_FAMILIES.some((f) =>
+                missingRequiredKeys.includes(f.key) &&
+                f.names.some((n) => attr.attributeName.toLowerCase().includes(n))
+              );
 
             return (
               <tr key={`${attr.attributeId}-${actualIdx}`}>
                 <td style={{ padding: "4px 8px", verticalAlign: "middle" }}>
-                  <Select
-                    data={[
-                      ...(attr.attributeId > 0
-                        ? [{ value: String(attr.attributeId), label: attr.attributeName }]
-                        : []),
-                      ...selectableAttributes.filter(
-                        (a) => a.value !== String(attr.attributeId),
-                      ),
-                    ]}
-                    value={attr.attributeId > 0 ? String(attr.attributeId) : null}
-                    onChange={(val) => handleAttributeSelect(actualIdx, val)}
-                    placeholder="Seleccionar atributo..."
-                    size="xs"
-                    searchable
-                    style={{ width: 190 }}
-                  />
+                  {required ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <Text size="xs" style={{ width: 190, padding: "0 4px" }}>
+                        {attr.attributeName}
+                      </Text>
+                      {attr.values.length === 0 && (
+                        <span style={{ color: "var(--mantine-color-red-6)", fontSize: 11 }}>*</span>
+                      )}
+                    </div>
+                  ) : (
+                    <Select
+                      data={[
+                        ...(attr.attributeId > 0
+                          ? [{ value: String(attr.attributeId), label: attr.attributeName }]
+                          : []),
+                        ...selectableAttributes.filter(
+                          (a) => a.value !== String(attr.attributeId),
+                        ),
+                      ]}
+                      value={attr.attributeId > 0 ? String(attr.attributeId) : null}
+                      onChange={(val) => handleAttributeSelect(actualIdx, val)}
+                      placeholder="Seleccionar atributo..."
+                      size="xs"
+                      searchable
+                      style={{ width: 190 }}
+                    />
+                  )}
                 </td>
                 <td style={{ padding: "4px 8px", verticalAlign: "middle" }}>
                   {attr.attributeId > 0 ? (
+                    <div style={isMissingHighlight ? { outline: "1.5px solid var(--mantine-color-red-6)", borderRadius: 4 } : undefined}>
                     <AttributeValueSelector
                       attributeId={attr.attributeId}
                       selectedValues={attr.values}
                       onSelect={(vals) => handleValuesChange(actualIdx, vals)}
                     />
+                    </div>
                   ) : (
                     <Text size="xs" c="dimmed">Seleccioná un atributo primero</Text>
                   )}
                 </td>
                 <td style={{ padding: "4px 8px", verticalAlign: "middle" }}>
-                  <ActionIcon
-                    variant="subtle"
-                    color="gray"
-                    size="xs"
-                    onClick={() => handleRemoveAttribute(actualIdx)}
-                  >
-                    <X size={12} />
-                  </ActionIcon>
+                  {canRemove && (
+                    <ActionIcon
+                      variant="subtle"
+                      color="gray"
+                      size="xs"
+                      onClick={() => handleRemoveAttribute(actualIdx)}
+                    >
+                      <X size={12} />
+                    </ActionIcon>
+                  )}
                 </td>
               </tr>
             );

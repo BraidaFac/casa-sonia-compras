@@ -125,6 +125,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
   const [result, setResult] = useState<OrderResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingPdfInternal, setDownloadingPdfInternal] = useState(false);
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [pdfComment, setPdfComment] = useState("");
 
@@ -176,6 +177,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
           articles,
           selectedWarehouses,
           comment,
+          type: "supplier",
         }),
       });
       if (!res.ok) return;
@@ -188,6 +190,35 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
       URL.revokeObjectURL(url);
     } finally {
       setDownloadingPdf(false);
+    }
+  }
+
+  async function downloadPdfInternal() {
+    if (!result) return;
+    setDownloadingPdfInternal(true);
+    try {
+      const res = await fetch("/api/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: result.purchaseOrderId,
+          printColumns,
+          printValues,
+          articles,
+          selectedWarehouses,
+          type: "internal",
+        }),
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${result.purchaseOrderName} - ${supplier.name} - ${date} - INT.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingPdfInternal(false);
     }
   }
 
@@ -227,7 +258,10 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
           </Text>
           <Group>
             <Button color="amber" loading={downloadingPdf} onClick={() => { setPdfComment(""); setShowCommentModal(true); }}>
-              Descargar PDF
+              Descargar PDF Proveedor
+            </Button>
+            <Button variant="default" loading={downloadingPdfInternal} onClick={downloadPdfInternal}>
+              Descargar PDF Interno
             </Button>
             <Button variant="default" onClick={onConfirmed}>
               Cerrar
@@ -252,7 +286,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
               />
               <Group justify="flex-end">
                 <Button variant="default" onClick={() => setShowCommentModal(false)}>Cancelar</Button>
-                <Button color="amber" onClick={() => downloadPdf(pdfComment)}>Descargar PDF</Button>
+                <Button color="amber" onClick={() => downloadPdf(pdfComment)}>Descargar PDF Proveedor</Button>
               </Group>
             </Stack>
           </Modal>

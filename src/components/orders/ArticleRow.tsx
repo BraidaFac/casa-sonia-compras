@@ -30,7 +30,7 @@ import {
   Copy,
 } from "lucide-react";
 import { SizePickerModal } from "@/components/orders/SizePickerModal";
-import { ArticleAttributes } from "@/components/orders/ArticleAttributes";
+import { ArticleAttributes, REQUIRED_ATTR_FAMILIES, OPTIONAL_PRELOADED_NAMES } from "@/components/orders/ArticleAttributes";
 import { useProducts } from "@/hooks/useProducts";
 import { useAllAttributes } from "@/hooks/useAllAttributes";
 import { useProductTypes } from "@/hooks/useProductTypes";
@@ -74,6 +74,8 @@ interface Props {
   onRemove: () => void;
   onDuplicate: () => void;
   onOpenSizeModal?: () => void;
+  missingRequiredKeys?: string[];
+  isFirstMissingArticle?: boolean;
 }
 
 const COLOR_COL = "__color__";
@@ -103,6 +105,8 @@ export function ArticleRow({
   onRemove,
   onDuplicate,
   onOpenSizeModal,
+  missingRequiredKeys = [],
+  isFirstMissingArticle = false,
 }: Props) {
   const [debouncedNameQuery, setDebouncedNameQuery] = useState("");
   const [sizePickerOpen, setSizePickerOpen] = useState(false);
@@ -110,6 +114,7 @@ export function ArticleRow({
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [uploadingColors, setUploadingColors] = useState<Set<string>>(new Set());
+  const [focusedColor, setFocusedColor] = useState<string | null>(null);
 
   type PendingChange =
     | { type: "color"; rowId: string; newColor: ColorValue | null; oldColorName: string }
@@ -125,6 +130,19 @@ export function ArticleRow({
   }, [article.category]);
 
   const nameTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  // Auto-switch to attributes tab when this is the first article with missing required attrs
+  const didAutoSwitchRef = useRef(false);
+  useEffect(() => {
+    if (isFirstMissingArticle && missingRequiredKeys.length > 0) {
+      if (!didAutoSwitchRef.current) {
+        didAutoSwitchRef.current = true;
+        setActiveTab("attributes");
+      }
+    } else {
+      didAutoSwitchRef.current = false;
+    }
+  }, [isFirstMissingArticle, missingRequiredKeys.length]);
 
   const [colWidths, setColWidths] = useState<Record<string, number>>({});
   const [hiddenPrintCols, setHiddenPrintCols] = useState<Set<string>>(
@@ -154,9 +172,16 @@ export function ArticleRow({
     article.category?.name || "",
   );
 
-  const filteredCategories = categories.filter((cat) =>
-    cat.completeName.toLowerCase().includes(categorySearch.toLowerCase()),
-  );
+  const normStr = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+  const filteredCategories = categories.filter((cat) => {
+    const haystack = normStr(cat.completeName);
+    const words = categorySearch.trim().split(/\s+/).filter(Boolean);
+    return words.length === 0 || words.every((w) => haystack.includes(normStr(w)));
+  });
 
   useEffect(() => {
     if (nameTimerRef.current) clearTimeout(nameTimerRef.current);
@@ -230,6 +255,29 @@ export function ArticleRow({
             },
           ];
 
+    const baseAttributes = p.extraAttributes || [];
+    const existingAttrIds = new Set(baseAttributes.map((a) => a.attributeId));
+    const allPreloadedNames = [
+      ...REQUIRED_ATTR_FAMILIES.flatMap((f) => f.names),
+      ...OPTIONAL_PRELOADED_NAMES,
+    ];
+    const missingPreloaded = allAttributes.filter((a) => {
+      const nameLower = a.name.toLowerCase();
+      return (
+        allPreloadedNames.some((n) => nameLower.includes(n)) &&
+        !existingAttrIds.has(a.id)
+      );
+    });
+    const mergedAttributes = [
+      ...baseAttributes,
+      ...missingPreloaded.map((a) => ({
+        attributeId: a.id,
+        attributeName: a.name,
+        values: [],
+        generatesVariants: false,
+      })),
+    ];
+
     onChange({
       ...article,
       name: p.name,
@@ -241,7 +289,7 @@ export function ArticleRow({
       sizes: p.sizes,
       sizeAttributeId: p.sizeAttributeId ?? null,
       rows: newRows,
-      attributes: p.extraAttributes || [],
+      attributes: mergedAttributes,
     });
     if (p.category) {
       setCategorySearch(p.category.name);
@@ -861,9 +909,11 @@ export function ArticleRow({
                   isFetchingProducts ? <Loader size="xs" color="amber" /> : null
                 }
                 onChange={(e) => {
+                  const raw = e.currentTarget.value;
+                  const name = raw.length > 0 ? raw.charAt(0).toUpperCase() + raw.slice(1) : raw;
                   onChange({
                     ...article,
-                    name: e.currentTarget.value,
+                    name,
                     existingProductId: null,
                   });
                   nameCombobox.openDropdown();
@@ -1211,6 +1261,10 @@ export function ArticleRow({
                 <col
                   style={{ width: getColWidth(COLOR_COL, DEFAULT_COLOR_W) }}
                 />
+                <col style={{ width: getColWidth("__color_base__", 110) }} />
+                {selectedWarehouses.length > 0 && (
+                  <col style={{ width: 90 }} />
+                )}
                 {visibleSizes.map((size) => (
                   <col
                     key={size.id}
@@ -1800,6 +1854,7 @@ export function ArticleRow({
             productTypes={productTypes}
             onChangeTab={setActiveTab}
             onChange={onChange}
+            missingRequiredKeys={missingRequiredKeys}
           />
         </Tabs.Panel>
 
@@ -1840,11 +1895,34 @@ export function ArticleRow({
                     return (
                       <div
                         key={color.name}
+                        tabIndex={0}
+                        onFocus={() => setFocusedColor(color.name)}
+                        onBlur={() => setFocusedColor(null)}
+                        onPaste={(e) => {
+                          if (isUploading) return;
+                          const items = Array.from(e.clipboardData.items);
+                          const imageFiles = items
+                            .filter((item) => item.type.startsWith("image/"))
+                            .map((item) => item.getAsFile())
+                            .filter((f): f is File => f !== null);
+                          if (imageFiles.length === 0) return;
+                          e.preventDefault();
+                          const dt = new DataTransfer();
+                          imageFiles.forEach((f) => dt.items.add(f));
+                          handleImageUpload(color.name, dt.files);
+                        }}
                         style={{
-                          border: "1px solid var(--border)",
+                          border: focusedColor === color.name
+                            ? "1px solid var(--accent)"
+                            : "1px solid var(--border)",
                           borderRadius: 8,
                           padding: 12,
                           background: "var(--surface2)",
+                          outline: "none",
+                          boxShadow: focusedColor === color.name
+                            ? "0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent)"
+                            : "none",
+                          transition: "border-color 0.15s, box-shadow 0.15s",
                         }}
                       >
                         <Group justify="space-between" mb="xs">
@@ -1956,6 +2034,9 @@ export function ArticleRow({
                             <>
                               <Plus size={12} />
                               Agregar imágenes
+                              <span style={{ color: "var(--text3)", fontSize: 11, marginLeft: 4 }}>
+                                · o hacé click acá y pegá con Ctrl+V
+                              </span>
                             </>
                           )}
                           <input

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { odoo } from "@/lib/odoo";
 import { generateGridPDF } from "@/lib/pdf";
-import type { Article, ArticleRow, AttributeValue, ColorValue, PrintColumn, PrintValues, Warehouse } from "@/types";
+import type { Article, ArticleRow, AttributeValue, ColorValue, PrintColumn, PrintValues, Warehouse, ProductImage } from "@/types";
 
 interface ResolvedAttributeValue {
   id: number;
@@ -428,6 +428,51 @@ async function mapVariantToColorSize(
   return result;
 }
 
+async function syncTemplateImage(templateId: number, article: Article): Promise<void> {
+  // Build colorName → colorBase map from rows
+  const colorBaseMap = new Map<string, string>();
+  for (const row of article.rows) {
+    if (row.color?.colorBase) {
+      colorBaseMap.set(row.color.name, row.color.colorBase);
+    }
+  }
+
+  // Collect all successful images across all colors
+  const allImages: { image: ProductImage; colorName: string }[] = [];
+  for (const [colorName, images] of Object.entries(article.colorImages || {})) {
+    for (const img of images) {
+      if (img.fileId && !img.error) {
+        allImages.push({ image: img, colorName });
+      }
+    }
+  }
+
+  if (allImages.length === 0) return;
+
+  let chosen: { image: ProductImage; colorName: string };
+
+  if (allImages.length === 1) {
+    chosen = allImages[0];
+  } else {
+    const negro = allImages.find(
+      (e) => colorBaseMap.get(e.colorName)?.toLowerCase() === "negro",
+    );
+    const blanco = allImages.find(
+      (e) => colorBaseMap.get(e.colorName)?.toLowerCase() === "blanco",
+    );
+    chosen = negro ?? blanco ?? allImages[0];
+  }
+
+  const imgRes = await fetch(chosen.image.downloadUrl);
+  if (!imgRes.ok) return;
+  const imgBuffer = await imgRes.arrayBuffer();
+  const imgBase64 = Buffer.from(imgBuffer).toString("base64");
+
+  await odoo.write("product.template", [templateId], {
+    image_1920: imgBase64,
+  });
+}
+
 async function syncVariantImages(
   article: Article,
   resolvedColors: ResolvedAttributeValue[],
@@ -604,7 +649,7 @@ export async function POST(request: NextRequest) {
   const createdSupplierInfoIds: number[] = [];
   const createdPricelistItemIds: number[] = [];
   const allOrderLines: [number, number, object][] = [];
-  const articleVariantMaps = new Map<string, { variantMap: Map<string, number>; resolvedColors: ResolvedAttributeValue[] }>();
+  const articleVariantMaps = new Map<string, { variantMap: Map<string, number>; resolvedColors: ResolvedAttributeValue[]; templateId: number }>();
 
   try {
     for (const { article, resolvedColors, resolvedSizes } of resolvedArticles) {
@@ -662,7 +707,7 @@ export async function POST(request: NextRequest) {
         article.sizeAttributeId!,
       );
 
-      articleVariantMaps.set(article.id, { variantMap, resolvedColors });
+      articleVariantMaps.set(article.id, { variantMap, resolvedColors, templateId });
 
       for (const row of article.rows as ArticleRow[]) {
         for (const size of article.sizes) {
@@ -733,31 +778,49 @@ export async function POST(request: NextRequest) {
       ids: purchaseOrderId,
     });
 
-    // ── Generar PDF y adjuntarlo a la orden (best-effort) ────────────────────
+    // ── Generar PDFs y adjuntarlos a la orden (best-effort) ──────────────────
     try {
-      const pdfBytes = await generateGridPDF({
+      const safeName = `OC-${String(orderData[0].name).replace(/\//g, "-")}`;
+
+      // PDF proveedor: printColumns sí, sin sucursales, cantidades sumadas
+      const supplierPdfBytes = await generateGridPDF({
         order: orderData[0],
         articles,
         printColumns,
         printValues,
         selectedWarehouses,
+        supplierMode: true,
+      });
+      await odoo.create("ir.attachment", {
+        name: `${safeName}.pdf`,
+        type: "binary",
+        datas: Buffer.from(supplierPdfBytes).toString("base64"),
+        res_model: "purchase.order",
+        res_id: purchaseOrderId,
+        mimetype: "application/pdf",
       });
 
-      const pdfBase64 = Buffer.from(pdfBytes).toString("base64");
-      const safeName = `OC-${String(orderData[0].name).replace(/\//g, "-")}.pdf`;
-
+      // PDF interno: sin printColumns, con sucursales
+      const internalPdfBytes = await generateGridPDF({
+        order: orderData[0],
+        articles,
+        printColumns,
+        printValues,
+        selectedWarehouses,
+        supplierMode: false,
+      });
       await odoo.create("ir.attachment", {
-        name: safeName,
+        name: `${safeName}-INT.pdf`,
         type: "binary",
-        datas: pdfBase64,
+        datas: Buffer.from(internalPdfBytes).toString("base64"),
         res_model: "purchase.order",
         res_id: purchaseOrderId,
         mimetype: "application/pdf",
       });
     } catch (pdfError) {
-      console.error("Error adjuntando PDF a la orden:", pdfError);
+      console.error("Error adjuntando PDFs a la orden:", pdfError);
     }
-    // ── FIN PDF ───────────────────────────────────────────────────────────────
+    // ── FIN PDFs ──────────────────────────────────────────────────────────────
 
     // ── Sincronizar imágenes a variantes Odoo (best-effort) ──────────────────
     try {
@@ -765,6 +828,7 @@ export async function POST(request: NextRequest) {
         const maps = articleVariantMaps.get(article.id);
         if (!maps) continue;
         await syncVariantImages(article, resolvedColors, maps.variantMap);
+        await syncTemplateImage(maps.templateId, article);
       }
     } catch (imgError) {
       console.error("Error sincronizando imágenes a Odoo:", imgError);

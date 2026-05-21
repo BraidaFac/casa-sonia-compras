@@ -120,7 +120,7 @@ export async function uploadImageToDrive({
 
   return {
     fileId,
-    thumbnailUrl: `https://lh3.googleusercontent.com/d/${fileId}=w300`,
+    thumbnailUrl: `/api/drive-image?id=${fileId}`,
     downloadUrl: `https://drive.google.com/uc?export=download&id=${fileId}`,
   };
 }

@@ -89,9 +89,11 @@ export function ColorProveedorCell({
       store={combobox}
       onOptionSubmit={(val) => {
         if (val === "__create__") {
+          const trimmed = search.trim();
+          const name = trimmed.length > 0 ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : trimmed;
           onChange({
             id: null,
-            name: search.trim(),
+            name,
             colorBase: "",
             hexColor: "",
             isNew: true,
@@ -117,8 +119,10 @@ export function ColorProveedorCell({
             value={search}
             placeholder="Color proveedor..."
             onChange={(e) => {
-              setSearch(e.target.value);
-              if (value && e.target.value !== value.name) {
+              const raw = e.target.value;
+              const capitalized = raw.length > 0 ? raw.charAt(0).toUpperCase() + raw.slice(1) : raw;
+              setSearch(capitalized);
+              if (value && capitalized !== value.name) {
                 onChange(null);
               }
               combobox.openDropdown();

@@ -4,6 +4,7 @@ import { Button, Badge, Group, Text, Alert, Combobox, useCombobox, InputBase, To
 import { Plus } from "lucide-react";
 import { ArticleRow } from "./ArticleRow";
 import { ConfirmModal } from "./ConfirmModal";
+import { REQUIRED_ATTR_FAMILIES } from "./ArticleAttributes";
 import { useAttributes } from "@/hooks/useAttributes";
 import { useBrands } from "@/hooks/useBrands";
 import { useCompradora } from "@/hooks/useCompradora";
@@ -73,6 +74,7 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
   const [printColumns, setPrintColumns] = useState<PrintColumn[]>([]);
   const [printValues, setPrintValues] = useState<PrintValues>({});
   const [attrValidationErrors, setAttrValidationErrors] = useState<AttrValidationError[]>([]);
+  const [validateMode, setValidateMode] = useState(false);
   const [globalBrand, setGlobalBrand] = useState<AttributeValue | null>(null);
   const [brandSearch, setBrandSearch] = useState("");
   const [globalCompradora, setGlobalCompradora] = useState<AttributeValue | null>(null);
@@ -218,7 +220,8 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
       rows: original.rows.map((row) => ({
         ...row,
         id: crypto.randomUUID(),
-        warehouseQuantities: { ...row.warehouseQuantities },
+        quantities: {},
+        warehouseQuantities: {},
       })),
       sizes: original.sizes.map((size) => ({ ...size })),
       attributes: original.attributes.map((attr) => ({
@@ -386,6 +389,27 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
   });
 
   const hasAnyQty = articles.some((a) => articleHasQty(a));
+
+  function getMissingRequiredKeys(article: Article): string[] {
+    return REQUIRED_ATTR_FAMILIES
+      .filter((family) =>
+        !article.attributes.some(
+          (attr) =>
+            family.names.some((n) => attr.attributeName.toLowerCase().includes(n)) &&
+            attr.values.length > 0,
+        ),
+      )
+      .map((f) => f.key);
+  }
+
+  // Computed per article (always, not only in validateMode)
+  const missingRequiredPerArticle: Record<string, string[]> = {};
+  for (const article of articles) {
+    const missing = getMissingRequiredKeys(article);
+    if (missing.length > 0) missingRequiredPerArticle[article.id] = missing;
+  }
+  const hasMissingRequiredAttrs = Object.keys(missingRequiredPerArticle).length > 0;
+  const firstMissingArticleId = articles.find((a) => missingRequiredPerArticle[a.id])?.id;
 
   function getDisabledReason(): string | null {
     if (!supplier) return "Seleccioná un proveedor";
@@ -630,6 +654,8 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
             onRemove={() => removeArticle(article.id)}
             onDuplicate={() => duplicateArticle(article.id)}
             onOpenSizeModal={() => refetchAttrs()}
+            missingRequiredKeys={validateMode ? (missingRequiredPerArticle[article.id] ?? []) : []}
+            isFirstMissingArticle={validateMode && article.id === firstMissingArticleId}
           />
         );
       })}
@@ -650,16 +676,23 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
       {/* Submit */}
       <Group justify="flex-end">
         <Tooltip
-          label={disabledReason}
-          disabled={!disabledReason}
+          label={
+            disabledReason ||
+            (validateMode && hasMissingRequiredAttrs ? "Faltan Atributos del artículo" : null)
+          }
+          disabled={!disabledReason && !(validateMode && hasMissingRequiredAttrs)}
           withArrow
         >
           <span>
             <Button
               color="amber"
               size="md"
-              disabled={!!disabledReason}
+              disabled={!!disabledReason || (validateMode && hasMissingRequiredAttrs)}
               onClick={async () => {
+                if (hasMissingRequiredAttrs) {
+                  setValidateMode(true);
+                  return;
+                }
                 await refetchAttrs();
                 const errors = validateAttributesExist();
                 if (errors.length > 0) {

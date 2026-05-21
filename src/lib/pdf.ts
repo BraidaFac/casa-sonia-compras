@@ -266,10 +266,26 @@ interface GridPdfData {
   printValues: PrintValues;
   comment?: string;
   selectedWarehouses?: Warehouse[];
+  supplierMode?: boolean;
 }
 
 export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
-  const { order, articles, printColumns, printValues, comment, selectedWarehouses = [] } = data;
+  const { order, articles, printColumns, printValues, comment, selectedWarehouses = [], supplierMode = false } = data;
+
+  // Supplier PDF: printColumns shown, no warehouse breakdown, quantities summed across warehouses
+  // Internal PDF: no printColumns, warehouse breakdown shown
+  const showPrintColumns = supplierMode || selectedWarehouses.length === 0;
+  const showWarehouseColumn = !supplierMode && selectedWarehouses.length > 0;
+  const effectivePrintCols = showPrintColumns ? printColumns : [];
+
+  function getRowSizeQty(row: import("@/types").ArticleRow, sizeName: string): number {
+    if (supplierMode && selectedWarehouses.length > 0) {
+      return selectedWarehouses.reduce((sum, w) => {
+        return sum + (parseInt((row.warehouseQuantities ?? {})[`${w.id}:${sizeName}`] || "0", 10) || 0);
+      }, 0);
+    }
+    return parseInt(row.quantities[sizeName] || "0", 10) || 0;
+  }
 
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -406,9 +422,9 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
 
     // ── Column widths ─────────────────────────────────────────────────────────
 
-    const warehouseColW = selectedWarehouses.length > 0 ? 70 : 0;
+    const warehouseColW = showWarehouseColumn ? 70 : 0;
     const available = PAGE_W - MARGIN * 2;
-    const fixedW = printColumns.length * PRINT_COL_W + COLOR_COL_W + COLOR_BASE_COL_W + warehouseColW;
+    const fixedW = effectivePrintCols.length * PRINT_COL_W + COLOR_COL_W + COLOR_BASE_COL_W + warehouseColW;
     const sizeColW = article.sizes.length > 0
       ? Math.min(50, Math.max(25, (available - fixedW) / article.sizes.length))
       : 40;
@@ -417,7 +433,7 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
 
     let x = MARGIN;
 
-    for (const col of printColumns) {
+    for (const col of effectivePrintCols) {
       page.drawRectangle({
         x, y: y - HEADER_ROW_H, width: PRINT_COL_W, height: HEADER_ROW_H,
         color: colorAccent, borderColor: colorBorderCell, borderWidth: 0.5,
@@ -449,7 +465,7 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
     });
     x += COLOR_BASE_COL_W;
 
-    if (selectedWarehouses.length > 0) {
+    if (showWarehouseColumn) {
       page.drawRectangle({
         x, y: y - HEADER_ROW_H, width: warehouseColW, height: HEADER_ROW_H,
         color: colorAccent, borderColor: colorBorderCell, borderWidth: 0.5,
@@ -484,11 +500,11 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
     article.rows.forEach((row, rowIdx) => {
       const rowBg = rowIdx % 2 === 0 ? colorRowEven : colorRowOdd;
 
-      if (selectedWarehouses.length === 0) {
-        // ── No warehouses — original single row ──────────────────────────────
+      if (!showWarehouseColumn) {
+        // ── No warehouse column — single row per color (supplier mode or no warehouses) ──
         x = MARGIN;
 
-        for (const col of printColumns) {
+        for (const col of effectivePrintCols) {
           const val = truncate(printValues[`${article.id}:${row.id}:${col.id}`] || "", 11);
           page.drawRectangle({
             x, y: y - ROW_H, width: PRINT_COL_W, height: ROW_H,
@@ -543,7 +559,7 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
         x += COLOR_BASE_COL_W;
 
         for (const sz of article.sizes) {
-          const qty = parseInt(row.quantities[sz.name] || "0", 10) || 0;
+          const qty = getRowSizeQty(row, sz.name);
           totalsBySize[sz.name] = (totalsBySize[sz.name] || 0) + qty;
 
           page.drawRectangle({
@@ -564,14 +580,14 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
 
         y -= ROW_H;
       } else {
-        // ── With warehouses — N subrows per color ────────────────────────────
+        // ── Internal mode — N subrows per color (one per warehouse) ──────────
         const nSub = selectedWarehouses.length;
         const colorCellH = ROW_H * nSub;
 
         // Draw color cell spanning all subrows (simulated rowSpan)
-        const xPrintStart = MARGIN + printColumns.length * PRINT_COL_W;
-        for (let ci = 0; ci < printColumns.length; ci++) {
-          const col = printColumns[ci];
+        const xPrintStart = MARGIN + effectivePrintCols.length * PRINT_COL_W;
+        for (let ci = 0; ci < effectivePrintCols.length; ci++) {
+          const col = effectivePrintCols[ci];
           const val = truncate(printValues[`${article.id}:${row.id}:${col.id}`] || "", 11);
           const xP = MARGIN + ci * PRINT_COL_W;
           page.drawRectangle({
@@ -669,7 +685,7 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
 
     x = MARGIN;
 
-    for (const _col of printColumns) {
+    for (const _col of effectivePrintCols) {
       page.drawRectangle({
         x, y: y - ROW_H, width: PRINT_COL_W, height: ROW_H,
         color: colorTotalRow, borderColor: colorBorderCell, borderWidth: 0.5,
@@ -692,7 +708,7 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
     });
     x += COLOR_BASE_COL_W;
 
-    if (selectedWarehouses.length > 0) {
+    if (showWarehouseColumn) {
       page.drawRectangle({
         x, y: y - ROW_H, width: warehouseColW, height: ROW_H,
         color: colorTotalRow, borderColor: colorBorderCell, borderWidth: 0.5,
