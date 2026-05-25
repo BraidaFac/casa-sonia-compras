@@ -128,6 +128,20 @@ export function ColorProveedorCell({
               combobox.openDropdown();
             }}
             onFocus={() => combobox.openDropdown()}
+            onKeyDown={(e) => {
+              if (!combobox.dropdownOpened) return;
+              if (e.key === "Tab" && filteredColors.length > 0) {
+                e.preventDefault();
+                combobox.selectNextOption();
+              } else if (e.key === "Enter" && filteredColors.length === 1) {
+                e.preventDefault();
+                const selected = filteredColors[0];
+                onChange(selected);
+                setSearch(selected.name);
+                prevValueNameRef.current = selected.name;
+                combobox.closeDropdown();
+              }
+            }}
             onBlur={() => {
               combobox.closeDropdown();
               if (!value) setSearch("");

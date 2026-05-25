@@ -498,22 +498,10 @@ export function ArticleRow({
     }
   }
 
-  function deleteImagesFromDriveBackground(images: ProductImage[]) {
-    images
-      .filter((i) => i.fileId && !i.error)
-      .forEach((img) => {
-        fetch("/api/upload-image", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fileId: img.fileId }),
-        }).catch((err) => console.error("Error borrando imagen de Drive:", err));
-      });
-  }
-
   function handleColorChange(rowId: string, newColor: ColorValue | null, oldColor: ColorValue | null) {
     const oldColorName = oldColor?.name;
     const hasImages = oldColorName
-      ? (article.colorImages[oldColorName] || []).some((i) => !i.error && i.fileId)
+      ? (article.colorImages[oldColorName] || []).some((i) => !i.error && i.base64)
       : false;
 
     if (hasImages && oldColorName) {
@@ -528,8 +516,6 @@ export function ArticleRow({
 
     if (pendingChange.type === "color") {
       const { rowId, newColor, oldColorName } = pendingChange;
-      const images = article.colorImages[oldColorName] || [];
-      deleteImagesFromDriveBackground(images);
       const newColorImages = { ...article.colorImages };
       delete newColorImages[oldColorName];
       onChange({
@@ -541,8 +527,6 @@ export function ArticleRow({
       });
     } else if (pendingChange.type === "category") {
       const { newCategory } = pendingChange;
-      const allImages = Object.values(article.colorImages).flat();
-      deleteImagesFromDriveBackground(allImages);
       onChange({ ...article, category: newCategory, colorImages: {} });
       setCategorySearch(newCategory.name);
     }
@@ -550,78 +534,69 @@ export function ArticleRow({
     setPendingChange(null);
   }
 
+  function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        resolve(result.split(",")[1]);
+      };
+      reader.onerror = () => reject(new Error("Error leyendo archivo"));
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function handleImageUpload(colorName: string, files: FileList) {
     if (!files.length) return;
-    if (!article.category || !article.referencia) return;
 
     setUploadingColors((prev) => new Set(prev).add(colorName));
 
     const newImages: ProductImage[] = [];
-    const existingCount = (article.colorImages[colorName] || []).filter(
-      (i) => !i.error,
-    ).length;
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
-    // Sanitizar para nombre de archivo: normalizar acentos, solo alfanumérico/guiones
-    function sanitize(str: string) {
-      return str
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")  // quitar diacríticos (tildes, etc.)
-        .replace(/[^a-zA-Z0-9\-_]/g, "_")
-        .replace(/_+/g, "_")
-        .replace(/^_|_$/g, "");
-    }
-    const safeRef = sanitize(article.referencia);
-    const safeColor = sanitize(colorName);
-
-    for (let i = 0; i < Array.from(files).length; i++) {
-      const file = Array.from(files)[i];
-      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const idx = existingCount + i;
-      const fileName =
-        idx === 0
-          ? `${safeRef}_${safeColor}.${ext}`
-          : `${safeRef}_${safeColor}_${idx + 1}.${ext}`;
-
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("fileName", fileName);
-      formData.append("categoryCompleteName", article.category.completeName);
-
-      try {
-        const res = await fetch("/api/upload-image", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!res.ok) {
-          const err = await res.json();
-          newImages.push({
-            id: crypto.randomUUID(),
-            fileId: "",
-            thumbnailUrl: "",
-            downloadUrl: "",
-            fileName: file.name,
-            error: (err as { error?: string }).error || "Error subiendo imagen",
-          });
-          continue;
-        }
-
-        const result = await res.json();
+    for (const file of Array.from(files)) {
+      if (!allowedTypes.includes(file.type)) {
         newImages.push({
           id: crypto.randomUUID(),
-          fileId: result.fileId,
-          thumbnailUrl: result.thumbnailUrl,
-          downloadUrl: result.downloadUrl,
           fileName: file.name,
+          base64: "",
+          mimeType: file.type,
+          previewUrl: "",
+          error: "Tipo no permitido. Usar JPG, PNG, WEBP o GIF.",
+        });
+        continue;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        newImages.push({
+          id: crypto.randomUUID(),
+          fileName: file.name,
+          base64: "",
+          mimeType: file.type,
+          previewUrl: "",
+          error: "El archivo supera el límite de 10MB.",
+        });
+        continue;
+      }
+
+      try {
+        const base64 = await fileToBase64(file);
+        const previewUrl = `data:${file.type};base64,${base64}`;
+        newImages.push({
+          id: crypto.randomUUID(),
+          fileName: file.name,
+          base64,
+          mimeType: file.type,
+          previewUrl,
         });
       } catch {
         newImages.push({
           id: crypto.randomUUID(),
-          fileId: "",
-          thumbnailUrl: "",
-          downloadUrl: "",
           fileName: file.name,
-          error: "Error de conexión",
+          base64: "",
+          mimeType: file.type,
+          previewUrl: "",
+          error: "Error procesando la imagen.",
         });
       }
     }
@@ -644,17 +619,6 @@ export function ArticleRow({
 
   function handleRemoveImage(colorName: string, imageId: string) {
     const existing = article.colorImages[colorName] || [];
-    const img = existing.find((i) => i.id === imageId);
-
-    // Borrar del Drive en background (no bloquear UI)
-    if (img?.fileId) {
-      fetch("/api/upload-image", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileId: img.fileId }),
-      }).catch((err) => console.error("Error borrando imagen de Drive:", err));
-    }
-
     onChange({
       ...article,
       colorImages: {
@@ -722,14 +686,14 @@ export function ArticleRow({
   const pendingColorImages =
     pendingChange?.type === "color"
       ? (article.colorImages[pendingChange.oldColorName] || []).filter(
-          (i) => !i.error && i.fileId,
+          (i) => !i.error && i.base64,
         )
       : [];
   const pendingAllImages =
     pendingChange?.type === "category"
       ? Object.values(article.colorImages)
           .flat()
-          .filter((i) => !i.error && i.fileId)
+          .filter((i) => !i.error && i.base64)
       : [];
 
   return (
@@ -759,7 +723,7 @@ export function ArticleRow({
               <strong>{pendingColorImages.length}</strong> imagen
               {pendingColorImages.length !== 1 ? "es" : ""} cargada
               {pendingColorImages.length !== 1 ? "s" : ""}. Si cambiás el
-              color, se eliminarán del Drive.
+              color, se eliminarán.
             </>
           ) : (
             <>
@@ -769,17 +733,16 @@ export function ArticleRow({
               <strong>
                 {Object.keys(article.colorImages).filter(
                   (k) =>
-                    article.colorImages[k].some((i) => !i.error && i.fileId),
+                    article.colorImages[k].some((i) => !i.error && i.base64),
                 ).length}
               </strong>{" "}
               color
               {Object.keys(article.colorImages).filter((k) =>
-                article.colorImages[k].some((i) => !i.error && i.fileId),
+                article.colorImages[k].some((i) => !i.error && i.base64),
               ).length !== 1
                 ? "es"
                 : ""}
-              . Al cambiar la categoría deben guardarse en otra carpeta, así
-              que se eliminarán del Drive.
+              . Al cambiar la categoría se eliminarán.
             </>
           )}
         </Text>
@@ -1010,7 +973,7 @@ export function ArticleRow({
             if (cat) {
               const isSameCategory = cat.id === article.category?.id;
               const hasImages = Object.values(article.colorImages).some(
-                (imgs) => imgs.some((i) => !i.error && i.fileId),
+                (imgs) => imgs.some((i) => !i.error && i.base64),
               );
               if (!isSameCategory && hasImages) {
                 setPendingChange({
@@ -1052,6 +1015,38 @@ export function ArticleRow({
                   categoryCombobox.openDropdown();
                 }}
                 onFocus={() => categoryCombobox.openDropdown()}
+                onKeyDown={(e) => {
+                  if (!categoryCombobox.dropdownOpened) return;
+                  if ((e.key === "Tab" || e.key === "ArrowDown") && filteredCategories.length > 0) {
+                    e.preventDefault();
+                    categoryCombobox.selectNextOption();
+                  } else if (e.key === "ArrowUp" && filteredCategories.length > 0) {
+                    e.preventDefault();
+                    categoryCombobox.selectPreviousOption();
+                  } else if (e.key === "Enter" && filteredCategories.length > 0) {
+                    e.preventDefault();
+                    if (filteredCategories.length === 1) {
+                      const cat = filteredCategories[0];
+                      const isSameCategory = cat.id === article.category?.id;
+                      const hasImages = Object.values(article.colorImages).some(
+                        (imgs) => imgs.some((i) => !i.error && i.base64),
+                      );
+                      if (!isSameCategory && hasImages) {
+                        setPendingChange({
+                          type: "category",
+                          newCategory: cat,
+                          previousCategory: lastConfirmedCategoryRef.current,
+                        });
+                      } else {
+                        onChange({ ...article, category: cat });
+                        setCategorySearch(cat.name);
+                      }
+                      categoryCombobox.closeDropdown();
+                    } else {
+                      categoryCombobox.clickSelectedOption();
+                    }
+                  }
+                }}
                 onBlur={() => {
                   categoryCombobox.closeDropdown();
                   if (!article.category) {
@@ -1981,7 +1976,7 @@ export function ArticleRow({
                                 ) : (
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img
-                                    src={img.thumbnailUrl}
+                                    src={img.previewUrl}
                                     alt={img.fileName}
                                     style={{
                                       width: "100%",

@@ -19,7 +19,8 @@
       "Bash(xxd \"C:/Users/frbra/Desktop/Proyectos/orden-compra/casa-sonia-compras/public/CS.png\")",
       "Bash(pnpm run:*)",
       "Bash(npx next:*)",
-      "Bash(echo \"EXIT: $?\")"
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(npm uninstall:*)"
     ]
   }
 }

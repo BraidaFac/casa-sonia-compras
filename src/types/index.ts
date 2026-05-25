@@ -58,15 +58,15 @@ export interface ArticleRow {
   warehouseQuantities: Record<string, string>;
 }
 
-// Imagen subida a Drive — por variante de color
+// Imagen de producto — convertida a base64 en el browser
 export interface ProductImage {
-  id: string;           // UUID local
-  fileId: string;       // ID del archivo en Google Drive
-  thumbnailUrl: string; // URL thumbnail para Odoo y preview
-  downloadUrl: string;  // URL de descarga directa
-  fileName: string;     // nombre original del archivo
-  uploading?: boolean;  // true mientras se está subiendo
-  error?: string;       // mensaje de error si falló
+  id: string;          // UUID local
+  fileName: string;    // nombre original del archivo
+  base64: string;      // contenido en base64 (sin prefijo data:...)
+  mimeType: string;    // "image/jpeg", "image/png", etc.
+  previewUrl: string;  // data URL para preview en la app (con prefijo data:...)
+  uploading?: boolean; // true mientras se procesa
+  error?: string;      // mensaje de error si falló
 }
 
 // Imágenes por color — key: colorName → array de imágenes

@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { odoo } from "@/lib/odoo";
 import { generateGridPDF } from "@/lib/pdf";
-import type { Article, ArticleRow, AttributeValue, ColorValue, PrintColumn, PrintValues, Warehouse, ProductImage } from "@/types";
+import type {
+  Article,
+  ArticleRow,
+  AttributeValue,
+  ColorValue,
+  PrintColumn,
+  PrintValues,
+  Warehouse,
+} from "@/types";
 
 interface ResolvedAttributeValue {
   id: number;
@@ -227,6 +235,7 @@ async function getOrCreateProduct(
       list_price: parseFloat(article.salePrice) || 0,
       default_code: article.referencia || "",
       description_ecommerce: article.description || "",
+      is_storable: true,
       ...(article.category?.id ? { categ_id: article.category.id } : {}),
     });
 
@@ -348,6 +357,7 @@ async function getOrCreateProduct(
     default_code: article.referencia || "",
     description_ecommerce: article.description || "",
     available_in_pos: true,
+    is_storable: true,
     ...(article.category?.id ? { categ_id: article.category.id } : {}),
     ...(attributeLines.length > 0
       ? { attribute_line_ids: attributeLines }
@@ -428,89 +438,70 @@ async function mapVariantToColorSize(
   return result;
 }
 
-async function syncTemplateImage(templateId: number, article: Article): Promise<void> {
-  // Build colorName → colorBase map from rows
-  const colorBaseMap = new Map<string, string>();
-  for (const row of article.rows) {
-    if (row.color?.colorBase) {
-      colorBaseMap.set(row.color.name, row.color.colorBase);
-    }
-  }
-
-  // Collect all successful images across all colors
-  const allImages: { image: ProductImage; colorName: string }[] = [];
-  for (const [colorName, images] of Object.entries(article.colorImages || {})) {
-    for (const img of images) {
-      if (img.fileId && !img.error) {
-        allImages.push({ image: img, colorName });
-      }
-    }
-  }
-
-  if (allImages.length === 0) return;
-
-  let chosen: { image: ProductImage; colorName: string };
-
-  if (allImages.length === 1) {
-    chosen = allImages[0];
-  } else {
-    const negro = allImages.find(
-      (e) => colorBaseMap.get(e.colorName)?.toLowerCase() === "negro",
-    );
-    const blanco = allImages.find(
-      (e) => colorBaseMap.get(e.colorName)?.toLowerCase() === "blanco",
-    );
-    chosen = negro ?? blanco ?? allImages[0];
-  }
-
-  const imgRes = await fetch(chosen.image.downloadUrl);
-  if (!imgRes.ok) return;
-  const imgBuffer = await imgRes.arrayBuffer();
-  const imgBase64 = Buffer.from(imgBuffer).toString("base64");
-
-  await odoo.write("product.template", [templateId], {
-    image_1920: imgBase64,
-  });
-}
-
-async function syncVariantImages(
+async function syncProductImages(
+  templateId: number,
   article: Article,
   resolvedColors: ResolvedAttributeValue[],
   variantMap: Map<string, number>,
 ): Promise<void> {
-  if (!article.colorImages || Object.keys(article.colorImages).length === 0) return;
+  if (!article.colorImages || Object.keys(article.colorImages).length === 0)
+    return;
 
   for (const [colorName, images] of Object.entries(article.colorImages)) {
-    const successImages = images.filter((i) => i.fileId && !i.error);
-    if (successImages.length === 0) continue;
+    const validImages = images.filter((img) => img.base64 && !img.error);
+    if (validImages.length === 0) continue;
 
     const resolvedColor = resolvedColors.find(
       (c) => c.name.toLowerCase() === colorName.toLowerCase(),
     );
     if (!resolvedColor) continue;
 
-    // Collect all variant IDs for this color (across all sizes)
-    const variantIds: number[] = [];
+    // ── IMAGEN PRINCIPAL DE LA VARIANTE ──────────────────────
+    const primaryImage = validImages[0];
+
+    const variantIdsForColor: number[] = [];
     for (const [key, variantId] of variantMap.entries()) {
-      const colorPavId = key.split(":")[0];
-      if (colorPavId === String(resolvedColor.id)) {
-        variantIds.push(variantId);
+      if (key.startsWith(`${resolvedColor.id}:`)) {
+        variantIdsForColor.push(variantId);
       }
     }
-    if (variantIds.length === 0) continue;
 
-    // Fetch first image and encode to base64
-    const img = successImages[0];
-    const imgRes = await fetch(img.downloadUrl);
-    if (!imgRes.ok) continue;
-    const imgBuffer = await imgRes.arrayBuffer();
-    const imgBase64 = Buffer.from(imgBuffer).toString("base64");
+    if (variantIdsForColor.length > 0) {
+      try {
+        await odoo.write("product.product", variantIdsForColor, {
+          image_variant_1920: primaryImage.base64,
+        });
+      } catch (err) {
+        console.error(
+          `Error seteando imagen principal para color ${colorName}:`,
+          err,
+        );
+      }
+    }
 
-    // Set image_variant_1920 on all variants of this color
-    for (const variantId of variantIds) {
-      await odoo.write("product.product", [variantId], {
-        image_variant_1920: imgBase64,
-      });
+    // ── IMÁGENES ADICIONALES — Medios de comercio electrónico ─
+    const additionalImages = validImages.slice(1);
+
+    for (const img of additionalImages) {
+      try {
+        await odoo.write("product.template", [templateId], {
+          product_template_image_ids: [
+            [
+              0,
+              0,
+              {
+                name: `${colorName} - ${img.fileName}`,
+                image_1920: img.base64,
+              },
+            ],
+          ],
+        });
+      } catch (err) {
+        console.error(
+          `Error agregando imagen adicional para color ${colorName}:`,
+          err,
+        );
+      }
     }
   }
 }
@@ -569,7 +560,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: `El artículo "${article.name}" no tiene tipo de talle seleccionado. Seleccioná los talles desde el modal antes de confirmar.`,
-          validationErrors: [{ articleName: article.name, type: "size", value: "Sin atributo de talle" }],
+          validationErrors: [
+            {
+              articleName: article.name,
+              type: "size",
+              value: "Sin atributo de talle",
+            },
+          ],
         },
         { status: 422 },
       );
@@ -582,7 +579,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: `El color nuevo "${row.color.name}" del artículo "${article.name}" no tiene Color Base asignado.`,
-            validationErrors: [{ articleName: article.name, type: "color" as const, value: row.color.name }],
+            validationErrors: [
+              {
+                articleName: article.name,
+                type: "color" as const,
+                value: row.color.name,
+              },
+            ],
           },
           { status: 422 },
         );
@@ -591,7 +594,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: `El color nuevo "${row.color.name}" del artículo "${article.name}" no tiene color HEX asignado.`,
-            validationErrors: [{ articleName: article.name, type: "color" as const, value: row.color.name }],
+            validationErrors: [
+              {
+                articleName: article.name,
+                type: "color" as const,
+                value: row.color.name,
+              },
+            ],
           },
           { status: 422 },
         );
@@ -599,7 +608,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Resolve colors: create new ones in Odoo, use existing IDs for existing ones
-    const colorIdMap = await resolveOrCreateColors(article.rows, colorAttributeId);
+    const colorIdMap = await resolveOrCreateColors(
+      article.rows,
+      colorAttributeId,
+    );
 
     const resolvedColors: ResolvedAttributeValue[] = [];
     for (const [name, id] of colorIdMap.entries()) {
@@ -649,7 +661,14 @@ export async function POST(request: NextRequest) {
   const createdSupplierInfoIds: number[] = [];
   const createdPricelistItemIds: number[] = [];
   const allOrderLines: [number, number, object][] = [];
-  const articleVariantMaps = new Map<string, { variantMap: Map<string, number>; resolvedColors: ResolvedAttributeValue[]; templateId: number }>();
+  const articleVariantMaps = new Map<
+    string,
+    {
+      variantMap: Map<string, number>;
+      resolvedColors: ResolvedAttributeValue[];
+      templateId: number;
+    }
+  >();
 
   try {
     for (const { article, resolvedColors, resolvedSizes } of resolvedArticles) {
@@ -675,7 +694,13 @@ export async function POST(request: NextRequest) {
             let q: number;
             if (warehouseIds.length > 0) {
               q = warehouseIds.reduce((ws, wId) => {
-                return ws + (parseInt(row.warehouseQuantities?.[`${wId}:${size.name}`] || "0", 10) || 0);
+                return (
+                  ws +
+                  (parseInt(
+                    row.warehouseQuantities?.[`${wId}:${size.name}`] || "0",
+                    10,
+                  ) || 0)
+                );
               }, 0);
             } else {
               q = parseInt(row.quantities[size.name] || "0", 10);
@@ -699,6 +724,20 @@ export async function POST(request: NextRequest) {
 
       const variants = await getVariants(templateId);
 
+      console.log(variants);
+      console.log(article.referencia);
+      // Sync default_code to all variants
+      if (article.referencia && variants.length > 0) {
+        let counter = 1;
+        for (const variant of variants) {
+          // Ej: HO15100CS-NEGRO-38, HO15100CS-BLANCO-40
+          const variantCode = `${article.referencia}-${counter}`;
+          counter++;
+          await odoo.write("product.product", [variant.id], {
+            default_code: variantCode,
+          });
+        }
+      }
       const variantMap = await mapVariantToColorSize(
         variants,
         resolvedColors,
@@ -707,7 +746,11 @@ export async function POST(request: NextRequest) {
         article.sizeAttributeId!,
       );
 
-      articleVariantMaps.set(article.id, { variantMap, resolvedColors, templateId });
+      articleVariantMaps.set(article.id, {
+        variantMap,
+        resolvedColors,
+        templateId,
+      });
 
       for (const row of article.rows as ArticleRow[]) {
         for (const size of article.sizes) {
@@ -715,7 +758,9 @@ export async function POST(request: NextRequest) {
           if (warehouseIds.length > 0) {
             qty = warehouseIds.reduce((sum, wId) => {
               const key = `${wId}:${size.name}`;
-              return sum + (parseInt(row.warehouseQuantities?.[key] || "0", 10) || 0);
+              return (
+                sum + (parseInt(row.warehouseQuantities?.[key] || "0", 10) || 0)
+              );
             }, 0);
           } else {
             qty = parseInt(row.quantities[size.name] || "0", 10);
@@ -827,8 +872,14 @@ export async function POST(request: NextRequest) {
       for (const { article, resolvedColors } of resolvedArticles) {
         const maps = articleVariantMaps.get(article.id);
         if (!maps) continue;
-        await syncVariantImages(article, resolvedColors, maps.variantMap);
-        await syncTemplateImage(maps.templateId, article);
+        if (Object.keys(article.colorImages || {}).length > 0) {
+          await syncProductImages(
+            maps.templateId,
+            article,
+            resolvedColors,
+            maps.variantMap,
+          );
+        }
       }
     } catch (imgError) {
       console.error("Error sincronizando imágenes a Odoo:", imgError);

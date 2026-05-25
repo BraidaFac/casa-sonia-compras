@@ -126,7 +126,6 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingPdfInternal, setDownloadingPdfInternal] = useState(false);
-  const [showCommentModal, setShowCommentModal] = useState(false);
   const [pdfComment, setPdfComment] = useState("");
 
   const mutation = useMutation({
@@ -164,8 +163,8 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
 
   async function downloadPdf(comment: string) {
     if (!result) return;
-    setShowCommentModal(false);
     setDownloadingPdf(true);
+    const articlesForPdf = articles.map((a) => ({ ...a, colorImages: {} }));
     try {
       const res = await fetch("/api/pdf", {
         method: "POST",
@@ -174,7 +173,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
           orderId: result.purchaseOrderId,
           printColumns,
           printValues,
-          articles,
+          articles: articlesForPdf,
           selectedWarehouses,
           comment,
           type: "supplier",
@@ -196,6 +195,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
   async function downloadPdfInternal() {
     if (!result) return;
     setDownloadingPdfInternal(true);
+    const articlesForPdf = articles.map((a) => ({ ...a, colorImages: {} }));
     try {
       const res = await fetch("/api/pdf", {
         method: "POST",
@@ -204,7 +204,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
           orderId: result.purchaseOrderId,
           printColumns,
           printValues,
-          articles,
+          articles: articlesForPdf,
           selectedWarehouses,
           type: "internal",
         }),
@@ -257,7 +257,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
             Orden creada: {result.purchaseOrderName}
           </Text>
           <Group>
-            <Button color="amber" loading={downloadingPdf} onClick={() => { setPdfComment(""); setShowCommentModal(true); }}>
+            <Button color="amber" loading={downloadingPdf} onClick={() => downloadPdf(pdfComment)}>
               Descargar PDF Proveedor
             </Button>
             <Button variant="default" loading={downloadingPdfInternal} onClick={downloadPdfInternal}>
@@ -268,28 +268,6 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
             </Button>
           </Group>
 
-          <Modal
-            opened={showCommentModal}
-            onClose={() => setShowCommentModal(false)}
-            title="Comentario para el proveedor"
-            size="sm"
-            centered
-          >
-            <Stack gap="md">
-              <Textarea
-                placeholder="Opcional — aparecerá en el PDF"
-                autosize
-                minRows={3}
-                maxRows={6}
-                value={pdfComment}
-                onChange={(e) => setPdfComment(e.currentTarget.value)}
-              />
-              <Group justify="flex-end">
-                <Button variant="default" onClick={() => setShowCommentModal(false)}>Cancelar</Button>
-                <Button color="amber" onClick={() => downloadPdf(pdfComment)}>Descargar PDF Proveedor</Button>
-              </Group>
-            </Stack>
-          </Modal>
         </Stack>
       ) : (
         <Stack gap="md">
@@ -344,6 +322,17 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
           {submitError && (
             <Text c="red" size="sm">{submitError}</Text>
           )}
+
+          <Textarea
+            label="Comentario para PDF (opcional)"
+            placeholder="Aparecerá en el PDF del proveedor"
+            autosize
+            minRows={2}
+            maxRows={5}
+            value={pdfComment}
+            onChange={(e) => setPdfComment(e.currentTarget.value)}
+            disabled={step === "submitting"}
+          />
 
           <Group justify="flex-end" gap="sm">
             {step !== "submitting" && (
