@@ -724,20 +724,6 @@ export async function POST(request: NextRequest) {
 
       const variants = await getVariants(templateId);
 
-      console.log(variants);
-      console.log(article.referencia);
-      // Sync default_code to all variants
-      if (article.referencia && variants.length > 0) {
-        let counter = 1;
-        for (const variant of variants) {
-          // Ej: HO15100CS-NEGRO-38, HO15100CS-BLANCO-40
-          const variantCode = `${article.referencia}-${counter}`;
-          counter++;
-          await odoo.write("product.product", [variant.id], {
-            default_code: variantCode,
-          });
-        }
-      }
       const variantMap = await mapVariantToColorSize(
         variants,
         resolvedColors,
