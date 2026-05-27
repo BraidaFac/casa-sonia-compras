@@ -21,7 +21,8 @@
       "Bash(npx next:*)",
       "Bash(echo \"EXIT: $?\")",
       "Bash(npm uninstall:*)",
-      "Bash(pnpm:*)"
+      "Bash(pnpm:*)",
+      "Bash(find:*)"
     ]
   }
 }

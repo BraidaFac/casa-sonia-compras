@@ -67,6 +67,8 @@ export interface ProductImage {
   previewUrl: string;  // data URL para preview en la app (con prefijo data:...)
   uploading?: boolean; // true mientras se procesa
   error?: string;      // mensaje de error si falló
+  isFromOdoo?: boolean; // true si fue cargada desde Odoo (imagen primaria)
+  odooId?: number;     // ID del registro product.image en Odoo (solo imágenes adicionales)
 }
 
 // Imágenes por color — key: colorName → array de imágenes
@@ -87,6 +89,8 @@ export interface Article {
   attributes: ProductAttribute[];
   description: string;
   colorImages: ColorImages; // imágenes por variante de color
+  deletedOdooImageIds: number[];       // IDs de product.image a eliminar en Odoo al guardar
+  clearedPrimaryColorNames: string[];  // colores cuya imagen primaria fue borrada (limpiar image_variant_1920)
   maxCoeficiente: number; // 0 if new article or no Tipo de Producto
 }
 

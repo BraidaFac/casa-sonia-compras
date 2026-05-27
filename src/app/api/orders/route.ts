@@ -444,8 +444,37 @@ async function syncProductImages(
   resolvedColors: ResolvedAttributeValue[],
   variantMap: Map<string, number>,
 ): Promise<void> {
-  if (!article.colorImages || Object.keys(article.colorImages).length === 0)
-    return;
+  // ── ELIMINAR imágenes adicionales borradas por el usuario ─────────────────
+  const deletedIds = article.deletedOdooImageIds ?? [];
+  if (deletedIds.length > 0) {
+    try {
+      await odoo.unlink("product.image", deletedIds);
+    } catch (err) {
+      console.error("Error eliminando imágenes de Odoo:", err);
+    }
+  }
+
+  // ── LIMPIAR imagen primaria de colores donde se borró todo ────────────────
+  const clearedColors = article.clearedPrimaryColorNames ?? [];
+  for (const colorName of clearedColors) {
+    const resolvedColor = resolvedColors.find(
+      (c) => c.name.toLowerCase() === colorName.toLowerCase(),
+    );
+    if (!resolvedColor) continue;
+    const variantIdsForColor: number[] = [];
+    for (const [key, variantId] of variantMap.entries()) {
+      if (key.startsWith(`${resolvedColor.id}:`)) variantIdsForColor.push(variantId);
+    }
+    if (variantIdsForColor.length > 0) {
+      try {
+        await odoo.write("product.product", variantIdsForColor, { image_variant_1920: false });
+      } catch (err) {
+        console.error(`Error limpiando imagen primaria para color ${colorName}:`, err);
+      }
+    }
+  }
+
+  if (!article.colorImages || Object.keys(article.colorImages).length === 0) return;
 
   for (const [colorName, images] of Object.entries(article.colorImages)) {
     const validImages = images.filter((img) => img.base64 && !img.error);
@@ -456,51 +485,36 @@ async function syncProductImages(
     );
     if (!resolvedColor) continue;
 
-    // ── IMAGEN PRINCIPAL DE LA VARIANTE ──────────────────────
     const primaryImage = validImages[0];
 
     const variantIdsForColor: number[] = [];
     for (const [key, variantId] of variantMap.entries()) {
-      if (key.startsWith(`${resolvedColor.id}:`)) {
-        variantIdsForColor.push(variantId);
-      }
+      if (key.startsWith(`${resolvedColor.id}:`)) variantIdsForColor.push(variantId);
     }
 
-    if (variantIdsForColor.length > 0) {
+    // ── IMAGEN PRINCIPAL — solo escribir si es nueva (no vino de Odoo) ──────
+    if (variantIdsForColor.length > 0 && !primaryImage.isFromOdoo) {
       try {
         await odoo.write("product.product", variantIdsForColor, {
           image_variant_1920: primaryImage.base64,
         });
       } catch (err) {
-        console.error(
-          `Error seteando imagen principal para color ${colorName}:`,
-          err,
-        );
+        console.error(`Error seteando imagen principal para color ${colorName}:`, err);
       }
     }
 
-    // ── IMÁGENES ADICIONALES — Medios de comercio electrónico ─
-    const additionalImages = validImages.slice(1);
+    // ── IMÁGENES ADICIONALES — solo crear las nuevas (sin odooId) ────────────
+    const newAdditionalImages = validImages.slice(1).filter((img) => !img.odooId);
 
-    for (const img of additionalImages) {
+    for (const img of newAdditionalImages) {
       try {
         await odoo.write("product.template", [templateId], {
           product_template_image_ids: [
-            [
-              0,
-              0,
-              {
-                name: `${colorName} - ${img.fileName}`,
-                image_1920: img.base64,
-              },
-            ],
+            [0, 0, { name: `${colorName} - ${img.fileName}`, image_1920: img.base64 }],
           ],
         });
       } catch (err) {
-        console.error(
-          `Error agregando imagen adicional para color ${colorName}:`,
-          err,
-        );
+        console.error(`Error agregando imagen adicional para color ${colorName}:`, err);
       }
     }
   }

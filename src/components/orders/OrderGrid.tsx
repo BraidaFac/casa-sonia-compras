@@ -64,6 +64,8 @@ function createEmptyArticle(
     attributes,
     description: "",
     colorImages: {},
+    deletedOdooImageIds: [],
+    clearedPrimaryColorNames: [],
     maxCoeficiente: 0,
   };
 }
@@ -217,6 +219,8 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
       referencia: "",
       existingProductId: null,
       colorImages: {},
+      deletedOdooImageIds: [],
+      clearedPrimaryColorNames: [],
       rows: original.rows.map((row) => ({
         ...row,
         id: crypto.randomUUID(),

@@ -231,7 +231,7 @@ export function ArticleRow({
     });
   }
 
-  function handleSelectProduct(p: OdooProduct) {
+  async function handleSelectProduct(p: OdooProduct) {
     const newRows: ArticleRowType[] =
       p.colors.length > 0
         ? p.colors.map((color) => ({
@@ -278,7 +278,7 @@ export function ArticleRow({
       })),
     ];
 
-    onChange({
+    const newArticle = {
       ...article,
       name: p.name,
       existingProductId: p.id,
@@ -290,11 +290,32 @@ export function ArticleRow({
       sizeAttributeId: p.sizeAttributeId ?? null,
       rows: newRows,
       attributes: mergedAttributes,
-    });
+      colorImages: {},
+      deletedOdooImageIds: [],
+      clearedPrimaryColorNames: [],
+    };
+
+    onChange(newArticle);
+
     if (p.category) {
       setCategorySearch(p.category.name);
     }
     nameCombobox.closeDropdown();
+
+    // Fetch variant images from Odoo asynchronously
+    if (p.id) {
+      try {
+        const res = await fetch(`/api/products/${p.id}/images`);
+        if (res.ok) {
+          const colorImages = await res.json();
+          if (Object.keys(colorImages).length > 0) {
+            onChange({ ...newArticle, colorImages });
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching product images:", err);
+      }
+    }
   }
 
   function updateRow(rowId: string, updates: Partial<ArticleRowType>) {
@@ -516,18 +537,35 @@ export function ArticleRow({
 
     if (pendingChange.type === "color") {
       const { rowId, newColor, oldColorName } = pendingChange;
+      const oldImages = article.colorImages[oldColorName] || [];
       const newColorImages = { ...article.colorImages };
       delete newColorImages[oldColorName];
+
+      const deletedOdooImageIds = [...(article.deletedOdooImageIds || [])];
+      const clearedPrimaryColorNames = [...(article.clearedPrimaryColorNames || [])];
+
+      for (const img of oldImages) {
+        if (img.odooId) {
+          deletedOdooImageIds.push(img.odooId);
+        }
+      }
+      const primaryImg = oldImages[0];
+      if (primaryImg?.isFromOdoo && !primaryImg.odooId && !clearedPrimaryColorNames.includes(oldColorName)) {
+        clearedPrimaryColorNames.push(oldColorName);
+      }
+
       onChange({
         ...article,
         colorImages: newColorImages,
+        deletedOdooImageIds,
+        clearedPrimaryColorNames,
         rows: article.rows.map((r) =>
           r.id === rowId ? { ...r, color: newColor } : r,
         ),
       });
     } else if (pendingChange.type === "category") {
       const { newCategory } = pendingChange;
-      onChange({ ...article, category: newCategory, colorImages: {} });
+      onChange({ ...article, category: newCategory, colorImages: {}, deletedOdooImageIds: [], clearedPrimaryColorNames: [] });
       setCategorySearch(newCategory.name);
     }
 
@@ -619,12 +657,32 @@ export function ArticleRow({
 
   function handleRemoveImage(colorName: string, imageId: string) {
     const existing = article.colorImages[colorName] || [];
+    const imgToRemove = existing.find((i) => i.id === imageId);
+    const remaining = existing.filter((i) => i.id !== imageId);
+
+    const deletedOdooImageIds = [...(article.deletedOdooImageIds || [])];
+    const clearedPrimaryColorNames = [...(article.clearedPrimaryColorNames || [])];
+
+    if (imgToRemove) {
+      if (imgToRemove.odooId) {
+        // Additional image from Odoo — unlink record on save
+        deletedOdooImageIds.push(imgToRemove.odooId);
+      } else if (imgToRemove.isFromOdoo && remaining.length === 0) {
+        // Primary from Odoo, no replacements — clear image_variant_1920 on save
+        if (!clearedPrimaryColorNames.includes(colorName)) {
+          clearedPrimaryColorNames.push(colorName);
+        }
+      }
+    }
+
     onChange({
       ...article,
       colorImages: {
         ...article.colorImages,
-        [colorName]: existing.filter((i) => i.id !== imageId),
+        [colorName]: remaining,
       },
+      deletedOdooImageIds,
+      clearedPrimaryColorNames,
     });
   }
 

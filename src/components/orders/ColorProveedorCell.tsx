@@ -130,7 +130,7 @@ export function ColorProveedorCell({
             onFocus={() => combobox.openDropdown()}
             onKeyDown={(e) => {
               if (!combobox.dropdownOpened) return;
-              if (e.key === "Tab" && filteredColors.length > 0) {
+              if (e.key === "Tab" && (filteredColors.length > 0 || showCreateOption)) {
                 e.preventDefault();
                 combobox.selectNextOption();
               } else if (e.key === "Enter" && filteredColors.length === 1) {
@@ -139,6 +139,12 @@ export function ColorProveedorCell({
                 onChange(selected);
                 setSearch(selected.name);
                 prevValueNameRef.current = selected.name;
+                combobox.closeDropdown();
+              } else if (e.key === "Enter" && filteredColors.length === 0 && showCreateOption) {
+                e.preventDefault();
+                const trimmed = search.trim();
+                const name = trimmed.length > 0 ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : trimmed;
+                onChange({ id: null, name, colorBase: "", hexColor: "", isNew: true });
                 combobox.closeDropdown();
               }
             }}
