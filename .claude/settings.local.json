@@ -22,7 +22,8 @@
       "Bash(echo \"EXIT: $?\")",
       "Bash(npm uninstall:*)",
       "Bash(pnpm:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(grep -n \"allColors\\\\|color\\\\.id\\\\|color_id\" src/hooks/*.ts src/app/api/*.ts)"
     ]
   }
 }

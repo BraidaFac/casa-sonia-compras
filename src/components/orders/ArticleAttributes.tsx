@@ -292,7 +292,7 @@ export function ArticleAttributes({
 
   // Sync color/size from quantities grid as read-only rows
   const colorRow = article.rows.some((r) => r.color !== null)
-    ? { attributeId: colorAttributeId, attributeName: "Color o Diseño", values: article.rows.filter((r) => r.color).map((r) => r.color!), generatesVariants: true }
+    ? { attributeId: colorAttributeId, attributeName: "Color o Diseño", values: Array.from(new Map(article.rows.filter((r) => r.color).map((r) => [r.color!.id ?? r.color!.name, r.color!])).values()), generatesVariants: true }
     : null;
   const sizeAttrName = article.sizeAttributeId
     ? (allAttributes.find((a) => a.id === article.sizeAttributeId)?.name ?? "Talle")

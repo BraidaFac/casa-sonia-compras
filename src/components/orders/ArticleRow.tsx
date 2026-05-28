@@ -1622,6 +1622,7 @@ export function ArticleRow({
                                 allColors={allColors}
                                 colorBaseOptions={colorBaseOptions}
                                 hasQty={hasQty}
+                                usedColorKeys={new Set(article.rows.filter((r) => r.id !== row.id && r.color).map((r) => r.color!.id != null ? String(r.color!.id) : r.color!.name.toLowerCase()))}
                                 onChange={(v) => handleColorChange(row.id, v, row.color)}
                               />
                             </div>
@@ -1787,6 +1788,7 @@ export function ArticleRow({
                                     allColors={allColors}
                                     colorBaseOptions={colorBaseOptions}
                                     hasQty={hasQty}
+                                    usedColorKeys={new Set(article.rows.filter((r) => r.id !== row.id && r.color).map((r) => r.color!.id != null ? String(r.color!.id) : r.color!.name.toLowerCase()))}
                                     onChange={(v) => handleColorChange(row.id, v, row.color)}
                                   />
                                 </div>

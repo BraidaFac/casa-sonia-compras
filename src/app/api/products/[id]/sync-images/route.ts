@@ -66,6 +66,8 @@ export async function POST(
     return NextResponse.json({ ok: true });
   }
 
+  let templateImageWritten = false; // write image_1920 on template once (first new primary)
+
   for (const [colorName, images] of Object.entries(colorImages)) {
     if (images.length === 0) continue;
 
@@ -89,6 +91,18 @@ export async function POST(
         await odoo.write("product.product", variantIdsForColor, {
           image_variant_1920: primaryImage.base64,
         });
+
+        // Also set the template-level image_1920 once (first new primary wins)
+        if (!templateImageWritten) {
+          try {
+            await odoo.write("product.template", [templateId], {
+              image_1920: primaryImage.base64,
+            });
+            templateImageWritten = true;
+          } catch (err) {
+            console.error(`Error seteando imagen del template para color ${colorName}:`, err);
+          }
+        }
       } catch (err) {
         console.error(`Error seteando imagen principal para color ${colorName}:`, err);
       }

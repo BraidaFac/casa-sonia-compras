@@ -16,6 +16,7 @@ interface Props {
   colorBaseOptions: string[];
   onChange: (color: ColorValue | null) => void;
   hasQty: boolean;
+  usedColorKeys?: Set<string>; // keys of colors already used in other rows
 }
 
 export function ColorProveedorCell({
@@ -23,6 +24,7 @@ export function ColorProveedorCell({
   allColors,
   onChange,
   hasQty,
+  usedColorKeys,
 }: Props) {
   const [search, setSearch] = useState(value?.name || "");
   const [isSuggestingHex, setIsSuggestingHex] = useState(false);
@@ -49,9 +51,14 @@ export function ColorProveedorCell({
     }
   }, [value]);
 
-  const filteredColors = allColors.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filteredColors = allColors.filter((c) => {
+    if (!c.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (usedColorKeys) {
+      const key = c.id != null ? String(c.id) : c.name.toLowerCase();
+      if (usedColorKeys.has(key)) return false;
+    }
+    return true;
+  });
 
   const isExactMatch = allColors.some(
     (c) => c.name.toLowerCase() === search.toLowerCase(),

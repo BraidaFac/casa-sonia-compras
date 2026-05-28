@@ -207,10 +207,14 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
       setResult(data);
       setStep("done");
       // Fire-and-forget image sync (best-effort, doesn't block UI)
+      console.log("[ImageSync] imageSyncData:", data.imageSyncData);
+      console.log("[ImageSync] articles colorImages:", articles.map(a => ({ id: a.id, colors: Object.keys(a.colorImages || {}), counts: Object.fromEntries(Object.entries(a.colorImages || {}).map(([k,v]) => [k, v.length])) })));
       if (data.imageSyncData && data.imageSyncData.length > 0) {
         syncImagesAfterOrder(articles, data.imageSyncData).catch((err) =>
           console.error("Image sync failed:", err),
         );
+      } else {
+        console.warn("[ImageSync] No imageSyncData returned from server — skipping sync");
       }
     },
     onError: (error: OrderError) => {
