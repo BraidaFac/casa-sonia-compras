@@ -84,25 +84,45 @@ async function syncImagesAfterOrder(
     const article = articles.find((a) => a.id === entry.articleId);
     if (!article) continue;
 
+    // Build lean colorImages: strip previewUrl from all images, strip base64 from
+    // Odoo images (already in Odoo — server doesn't need to re-upload them).
+    // This avoids Vercel's 4.5MB payload limit when products have many/large Odoo images.
+    const colorImagesLean: Record<string, object[]> = {};
+    for (const [colorName, images] of Object.entries(article.colorImages || {})) {
+      colorImagesLean[colorName] = images.map((img) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { previewUrl, base64, ...rest } = img;
+        return img.isFromOdoo
+          ? { ...rest, base64: "" }        // Odoo image: strip data, keep flags
+          : { ...rest, base64 };            // New image: keep base64, drop previewUrl
+      });
+    }
+
     const hasImages =
-      Object.keys(article.colorImages || {}).length > 0 ||
+      Object.values(colorImagesLean).some((imgs) =>
+        imgs.some((img: object) => (img as { base64?: string }).base64),
+      ) ||
       (article.deletedOdooImageIds?.length ?? 0) > 0 ||
       (article.clearedPrimaryColorNames?.length ?? 0) > 0;
 
     if (!hasImages) continue;
 
     try {
-      await fetch(`/api/products/${entry.templateId}/sync-images`, {
+      const res = await fetch(`/api/products/${entry.templateId}/sync-images`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          colorImages: article.colorImages || {},
+          colorImages: colorImagesLean,
           deletedOdooImageIds: article.deletedOdooImageIds || [],
           clearedPrimaryColorNames: article.clearedPrimaryColorNames || [],
           resolvedColors: entry.resolvedColors,
           variantMap: entry.variantMap,
         }),
       });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        console.error(`Image sync failed for article ${entry.articleId}: ${res.status}`, errText);
+      }
     } catch (err) {
       console.error(`Error syncing images for article ${entry.articleId}:`, err);
     }

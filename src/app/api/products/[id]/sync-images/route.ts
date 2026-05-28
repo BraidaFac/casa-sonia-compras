@@ -67,22 +67,24 @@ export async function POST(
   }
 
   for (const [colorName, images] of Object.entries(colorImages)) {
-    const validImages = images.filter((img) => img.base64 && !img.error);
-    if (validImages.length === 0) continue;
+    if (images.length === 0) continue;
 
     const resolvedColor = resolvedColors.find(
       (c) => c.name.toLowerCase() === colorName.toLowerCase(),
     );
     if (!resolvedColor) continue;
 
-    const primaryImage = validImages[0];
-
     const variantIdsForColor: number[] = [];
     for (const [key, variantId] of variantMap.entries()) {
       if (key.startsWith(`${resolvedColor.id}:`)) variantIdsForColor.push(variantId);
     }
 
-    if (variantIdsForColor.length > 0 && !primaryImage.isFromOdoo) {
+    // Primary slot: first image in array.
+    // Odoo images have isFromOdoo=true and base64="" (stripped client-side to save payload).
+    // New images have base64 populated and no isFromOdoo flag.
+    const primaryImage = images[0];
+
+    if (variantIdsForColor.length > 0 && !primaryImage.isFromOdoo && primaryImage.base64) {
       try {
         await odoo.write("product.product", variantIdsForColor, {
           image_variant_1920: primaryImage.base64,
@@ -92,7 +94,8 @@ export async function POST(
       }
     }
 
-    const newAdditionalImages = validImages.slice(1).filter((img) => !img.odooId);
+    // Additional images: everything after the primary that is new (no odooId, has base64)
+    const newAdditionalImages = images.slice(1).filter((img) => !img.odooId && img.base64 && !img.error);
     for (const img of newAdditionalImages) {
       try {
         await odoo.create("product.image", {
