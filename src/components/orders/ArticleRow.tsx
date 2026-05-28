@@ -1,5 +1,6 @@
 "use client";
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Combobox,
   InputBase,
@@ -155,10 +156,18 @@ export function ArticleRow({
   } | null>(null);
   const tableRef = useRef<HTMLTableElement>(null);
 
+  const queryClient = useQueryClient();
   const { data: products, isFetching: isFetchingProducts } =
     useProducts(debouncedNameQuery);
-  const { data: allAttributes = [] } = useAllAttributes();
+  const { data: allAttributes = [], refetch: refetchAttributes } = useAllAttributes();
   const { data: productTypes = [] } = useProductTypes();
+
+  const handleRefreshAttributes = useCallback(async () => {
+    await refetchAttributes();
+    await queryClient.invalidateQueries({ queryKey: ["attribute-values"] });
+    await queryClient.invalidateQueries({ queryKey: ["brands"] });
+    await queryClient.invalidateQueries({ queryKey: ["compradora"] });
+  }, [refetchAttributes, queryClient]);
 
   const nameCombobox = useCombobox({
     onDropdownClose: () => nameCombobox.resetSelectedOption(),
@@ -1908,6 +1917,7 @@ export function ArticleRow({
             onChangeTab={setActiveTab}
             onChange={onChange}
             missingRequiredKeys={missingRequiredKeys}
+            onRefreshAttributes={handleRefreshAttributes}
           />
         </Tabs.Panel>
 

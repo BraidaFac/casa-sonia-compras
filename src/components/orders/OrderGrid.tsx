@@ -499,6 +499,26 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
                       brandCombobox.closeDropdown();
                       setBrandSearch(globalBrand?.name || "");
                     }}
+                    onKeyDown={(e) => {
+                      if (!brandCombobox.dropdownOpened) return;
+                      if ((e.key === "Tab" || e.key === "ArrowDown") && filteredBrands.length > 0) {
+                        e.preventDefault();
+                        brandCombobox.selectNextOption();
+                      } else if (e.key === "ArrowUp" && filteredBrands.length > 0) {
+                        e.preventDefault();
+                        brandCombobox.selectPreviousOption();
+                      } else if (e.key === "Enter" && filteredBrands.length > 0) {
+                        e.preventDefault();
+                        if (filteredBrands.length === 1) {
+                          const brand = filteredBrands[0];
+                          setBrandSearch(brand.name);
+                          applyGlobalBrand(brand);
+                          brandCombobox.closeDropdown();
+                        } else {
+                          brandCombobox.clickSelectedOption();
+                        }
+                      }
+                    }}
                     rightSection={
                       globalBrand ? (
                         <ActionIconClear
@@ -557,6 +577,26 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
                     onBlur={() => {
                       compradoaCombobox.closeDropdown();
                       setCompradoaSearch(globalCompradora?.name || "");
+                    }}
+                    onKeyDown={(e) => {
+                      if (!compradoaCombobox.dropdownOpened) return;
+                      if ((e.key === "Tab" || e.key === "ArrowDown") && filteredCompradoas.length > 0) {
+                        e.preventDefault();
+                        compradoaCombobox.selectNextOption();
+                      } else if (e.key === "ArrowUp" && filteredCompradoas.length > 0) {
+                        e.preventDefault();
+                        compradoaCombobox.selectPreviousOption();
+                      } else if (e.key === "Enter" && filteredCompradoas.length > 0) {
+                        e.preventDefault();
+                        if (filteredCompradoas.length === 1) {
+                          const compradora = filteredCompradoas[0];
+                          setCompradoaSearch(compradora.name);
+                          applyGlobalCompradora(compradora);
+                          compradoaCombobox.closeDropdown();
+                        } else {
+                          compradoaCombobox.clickSelectedOption();
+                        }
+                      }
                     }}
                     rightSection={
                       globalCompradora ? (

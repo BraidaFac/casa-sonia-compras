@@ -26,9 +26,17 @@ interface Props {
   onValidationError: (errors: { articleName: string; type: "color" | "size"; value: string }[]) => void;
 }
 
+interface ImageSyncEntry {
+  articleId: string;
+  templateId: number;
+  resolvedColors: { id: number; name: string }[];
+  variantMap: [string, number][];
+}
+
 interface OrderResult {
   purchaseOrderId: number;
   purchaseOrderName: string;
+  imageSyncData?: ImageSyncEntry[];
 }
 
 interface OrderError {
@@ -46,10 +54,18 @@ async function createOrder(body: {
   printValues: import("@/types").PrintValues;
   selectedWarehouses: import("@/types").Warehouse[];
 }): Promise<OrderResult> {
+  // Strip image data to avoid Vercel 4.5MB payload limit
+  const articlesStripped = body.articles.map((a) => ({
+    ...a,
+    colorImages: {},
+    deletedOdooImageIds: [],
+    clearedPrimaryColorNames: [],
+  }));
+
   const res = await fetch("/api/orders", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, articles: articlesStripped }),
   });
 
   if (!res.ok) {
@@ -58,6 +74,39 @@ async function createOrder(body: {
   }
 
   return res.json();
+}
+
+async function syncImagesAfterOrder(
+  articles: Article[],
+  imageSyncData: ImageSyncEntry[],
+): Promise<void> {
+  for (const entry of imageSyncData) {
+    const article = articles.find((a) => a.id === entry.articleId);
+    if (!article) continue;
+
+    const hasImages =
+      Object.keys(article.colorImages || {}).length > 0 ||
+      (article.deletedOdooImageIds?.length ?? 0) > 0 ||
+      (article.clearedPrimaryColorNames?.length ?? 0) > 0;
+
+    if (!hasImages) continue;
+
+    try {
+      await fetch(`/api/products/${entry.templateId}/sync-images`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          colorImages: article.colorImages || {},
+          deletedOdooImageIds: article.deletedOdooImageIds || [],
+          clearedPrimaryColorNames: article.clearedPrimaryColorNames || [],
+          resolvedColors: entry.resolvedColors,
+          variantMap: entry.variantMap,
+        }),
+      });
+    } catch (err) {
+      console.error(`Error syncing images for article ${entry.articleId}:`, err);
+    }
+  }
 }
 
 function calcArticleSummary(article: Article, warehouseMode: boolean) {
@@ -137,6 +186,12 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
     onSuccess: (data) => {
       setResult(data);
       setStep("done");
+      // Fire-and-forget image sync (best-effort, doesn't block UI)
+      if (data.imageSyncData && data.imageSyncData.length > 0) {
+        syncImagesAfterOrder(articles, data.imageSyncData).catch((err) =>
+          console.error("Image sync failed:", err),
+        );
+      }
     },
     onError: (error: OrderError) => {
       if (error.validationErrors && error.validationErrors.length > 0) {

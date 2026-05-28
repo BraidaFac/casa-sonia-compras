@@ -508,10 +508,10 @@ async function syncProductImages(
 
     for (const img of newAdditionalImages) {
       try {
-        await odoo.write("product.template", [templateId], {
-          product_template_image_ids: [
-            [0, 0, { name: `${colorName} - ${img.fileName}`, image_1920: img.base64 }],
-          ],
+        await odoo.create("product.image", {
+          product_tmpl_id: templateId,
+          name: `${colorName} - ${img.fileName}`,
+          image_1920: img.base64,
         });
       } catch (err) {
         console.error(`Error agregando imagen adicional para color ${colorName}:`, err);
@@ -867,28 +867,24 @@ export async function POST(request: NextRequest) {
     }
     // ── FIN PDFs ──────────────────────────────────────────────────────────────
 
-    // ── Sincronizar imágenes a variantes Odoo (best-effort) ──────────────────
-    try {
-      for (const { article, resolvedColors } of resolvedArticles) {
+    // Build imageSyncData for client-side image sync (separate request to avoid payload limits)
+    const imageSyncData = resolvedArticles
+      .map(({ article, resolvedColors }) => {
         const maps = articleVariantMaps.get(article.id);
-        if (!maps) continue;
-        if (Object.keys(article.colorImages || {}).length > 0) {
-          await syncProductImages(
-            maps.templateId,
-            article,
-            resolvedColors,
-            maps.variantMap,
-          );
-        }
-      }
-    } catch (imgError) {
-      console.error("Error sincronizando imágenes a Odoo:", imgError);
-    }
-    // ── FIN IMÁGENES ──────────────────────────────────────────────────────────
+        if (!maps) return null;
+        return {
+          articleId: article.id,
+          templateId: maps.templateId,
+          resolvedColors,
+          variantMap: [...maps.variantMap.entries()],
+        };
+      })
+      .filter(Boolean);
 
     return NextResponse.json({
       purchaseOrderId,
       purchaseOrderName: orderData[0]?.name || `P/${purchaseOrderId}`,
+      imageSyncData,
     });
   } catch (error) {
     if (createdPricelistItemIds.length > 0) {

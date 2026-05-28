@@ -10,8 +10,9 @@ import {
   Stack,
   Group,
   Loader,
+  Tooltip,
 } from "@mantine/core";
-import { X, Plus } from "lucide-react";
+import { X, Plus, RefreshCw } from "lucide-react";
 import { useAttributeValues } from "@/hooks/useAttributeValues";
 import type { Article, ProductAttribute, AttributeValue } from "@/types";
 
@@ -30,6 +31,7 @@ interface Props {
   onChangeTab?: (tab: string) => void;
   onChange: (article: Article) => void;
   missingRequiredKeys?: string[];
+  onRefreshAttributes?: () => void;
 }
 
 interface ConfirmDeleteState {
@@ -114,13 +116,23 @@ export function ArticleAttributes({
   onChangeTab,
   onChange,
   missingRequiredKeys = [],
+  onRefreshAttributes,
 }: Props) {
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<ConfirmDeleteState>({
     open: false,
     idx: -1,
     isColor: false,
     isSize: false,
   });
+
+  async function handleRefresh() {
+    if (!onRefreshAttributes || isRefreshing) return;
+    setIsRefreshing(true);
+    seededRef.current.clear();
+    await onRefreshAttributes();
+    setIsRefreshing(false);
+  }
 
   // Track which (articleId + existingProductId) combos have been seeded
   const seededRef = useRef<Set<string>>(new Set());
@@ -307,6 +319,22 @@ export function ArticleAttributes({
 
   return (
     <div style={{ marginTop: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text2)", paddingLeft: 8 }}>Atributos</span>
+        {onRefreshAttributes && (
+          <Tooltip label="Refrescar atributos desde Odoo" position="left" withArrow>
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              size="sm"
+              onClick={handleRefresh}
+              loading={isRefreshing}
+            >
+              <RefreshCw size={13} />
+            </ActionIcon>
+          </Tooltip>
+        )}
+      </div>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
         <thead>
           <tr>
