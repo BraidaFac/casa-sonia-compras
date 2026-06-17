@@ -809,7 +809,7 @@ export async function POST(request: NextRequest) {
       date_order: date,
       order_line: allOrderLines,
       ...(warehouseIds.length > 0
-        ? { x_studio_sucursales: [[6, 0, warehouseIds]] }
+        ? { x_studio_sucursal: [[6, 0, warehouseIds]] }
         : {}),
     });
 
