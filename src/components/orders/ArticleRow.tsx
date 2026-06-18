@@ -940,7 +940,7 @@ export function ArticleRow({
                 }
                 onChange={(e) => {
                   const raw = e.currentTarget.value;
-                  const name = raw.length > 0 ? raw.charAt(0).toUpperCase() + raw.slice(1) : raw;
+                  const name = raw.replace(/\b\w/g, (c) => c.toUpperCase());
                   onChange({
                     ...article,
                     name,

@@ -97,7 +97,7 @@ export function ColorProveedorCell({
       onOptionSubmit={(val) => {
         if (val === "__create__") {
           const trimmed = search.trim();
-          const name = trimmed.length > 0 ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : trimmed;
+          const name = trimmed.length > 0 ? trimmed.replace(/\b\w/g, (c) => c.toUpperCase()) : trimmed;
           onChange({
             id: null,
             name,
@@ -127,7 +127,7 @@ export function ColorProveedorCell({
             placeholder="Color proveedor..."
             onChange={(e) => {
               const raw = e.target.value;
-              const capitalized = raw.length > 0 ? raw.charAt(0).toUpperCase() + raw.slice(1) : raw;
+              const capitalized = raw.replace(/\b\w/g, (c) => c.toUpperCase());
               setSearch(capitalized);
               if (value && capitalized !== value.name) {
                 onChange(null);
@@ -150,7 +150,7 @@ export function ColorProveedorCell({
               } else if (e.key === "Enter" && filteredColors.length === 0 && showCreateOption) {
                 e.preventDefault();
                 const trimmed = search.trim();
-                const name = trimmed.length > 0 ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : trimmed;
+                const name = trimmed.length > 0 ? trimmed.replace(/\b\w/g, (c) => c.toUpperCase()) : trimmed;
                 onChange({ id: null, name, colorBase: "", hexColor: "", isNew: true });
                 combobox.closeDropdown();
               }

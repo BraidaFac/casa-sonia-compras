@@ -22,6 +22,12 @@ interface ValidationError {
   value: string;
 }
 
+function toTitleCase(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 async function resolveAttributeValues(
   values: AttributeValue[],
   attributeId: number,
@@ -539,6 +545,16 @@ export async function POST(request: NextRequest) {
     printValues: PrintValues;
     selectedWarehouses: Warehouse[];
   };
+
+  // Normalize article names and color names to Title Case
+  for (const article of articles) {
+    article.name = toTitleCase(article.name);
+    for (const row of article.rows) {
+      if (row.color?.name) {
+        row.color.name = toTitleCase(row.color.name);
+      }
+    }
+  }
 
   const attributes = await odoo.searchRead(
     "product.attribute",
