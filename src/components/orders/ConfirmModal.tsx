@@ -10,6 +10,7 @@ import {
   Stack,
   Loader,
   Textarea,
+  SegmentedControl,
 } from "@mantine/core";
 import { CheckCircle } from "lucide-react";
 import type { Article, Supplier, PrintColumn, PrintValues, Warehouse } from "@/types";
@@ -196,6 +197,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingPdfInternal, setDownloadingPdfInternal] = useState(false);
   const [pdfComment, setPdfComment] = useState("");
+  const [pdfOrientation, setPdfOrientation] = useState<"landscape" | "portrait">("landscape");
 
   const mutation = useMutation({
     mutationFn: createOrder,
@@ -256,6 +258,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
           selectedWarehouses,
           comment,
           type: "supplier",
+          orientation: pdfOrientation,
         }),
       });
       if (!res.ok) return;
@@ -286,6 +289,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
           articles: articlesForPdf,
           selectedWarehouses,
           type: "internal",
+          orientation: pdfOrientation,
         }),
       });
       if (!res.ok) return;
@@ -335,6 +339,18 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
           <Text fw={600} size="lg">
             Orden creada: {result.purchaseOrderName}
           </Text>
+          <Group gap="xs" align="center">
+            <Text size="xs" c="dimmed">Orientación del PDF:</Text>
+            <SegmentedControl
+              value={pdfOrientation}
+              onChange={(v) => setPdfOrientation(v as "landscape" | "portrait")}
+              data={[
+                { label: "Horizontal", value: "landscape" },
+                { label: "Vertical", value: "portrait" },
+              ]}
+              size="xs"
+            />
+          </Group>
           <Group>
             <Button color="amber" loading={downloadingPdf} onClick={() => downloadPdf(pdfComment)}>
               Descargar PDF Proveedor

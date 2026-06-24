@@ -33,11 +33,19 @@ export async function GET() {
 
     const attrIds = sizeAttrs.map((a: { id: number }) => a.id);
 
-    const values = await odoo.searchRead(
+    const rawValues = await odoo.fetchAll(
       "product.attribute.value",
       [["attribute_id", "in", attrIds]],
       ["id", "name", "attribute_id", "x_studio_equivalencias"],
     );
+
+    // Deduplicate by ID (fetchAll pagination with unstable sort can return duplicates)
+    const seen = new Set<number>();
+    const values = rawValues.filter((v: { id: number }) => {
+      if (seen.has(v.id)) return false;
+      seen.add(v.id);
+      return true;
+    });
 
     const result: SizeAttribute[] = sizeAttrs.map(
       (attr: { id: number; name: string }) => ({

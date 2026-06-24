@@ -6,8 +6,10 @@ import {
   ActionIcon,
   Popover,
   Tooltip,
+  ColorPicker,
+  Button,
 } from "@mantine/core";
-import { Pencil } from "lucide-react";
+import { Pencil, Check } from "lucide-react";
 import type { ColorValue } from "@/types";
 
 interface Props {
@@ -30,7 +32,28 @@ export function ColorProveedorCell({
   const [isSuggestingHex, setIsSuggestingHex] = useState(false);
   const [hexSuggestions, setHexSuggestions] = useState<string[]>([]);
   const [hexPopoverOpen, setHexPopoverOpen] = useState(false);
+  const [hexInput, setHexInput] = useState(value?.hexColor || "");
   const dropdownOpenRef = useRef(false);
+  const hexTriggerRef = useRef<HTMLDivElement>(null);
+  const hexDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!hexPopoverOpen) return;
+    function onMouseDown(e: MouseEvent) {
+      const target = e.target as Node;
+      if (
+        hexDropdownRef.current?.contains(target) ||
+        hexTriggerRef.current?.contains(target)
+      ) return;
+      setHexPopoverOpen(false);
+    }
+    // Delay para no capturar el click que abrió el popover
+    const t = setTimeout(() => document.addEventListener("mousedown", onMouseDown), 0);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("mousedown", onMouseDown);
+    };
+  }, [hexPopoverOpen]);
 
   const combobox = useCombobox({
     onDropdownOpen: () => { dropdownOpenRef.current = true; },
@@ -39,6 +62,13 @@ export function ColorProveedorCell({
       combobox.resetSelectedOption();
     },
   });
+
+  // Sync hexInput from outside only when popover is closed (avoids loop while picker is active)
+  useEffect(() => {
+    if (!hexPopoverOpen) {
+      setHexInput(value?.hexColor || "");
+    }
+  }, [value?.hexColor, hexPopoverOpen]);
 
   // Sync search when value changes from outside (e.g. product selection)
   const prevValueNameRef = useRef(value?.name);
@@ -65,20 +95,34 @@ export function ColorProveedorCell({
   );
   const showCreateOption = search.trim() !== "" && !isExactMatch;
 
+  // When value is null but user typed a new color name, derive a temporary value
+  // so the hex picker can work without requiring explicit "Agregar" click first
+  const effectiveValue: ColorValue | null = value ?? (
+    search.trim() && showCreateOption
+      ? {
+          id: null,
+          name: search.trim().replace(/\b\w/g, (c) => c.toUpperCase()),
+          colorBase: "",
+          hexColor: hexInput,
+          isNew: true,
+        }
+      : null
+  );
+
   async function handleSuggestHex() {
-    if (!value?.name) return;
+    if (!effectiveValue?.name) return;
     setIsSuggestingHex(true);
     try {
       const res = await fetch("/api/suggest-hex", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ colorName: value.name }),
+        body: JSON.stringify({ colorName: effectiveValue.name }),
       });
       if (!res.ok) throw new Error("Error sugiriendo HEX");
       const { hexColors } = await res.json();
       setHexSuggestions(hexColors);
-      if (hexColors.length > 0 && !value.hexColor) {
-        onChange({ ...value, hexColor: hexColors[0] });
+      if (hexColors.length > 0 && !effectiveValue.hexColor) {
+        onChange({ ...effectiveValue, hexColor: hexColors[0] });
       }
       setHexPopoverOpen(true);
     } catch {
@@ -157,8 +201,12 @@ export function ColorProveedorCell({
             }}
             onBlur={() => {
               combobox.closeDropdown();
-              if (!value) setSearch("");
-              else setSearch(value.name);
+              if (!value) {
+                // Don't clear if user typed a new color — keep the search text
+                if (!showCreateOption) setSearch("");
+              } else {
+                setSearch(value.name);
+              }
             }}
             style={{
               flex: 1,
@@ -175,69 +223,137 @@ export function ColorProveedorCell({
 
         {showControls && (
           <>
-            {/* HEX circle — siempre visible */}
+            {/* HEX circle — abre popover de edición de color */}
             <Popover
                 opened={hexPopoverOpen}
                 onClose={() => setHexPopoverOpen(false)}
                 position="bottom-start"
                 withArrow
-                closeOnClickOutside
+                withinPortal
               >
                 <Popover.Target>
                   <div
-                    onClick={() =>
-                      hexSuggestions.length > 0 && setHexPopoverOpen(true)
-                    }
+                    ref={hexTriggerRef}
+                    onMouseDown={(e) => e.preventDefault()} // evita blur en el input de texto
+                    onClick={() => {
+                      if (!effectiveValue) return;
+                      // Si el color aún no existe como value (sólo search), lo creamos antes de abrir
+                      if (!value && effectiveValue) {
+                        onChange(effectiveValue);
+                      }
+                      combobox.closeDropdown();
+                      setHexPopoverOpen(true);
+                    }}
                     style={{
                       width: 14,
                       height: 14,
                       borderRadius: "50%",
-                      background: value?.hexColor || "var(--surface3)",
+                      background: effectiveValue?.hexColor || "var(--surface3)",
                       border: "1px solid var(--border2)",
-                      cursor: hexSuggestions.length > 0 ? "pointer" : "default",
+                      cursor: effectiveValue ? "pointer" : "default",
                       flexShrink: 0,
                     }}
                   />
                 </Popover.Target>
                 <Popover.Dropdown>
-                  <div style={{ display: "flex", gap: 6, padding: 4 }}>
-                    {hexSuggestions.map((hex) => (
-                      <div
-                        key={hex}
-                        onClick={() => {
-                          if (value) onChange({ ...value, hexColor: hex });
-                          setHexPopoverOpen(false);
-                        }}
-                        title={hex}
-                        style={{
-                          width: 24,
-                          height: 24,
-                          borderRadius: "50%",
-                          background: hex,
-                          border:
-                            value?.hexColor === hex
-                              ? "2px solid var(--accent)"
-                              : "1px solid rgba(255,255,255,0.2)",
-                          cursor: "pointer",
-                          transition: "transform 0.1s",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.transform = "scale(1.2)")
+                  <div ref={hexDropdownRef} style={{ display: "flex", flexDirection: "column", gap: 8, padding: 4 }}>
+                    {/* Mantine ColorPicker — fluido, sin lag del OS */}
+                    <ColorPicker
+                      format="hex"
+                      value={/^#[0-9a-fA-F]{6}$/.test(hexInput) ? hexInput : "#ffffff"}
+                      onChange={(hex) => {
+                        setHexInput(hex);
+                        if (effectiveValue) onChange({ ...effectiveValue, hexColor: hex });
+                      }}
+                      size="xs"
+                    />
+
+                    {/* Input HEX manual */}
+                    <input
+                      type="text"
+                      value={hexInput}
+                      placeholder="#RRGGBB"
+                      maxLength={7}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setHexInput(v);
+                        if (/^#[0-9a-fA-F]{6}$/.test(v) && effectiveValue) {
+                          onChange({ ...effectiveValue, hexColor: v });
                         }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.transform = "scale(1)")
-                        }
-                      />
-                    ))}
+                      }}
+                      onKeyDown={(e) => e.key === "Escape" && setHexPopoverOpen(false)}
+                      style={{
+                        width: "100%",
+                        fontSize: 12,
+                        fontFamily: "monospace",
+                        border: "1px solid var(--border2)",
+                        borderRadius: 4,
+                        padding: "3px 6px",
+                        background: "var(--surface2)",
+                        color: "var(--text)",
+                        outline: "none",
+                        boxSizing: "border-box",
+                      }}
+                    />
+
+                    {/* Sugerencias IA (si existen) */}
+                    {hexSuggestions.length > 0 && (
+                      <>
+                        <div style={{ fontSize: 11, color: "var(--text3)" }}>Sugerencias IA</div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          {hexSuggestions.map((hex) => (
+                            <div
+                              key={hex}
+                              onClick={() => {
+                                setHexInput(hex);
+                                if (effectiveValue) onChange({ ...effectiveValue, hexColor: hex });
+                                setHexPopoverOpen(false);
+                              }}
+                              title={hex}
+                              style={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: "50%",
+                                background: hex,
+                                border:
+                                  (value?.hexColor ?? hexInput) === hex
+                                    ? "2px solid var(--accent)"
+                                    : "1px solid rgba(255,255,255,0.2)",
+                                cursor: "pointer",
+                                transition: "transform 0.1s",
+                              }}
+                              onMouseEnter={(e) =>
+                                (e.currentTarget.style.transform = "scale(1.2)")
+                              }
+                              onMouseLeave={(e) =>
+                                (e.currentTarget.style.transform = "scale(1)")
+                              }
+                            />
+                          ))}
+                        </div>
+                      </>
+                    )}
+
+                    {/* Botón Listo */}
+                    <Button
+                      size="xs"
+                      variant="subtle"
+                      color="gray"
+                      leftSection={<Check size={12} />}
+                      onClick={() => setHexPopoverOpen(false)}
+                      fullWidth
+                    >
+                      Listo
+                    </Button>
                   </div>
                 </Popover.Dropdown>
               </Popover>
 
             {/* Pencil — solo para colores nuevos */}
-            {value?.isNew && (
+            {(value?.isNew || (showCreateOption && !value)) && (
               <Tooltip
                 label={
-                  !value?.name
+                  !effectiveValue?.name
                     ? "Escribí un color primero"
                     : "Sugerir colores HEX con IA"
                 }
@@ -247,10 +363,10 @@ export function ColorProveedorCell({
                   size="xs"
                   variant="subtle"
                   color="gray"
-                  disabled={!value?.name || isSuggestingHex}
+                  disabled={!effectiveValue?.name || isSuggestingHex}
                   loading={isSuggestingHex}
                   onClick={handleSuggestHex}
-                  style={{ opacity: value?.name ? 1 : 0.3, flexShrink: 0 }}
+                  style={{ opacity: effectiveValue?.name ? 1 : 0.3, flexShrink: 0 }}
                 >
                   <Pencil size={10} />
                 </ActionIcon>

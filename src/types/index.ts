@@ -116,7 +116,6 @@ export interface OdooProduct {
 
 export interface AttributesData {
   colors: ColorValue[];
-  sizes: AttributeValue[];
   colorAttributeId: number;
   sizeAttributeId: number;
 }

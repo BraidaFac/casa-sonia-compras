@@ -8,19 +8,19 @@ import "./globals.css";
 
 const syne = Syne({
   variable: "--font-display",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
   weight: ["400", "500", "600", "700", "800"],
 });
 
 const dmSans = DM_Sans({
   variable: "--font-sans",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
   weight: ["300", "400", "500", "600"],
 });
 
 const dmMono = DM_Mono({
   variable: "--font-mono",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
   weight: ["300", "400", "500"],
 });
 
@@ -40,7 +40,7 @@ export default function RootLayout({
       lang="es"
       className={`${syne.variable} ${dmSans.variable} ${dmMono.variable} h-full`}
     >
-      <body className="min-h-full">
+      <body className="min-h-full" suppressHydrationWarning>
         <AppMantineProvider>
           <QueryProvider>{children}</QueryProvider>
         </AppMantineProvider>

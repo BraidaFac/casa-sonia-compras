@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Group, Text, Badge } from "@mantine/core";
 
 import { DatePickerInput } from "@mantine/dates";
@@ -10,7 +10,8 @@ import type { Supplier } from "@/types";
 
 export default function NewOrderPage() {
   const [supplier, setSupplier] = useState<Supplier | null>(null);
-  const [date, setDate] = useState<Date | null>(new Date());
+  const [date, setDate] = useState<Date | null>(null);
+  useEffect(() => { setDate(new Date()); }, []);
   const [totals, setTotals] = useState({ units: 0, amount: 0 });
   const handleTotalsChange = useCallback((units: number, amount: number) => {
     setTotals({ units, amount });

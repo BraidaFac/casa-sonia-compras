@@ -71,7 +71,8 @@ function createEmptyArticle(
 }
 
 export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
-  const [articles, setArticles] = useState<Article[]>([createEmptyArticle()]);
+  const [articles, setArticles] = useState<Article[]>([]);
+  useEffect(() => { setArticles([createEmptyArticle()]); }, []);
   const [showConfirm, setShowConfirm] = useState(false);
   const [printColumns, setPrintColumns] = useState<PrintColumn[]>([]);
   const [printValues, setPrintValues] = useState<PrintValues>({});
@@ -92,7 +93,6 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
   const { data: colorBaseOptions = [] } = useColorBaseOptions();
 
   const allColors = attrData?.colors || [];
-  const allSizes = attrData?.sizes || [];
   const colorAttributeId = attrData?.colorAttributeId ?? 0;
   const sizeAttributeId = attrData?.sizeAttributeId ?? 0;
   const brandAttributeId = brandsData?.attributeId ?? 0;
@@ -532,7 +532,7 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
                   />
                 </Combobox.Target>
                 <Combobox.Dropdown>
-                  <Combobox.Options>
+                  <Combobox.Options mah={200} style={{ overflowY: "auto", overscrollBehavior: "contain" }}>
                     {filteredBrands.length > 0 ? (
                       filteredBrands.map((b) => (
                         <Combobox.Option key={b.id} value={String(b.id)}>
@@ -611,7 +611,7 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
                   />
                 </Combobox.Target>
                 <Combobox.Dropdown>
-                  <Combobox.Options>
+                  <Combobox.Options mah={200} style={{ overflowY: "auto", overscrollBehavior: "contain" }}>
                     {filteredCompradoas.length > 0 ? (
                       filteredCompradoas.map((c) => (
                         <Combobox.Option key={c.id} value={String(c.id)}>

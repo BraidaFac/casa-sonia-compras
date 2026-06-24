@@ -3,11 +3,10 @@ import { odoo } from "@/lib/odoo";
 
 export async function GET() {
   try {
-    const suppliers = await odoo.searchRead(
+    const suppliers = await odoo.fetchAll(
       "res.partner",
       [["supplier_rank", ">", 0]],
       ["id", "name"],
-      { limit: 500 },
     );
 
     return NextResponse.json(suppliers);

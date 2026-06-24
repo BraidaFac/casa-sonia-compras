@@ -26,6 +26,8 @@ async function request(model: string, method: string, body: object = {}) {
   return response.json();
 }
 
+const FETCH_ALL_PAGE_SIZE = 100;
+
 export const odoo = {
   search: (model: string, domain: unknown[], options?: object) =>
     request(model, "search", { domain, ...options }),
@@ -39,6 +41,29 @@ export const odoo = {
     fields: string[],
     options?: object,
   ) => request(model, "search_read", { domain, fields, ...options }),
+
+  fetchAll: async <T = { id: number; name: string }>(
+    model: string,
+    domain: unknown[],
+    fields: string[],
+    order = "name asc",
+  ): Promise<T[]> => {
+    const all: T[] = [];
+    let offset = 0;
+    while (true) {
+      const page: T[] = await request(model, "search_read", {
+        domain,
+        fields,
+        limit: FETCH_ALL_PAGE_SIZE,
+        offset,
+        order,
+      });
+      all.push(...page);
+      if (page.length < FETCH_ALL_PAGE_SIZE) break;
+      offset += FETCH_ALL_PAGE_SIZE;
+    }
+    return all;
+  },
 
   // JSON-2 API uses 'vals_list' as param name (not 'values')
   // Normalize: Odoo may return [id] (array) — always return plain number

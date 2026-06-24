@@ -797,7 +797,7 @@ export async function POST(request: NextRequest) {
           const variantId = variantMap.get(key);
           if (!variantId) continue;
 
-          const priceUnit = row.prices?.[size.name]
+          const priceUnit = (article.priceGranular && row.prices?.[size.name])
             ? parseFloat(row.prices[size.name])
             : parseFloat(article.price) || 0;
 

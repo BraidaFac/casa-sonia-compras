@@ -9,11 +9,12 @@ export interface ProductCategory {
 
 export async function GET() {
   try {
-    const allCategories = await odoo.searchRead(
-      "product.category",
-      [],
-      ["id", "name", "parent_id", "complete_name"],
-    );
+    const allCategories = await odoo.fetchAll<{
+      id: number;
+      name: string;
+      parent_id: [number, string] | false;
+      complete_name?: string;
+    }>("product.category", [], ["id", "name", "parent_id", "complete_name"], "complete_name asc");
 
     const parentIds = new Set<number>();
     for (const cat of allCategories) {
@@ -26,8 +27,8 @@ export async function GET() {
     }
 
     const leafCategories = allCategories
-      .filter((cat: { id: number }) => !parentIds.has(cat.id))
-      .map((cat: { id: number; name: string; complete_name?: string }) => ({
+      .filter((cat) => !parentIds.has(cat.id))
+      .map((cat) => ({
         id: cat.id,
         name: cat.name,
         completeName: cat.complete_name || cat.name,

@@ -1,6 +1,6 @@
 import type { SizeValue } from "@/app/api/size-attributes/route";
 
-const SUFFIX_REGEX = /^(\d+\.?\d*)\s+(.+)$/;
+const SUFFIX_REGEX = /^(\d+[.,]?\d*)\s+(.+)$/;
 const LETTER_REGEX = /^[a-zA-Z]|^\d+[a-zA-Z]/;
 
 export type SizeCategory = "letter" | "numeric" | "numeric-with-suffix";
@@ -66,13 +66,15 @@ export function buildHierarchy(values: SizeValue[]): SizeHierarchy {
     suffixGroups[suffix].push(cv);
   }
 
+  const toFloat = (s: string) => parseFloat(s.replace(",", "."));
+
   for (const suffix of Object.keys(suffixGroups)) {
     suffixGroups[suffix].sort(
-      (a, b) => parseFloat(a.numericPart!) - parseFloat(b.numericPart!),
+      (a, b) => toFloat(a.numericPart!) - toFloat(b.numericPart!),
     );
   }
   numerics.sort(
-    (a, b) => parseFloat(a.numericPart!) - parseFloat(b.numericPart!),
+    (a, b) => toFloat(a.numericPart!) - toFloat(b.numericPart!),
   );
 
   return {

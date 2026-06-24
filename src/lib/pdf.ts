@@ -1,6 +1,17 @@
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { PDFDocument, rgb } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
+import fs from "fs";
+import path from "path";
 import { odoo } from "./odoo";
 import type { Article, PrintColumn, PrintValues, Warehouse } from "@/types";
+
+async function embedFonts(pdfDoc: PDFDocument) {
+  pdfDoc.registerFontkit(fontkit);
+  const base = path.join(process.cwd(), "node_modules", "@fontsource", "noto-sans", "files");
+  const regular = await pdfDoc.embedFont(new Uint8Array(fs.readFileSync(path.join(base, "noto-sans-latin-400-normal.woff"))));
+  const bold = await pdfDoc.embedFont(new Uint8Array(fs.readFileSync(path.join(base, "noto-sans-latin-700-normal.woff"))));
+  return { regular, bold };
+}
 
 interface OrderLine {
   productName: string;
@@ -101,8 +112,7 @@ export async function generateOrderPDF(orderId: number): Promise<Uint8Array> {
   const page = pdfDoc.addPage([595, 842]); // A4
   const { width, height } = page.getSize();
 
-  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const { regular: fontRegular, bold: fontBold } = await embedFonts(pdfDoc);
 
   const margin = 50;
   let y = height - margin;
@@ -267,10 +277,11 @@ interface GridPdfData {
   comment?: string;
   selectedWarehouses?: Warehouse[];
   supplierMode?: boolean;
+  orientation?: "landscape" | "portrait";
 }
 
 export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
-  const { order, articles, printColumns, printValues, comment, selectedWarehouses = [], supplierMode = false } = data;
+  const { order, articles, printColumns, printValues, comment, selectedWarehouses = [], supplierMode = false, orientation = "landscape" } = data;
 
   // Supplier PDF: printColumns shown, no warehouse breakdown, quantities summed across warehouses
   // Internal PDF: no printColumns, warehouse breakdown shown
@@ -288,8 +299,7 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
   }
 
   const pdfDoc = await PDFDocument.create();
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const { regular: font, bold: fontBold } = await embedFonts(pdfDoc);
 
   const colorAccent = rgb(0.851, 0.467, 0.024);
   const colorBlack = rgb(0, 0, 0);
@@ -302,8 +312,8 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
   const colorArticleHeader = rgb(0.94, 0.925, 0.91);
   const colorEmptyCell = rgb(0.955, 0.948, 0.942);
 
-  const PAGE_W = 841.89; // A4 landscape
-  const PAGE_H = 595.28;
+  const PAGE_W = orientation === "portrait" ? 595.28 : 841.89;
+  const PAGE_H = orientation === "portrait" ? 841.89 : 595.28;
   const MARGIN = 30;
   const ROW_H = 16;
   const HEADER_ROW_H = 18;
@@ -372,7 +382,7 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
     const hasMeta = !!(article.referencia || article.price);
     const articleHeaderH = 20 + (hasMeta ? 14 : 0) + 4;
     const tableH = HEADER_ROW_H + article.rows.length * ROW_H + ROW_H; // +1 for total row
-    const needed = articleHeaderH + tableH + 20;
+    const needed = articleHeaderH + tableH + (article.price ? 32 : 20);
 
     if (y - needed < MARGIN) {
       page = pdfDoc.addPage([PAGE_W, PAGE_H]);
@@ -697,7 +707,7 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
       x, y: y - ROW_H, width: COLOR_COL_W, height: ROW_H,
       color: colorTotalRow, borderColor: colorBorderCell, borderWidth: 0.5,
     });
-    page.drawText("TOTAL", {
+    page.drawText("TOTAL CANT", {
       x: x + 5, y: y - ROW_H + 4, size: 8, font: fontBold, color: colorBlack,
     });
     x += COLOR_COL_W;
@@ -733,7 +743,97 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
       x += sizeColW;
     }
 
-    y -= ROW_H + 20;
+    y -= ROW_H;
+
+    // Subtotal por artículo
+    const articleHasAnyPrice = !!(article.price ||
+      (article.priceGranular && article.rows.some((r) => article.sizes.some((sz) => !!r.prices?.[sz.name]))));
+    if (articleHasAnyPrice) {
+      const warehouseModeArticle = selectedWarehouses.length > 0;
+      const fmt = (n: number) => n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const xStart = MARGIN + 4;
+      // xDash alineado al ancho del label más largo ("SubTotal") + gap
+      const labelMaxW = Math.max(
+        fontBold.widthOfTextAtSize("Detalle", 9),
+        fontBold.widthOfTextAtSize("SubTotal", 9),
+      );
+      const xDash = xStart + labelMaxW + 8; // 8pt gap entre label y guión
+
+      if (article.priceGranular) {
+        // Agrupar cantidades por precio
+        const priceGroups = new Map<number, number>();
+        for (const row of article.rows) {
+          for (const sz of article.sizes) {
+            const qty = warehouseModeArticle
+              ? selectedWarehouses.reduce((s, w) => s + (parseInt((row.warehouseQuantities ?? {})[`${w.id}:${sz.name}`] || "0", 10) || 0), 0)
+              : parseInt(row.quantities[sz.name] || "0", 10) || 0;
+            if (qty <= 0) continue;
+            const price = parseFloat(row.prices?.[sz.name] || article.price) || 0;
+            priceGroups.set(price, (priceGroups.get(price) || 0) + qty);
+          }
+        }
+        const groups = Array.from(priceGroups.entries()).sort((a, b) => a[0] - b[0]);
+
+        // Pre-formatear strings para medir anchos máximos (incluyendo fila subtotal)
+        const qtyStrs = groups.map(([, qty]) => String(qty));
+        const totalQty = groups.reduce((s, [, qty]) => s + qty, 0);
+        const totalAmt = groups.reduce((s, [price, qty]) => s + qty * price, 0);
+        const allQtyStrs = [...qtyStrs, String(totalQty)];
+        const priceStrs = groups.map(([price]) => `$${fmt(price)}`);
+        const subtotalStrs = groups.map(([price, qty]) => `$${fmt(qty * price)}`);
+        const totalAmtStr = `$${fmt(totalAmt)}`;
+
+        const maxQtyW = Math.max(...allQtyStrs.map((s) => fontBold.widthOfTextAtSize(s, 9)));
+        const maxPriceW = Math.max(...priceStrs.map((s) => fontBold.widthOfTextAtSize(s, 9)));
+
+        const dashW = fontBold.widthOfTextAtSize("-", 9);
+        const xQtyEnd = xDash + dashW + 4 + maxQtyW;
+        const xKeyword = xQtyEnd + 4;
+        const keywordW = fontBold.widthOfTextAtSize("x", 9);
+        const xPriceEnd = xKeyword + keywordW + 4 + maxPriceW;
+        const xEq = xPriceEnd + 4;
+        const eqW = fontBold.widthOfTextAtSize("=", 9);
+        const xSubtotal = xEq + eqW + 4;
+
+        let lineY = y - 14;
+
+        // Filas de detalle — en gris
+        for (let i = 0; i < groups.length; i++) {
+          if (i === 0) {
+            page.drawText("Detalle", { x: xStart, y: lineY, size: 9, font: fontBold, color: colorMuted });
+          }
+          page.drawText("-", { x: xDash, y: lineY, size: 9, font, color: colorMuted });
+          const qW = fontBold.widthOfTextAtSize(qtyStrs[i], 9);
+          page.drawText(qtyStrs[i], { x: xQtyEnd - qW, y: lineY, size: 9, font, color: colorMuted });
+          page.drawText("x", { x: xKeyword, y: lineY, size: 9, font, color: colorMuted });
+          const prW = fontBold.widthOfTextAtSize(priceStrs[i], 9);
+          page.drawText(priceStrs[i], { x: xPriceEnd - prW, y: lineY, size: 9, font, color: colorMuted });
+          page.drawText("=", { x: xEq, y: lineY, size: 9, font, color: colorMuted });
+          page.drawText(subtotalStrs[i], { x: xSubtotal, y: lineY, size: 9, font, color: colorMuted });
+          lineY -= 12;
+        }
+
+        // Fila SubTotal — en negro, negrita
+        page.drawText("SubTotal", { x: xStart, y: lineY, size: 9, font: fontBold, color: colorBlack });
+        page.drawText("-", { x: xDash, y: lineY, size: 9, font: fontBold, color: colorBlack });
+        const tqW = fontBold.widthOfTextAtSize(String(totalQty), 9);
+        page.drawText(String(totalQty), { x: xQtyEnd - tqW, y: lineY, size: 9, font: fontBold, color: colorBlack });
+        page.drawText("=", { x: xEq, y: lineY, size: 9, font: fontBold, color: colorBlack });
+        page.drawText(totalAmtStr, { x: xSubtotal, y: lineY, size: 9, font: fontBold, color: colorBlack });
+
+        y -= 14 + (groups.length + 1) * 12;
+      } else {
+        const articlePrice = parseFloat(article.price) || 0;
+        const articleSubtotal = totalUnits * articlePrice;
+        page.drawText("SubTotal", { x: xStart, y: y - 14, size: 9, font: fontBold, color: colorBlack });
+        page.drawText(`- ${totalUnits} x $${fmt(articlePrice)} = $${fmt(articleSubtotal)}`, {
+          x: xDash, y: y - 14, size: 9, font: fontBold, color: colorBlack,
+        });
+        y -= 14 + 12;
+      }
+    }
+
+    y -= 8;
   }
 
   // Total valorizado
