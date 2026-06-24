@@ -5,7 +5,6 @@ const ODOO_API_KEY = process.env.ODOO_API_KEY!;
 const headers = {
   "Content-Type": "application/json",
   Authorization: `Bearer ${ODOO_API_KEY}`,
-  "X-Odoo-Database": ODOO_DB,
 };
 
 async function request(model: string, method: string, body: object = {}) {
@@ -20,6 +19,8 @@ async function request(model: string, method: string, body: object = {}) {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
+    console.log(error?.message);
+
     throw new Error(error?.message || `Odoo error: ${response.status}`);
   }
 
