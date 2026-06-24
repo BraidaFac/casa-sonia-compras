@@ -40,8 +40,9 @@ export async function GET() {
     );
 
     // Deduplicate by ID (fetchAll pagination with unstable sort can return duplicates)
+    type RawValue = { id: number; name: string; attribute_id: [number, string] | number; x_studio_equivalencias: string };
     const seen = new Set<number>();
-    const values = rawValues.filter((v: { id: number }) => {
+    const values = (rawValues as RawValue[]).filter((v) => {
       if (seen.has(v.id)) return false;
       seen.add(v.id);
       return true;
@@ -52,13 +53,13 @@ export async function GET() {
         id: attr.id,
         name: attr.name,
         values: values
-          .filter((v: { attribute_id: [number, string] | number }) => {
+          .filter((v) => {
             const attrId = Array.isArray(v.attribute_id)
               ? v.attribute_id[0]
               : v.attribute_id;
             return attrId === attr.id;
           })
-          .map((v: { id: number; name: string; x_studio_equivalencias: string }) => ({
+          .map((v) => ({
             id: v.id,
             name: v.name,
             equivalencia: v.x_studio_equivalencias || "",
