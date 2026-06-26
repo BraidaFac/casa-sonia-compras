@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     // Search product templates
     const templates = await odoo.searchRead(
       "product.template",
-      ["|", ["name", "ilike", q], ["default_code", "ilike", q]],
+      ["|", ["name", "ilike", q], ["default_code", "ilike", q.toUpperCase()]],
       [
         "id",
         "name",
