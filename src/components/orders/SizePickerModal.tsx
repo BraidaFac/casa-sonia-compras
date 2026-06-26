@@ -321,10 +321,16 @@ export function SizePickerModal({
             color="amber"
             disabled={selectedIds.size === 0 || !selectedAttribute}
             onClick={() => {
-              if (!selectedAttribute) return;
-              const selectedValues = selectedAttribute.values.filter((v) =>
-                selectedIds.has(v.id),
-              );
+              if (!selectedAttribute || !hierarchy) return;
+              // Rebuild in sorted display order (same as shown in modal)
+              const sortedAll = [
+                ...sortLetterValues(hierarchy.letters).map((cv) => cv.value),
+                ...hierarchy.numerics.map((cv) => cv.value),
+                ...hierarchy.suffixes.flatMap((s) =>
+                  hierarchy.suffixGroups[s].map((cv) => cv.value),
+                ),
+              ];
+              const selectedValues = sortedAll.filter((v) => selectedIds.has(v.id));
               onConfirm(selectedValues, selectedAttribute.id);
             }}
           >

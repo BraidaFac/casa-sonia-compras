@@ -38,6 +38,7 @@ function createEmptyArticle(
       attributeName: "Marca",
       values: [globalBrand.brand],
       generatesVariants: false,
+      locked: true,
     });
   }
   if (globalCompradora) {
@@ -46,6 +47,7 @@ function createEmptyArticle(
       attributeName: "Compradora",
       values: [globalCompradora.compradora],
       generatesVariants: false,
+      locked: true,
     });
   }
 
@@ -415,6 +417,10 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
   const hasMissingRequiredAttrs = Object.keys(missingRequiredPerArticle).length > 0;
   const firstMissingArticleId = articles.find((a) => missingRequiredPerArticle[a.id])?.id;
 
+  const missingAttrLabels = [
+    ...new Set(Object.values(missingRequiredPerArticle).flat()),
+  ].map((key) => REQUIRED_ATTR_FAMILIES.find((f) => f.key === key)?.label ?? key);
+
   function getDisabledReason(): string | null {
     if (!supplier) return "Seleccioná un proveedor";
     if (!date) return "Seleccioná una fecha";
@@ -722,7 +728,9 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
         <Tooltip
           label={
             disabledReason ||
-            (validateMode && hasMissingRequiredAttrs ? "Faltan Atributos del artículo" : null)
+            (validateMode && hasMissingRequiredAttrs
+              ? `Faltan atributos: ${missingAttrLabels.join(", ")}`
+              : null)
           }
           disabled={!disabledReason && !(validateMode && hasMissingRequiredAttrs)}
           withArrow

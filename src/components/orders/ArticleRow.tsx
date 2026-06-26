@@ -286,7 +286,7 @@ export function ArticleRow({
             },
           ];
 
-    const baseAttributes = p.extraAttributes || [];
+    const baseAttributes = (p.extraAttributes || []).map((a) => ({ ...a, locked: true }));
     const existingAttrIds = new Set(baseAttributes.map((a) => a.attributeId));
     const allPreloadedNames = [
       ...REQUIRED_ATTR_FAMILIES.flatMap((f) => f.names),
@@ -306,6 +306,7 @@ export function ArticleRow({
         attributeName: a.name,
         values: [],
         generatesVariants: false,
+        locked: true,
       })),
     ];
 

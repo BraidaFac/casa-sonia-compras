@@ -41,6 +41,8 @@ export interface ProductAttribute {
   values: AttributeValue[];
   // true if generates variants (Color or Talle)
   generatesVariants: boolean;
+  // true if attribute name is fixed (preloaded from Odoo or injected) — cannot be reassigned
+  locked?: boolean;
 }
 
 export interface Warehouse {

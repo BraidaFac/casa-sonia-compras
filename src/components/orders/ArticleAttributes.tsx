@@ -44,7 +44,7 @@ interface ConfirmDeleteState {
 // Familias de atributos requeridos (agrupados por sinónimos con/sin tilde)
 export const REQUIRED_ATTR_FAMILIES: { key: string; label: string; names: string[] }[] = [
   { key: "marca", label: "Marca", names: ["marca"] },
-  { key: "material", label: "Material", names: ["material"] },
+  { key: "composicion", label: "Composición", names: ["composicion", "composición"] },
   { key: "genero", label: "Género", names: ["genero", "género"] },
   { key: "temporada", label: "Temporada", names: ["temporada"] },
   { key: "ocacion", label: "Ocasión", names: ["ocacion", "ocasión", "ocación"] },
@@ -440,7 +440,8 @@ export function ArticleAttributes({
           {editableAttributes.map((attr) => {
             const actualIdx = article.attributes.indexOf(attr);
             const required = attr.attributeId > 0 && isRequiredAttr(attr.attributeName);
-            const canRemove = !required;
+            const locked = attr.locked === true || required;
+            const canRemove = !locked;
 
             // Determine if this attr is in the missing list (highlight red)
             const isMissingHighlight = required && attr.values.length === 0 && missingRequiredKeys.length > 0 &&
@@ -452,12 +453,12 @@ export function ArticleAttributes({
             return (
               <tr key={`${attr.attributeId}-${actualIdx}`}>
                 <td style={{ padding: "4px 8px", verticalAlign: "middle" }}>
-                  {required ? (
+                  {locked ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       <Text size="xs" style={{ width: 190, padding: "0 4px" }}>
                         {attr.attributeName}
                       </Text>
-                      {attr.values.length === 0 && (
+                      {required && attr.values.length === 0 && (
                         <span style={{ color: "var(--mantine-color-red-6)", fontSize: 11 }}>*</span>
                       )}
                     </div>
