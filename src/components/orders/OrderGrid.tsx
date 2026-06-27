@@ -109,7 +109,6 @@ export function OrderGrid({ supplier, date, onTotalsChange, mode = "create", ini
   }, []);
 
   const [showConfirm, setShowConfirm] = useState(false);
-  const [isSaving] = useState(false);
   const [printColumns, setPrintColumns] = useState<PrintColumn[]>(() => (draft?.printColumns as PrintColumn[]) ?? []);
   const [printValues, setPrintValues] = useState<PrintValues>(() => (draft?.printValues as PrintValues) ?? {});
   const [attrValidationErrors, setAttrValidationErrors] = useState<AttrValidationError[]>([]);
@@ -812,8 +811,7 @@ export function OrderGrid({ supplier, date, onTotalsChange, mode = "create", ini
             <Button
               color="amber"
               size="md"
-              loading={isSaving}
-              disabled={!!disabledReason || (validateMode && hasMissingRequiredAttrs) || isSaving}
+              disabled={!!disabledReason || (validateMode && hasMissingRequiredAttrs)}
               onClick={async () => {
                 if (hasMissingRequiredAttrs) {
                   setValidateMode(true);
