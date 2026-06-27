@@ -4,7 +4,6 @@ import { Group, Text, Badge, Alert } from "@mantine/core";
 
 import { DatePickerInput } from "@mantine/dates";
 import "dayjs/locale/es";
-import { useRouter } from "next/navigation";
 import { SupplierSearch } from "@/components/orders/SupplierSearch";
 import { OrderGrid } from "@/components/orders/OrderGrid";
 import type { Supplier } from "@/types";
@@ -12,7 +11,6 @@ import type { Supplier } from "@/types";
 const ORDER_DRAFT_KEY = "order_new_draft";
 
 export default function NewOrderPage() {
-  const router = useRouter();
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [date, setDate] = useState<Date | null>(null);
   const [draftBanner, setDraftBanner] = useState(false);
@@ -90,17 +88,6 @@ export default function NewOrderPage() {
           zIndex: 20,
         }}
       >
-        <img
-          src="/CS.png"
-          alt="Casa Sonia"
-          style={{ height: 32, width: "auto", flexShrink: 0 }}
-        />
-        <button
-          onClick={() => router.push("/orders")}
-          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text3)", fontSize: 13, padding: "4px 8px" }}
-        >
-          ← Órdenes
-        </button>
         <h1
           style={{
             margin: 0,

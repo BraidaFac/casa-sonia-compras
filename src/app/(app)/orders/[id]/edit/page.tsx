@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Group, Text, Badge, Button, Modal, Stack, ThemeIcon, List } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import "dayjs/locale/es";
-import { ArrowLeft, CheckCircle, Clock, FileText, Loader2 } from "lucide-react";
+import { CheckCircle, Clock, FileText, Loader2 } from "lucide-react";
 import { SupplierSearch } from "@/components/orders/SupplierSearch";
 import { OrderGrid } from "@/components/orders/OrderGrid";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -256,19 +256,6 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
           zIndex: 20,
         }}
       >
-        <img src="/CS.png" alt="Casa Sonia" style={{ height: 32, width: "auto", flexShrink: 0 }} />
-
-        <Button
-          variant="subtle"
-          color="gray"
-          size="xs"
-          leftSection={<ArrowLeft size={14} />}
-          onClick={() => router.push("/orders")}
-          style={{ padding: "4px 8px" }}
-        >
-          Órdenes
-        </Button>
-
         <h1
           style={{
             margin: 0,

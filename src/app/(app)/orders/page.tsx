@@ -118,7 +118,6 @@ export default function OrdersListPage() {
           zIndex: 20,
         }}
       >
-        <img src="/CS.png" alt="Casa Sonia" style={{ height: 32, width: "auto", flexShrink: 0 }} />
         <h1
           style={{
             margin: 0,
