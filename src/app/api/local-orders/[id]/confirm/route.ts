@@ -1,0 +1,142 @@
+import { NextRequest, NextResponse } from "next/server";
+import { verifyToken } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { restorePreviewUrls } from "@/lib/localOrders";
+import { validateForConfirm } from "@/lib/orderValidation";
+import { createOrderInOdoo } from "@/lib/odooOrderCreation";
+import { deleteTempFolder } from "@/lib/imageStorage";
+import { syncProductImages } from "@/lib/odooProducts";
+import { readFile } from "fs/promises";
+import { join } from "path";
+import type { LocalArticle, Article } from "@/types";
+
+async function authenticate(request: NextRequest) {
+  const token = request.cookies.get("auth_token")?.value;
+  if (!token) return null;
+  try {
+    return await verifyToken(token);
+  } catch {
+    return null;
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  if (!(await authenticate(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const orderId = parseInt(id, 10);
+  if (isNaN(orderId)) {
+    return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+  }
+
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) {
+    return NextResponse.json({ error: "Orden no encontrada" }, { status: 404 });
+  }
+  if (order.status === "CONFIRMED") {
+    return NextResponse.json({ error: "Orden ya confirmada" }, { status: 409 });
+  }
+
+  // Restore articles with preview URLs
+  const localArticles = order.articles as unknown as LocalArticle[];
+  const articles = restorePreviewUrls(localArticles) as Article[];
+
+  // Load base64 for temp images from filesystem
+  for (const article of articles) {
+    for (const images of Object.values(article.colorImages)) {
+      for (const img of images) {
+        const localImg = localArticles
+          .flatMap((a) => Object.values(a.colorImages).flat())
+          .find((li) => li.id === img.id);
+        if (localImg?.tempPath && !img.isFromOdoo) {
+          try {
+            const absPath = join(process.cwd(), "public", localImg.tempPath);
+            const buf = await readFile(absPath);
+            img.base64 = buf.toString("base64");
+            img.previewUrl = `data:${img.mimeType};base64,${img.base64}`;
+          } catch {
+            console.error(`Could not read temp image: ${localImg.tempPath}`);
+          }
+        }
+      }
+    }
+  }
+
+  // Strict validation
+  const validation = validateForConfirm({
+    supplierId: order.supplierId,
+    date: order.date,
+    articles: localArticles,
+  });
+  if (!validation.valid) {
+    return NextResponse.json(
+      { error: "Validación fallida", missing: validation.missing },
+      { status: 422 },
+    );
+  }
+
+  try {
+    const result = await createOrderInOdoo({
+      supplierId: order.supplierId,
+      date: order.date,
+      articles,
+      warehouseIds: order.warehouseIds as number[],
+      printColumns: order.printColumns as never,
+      printValues: order.printValues as never,
+      selectedWarehouses: [],
+    });
+
+    // Sync images to Odoo (best-effort)
+    for (const entry of result.imageSyncData) {
+      const article = articles.find((a) => a.id === entry.articleId);
+      if (!article) continue;
+      try {
+        await syncProductImages(
+          entry.templateId,
+          article,
+          entry.resolvedColors,
+          new Map(entry.variantMap),
+        );
+      } catch (imgErr) {
+        console.error("Image sync error (non-fatal):", imgErr);
+      }
+    }
+
+    // Cleanup temp files
+    await deleteTempFolder(orderId);
+
+    // Update DB — CONFIRMED
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: "CONFIRMED",
+        odooOrderId: result.purchaseOrderId,
+        odooOrderName: result.purchaseOrderName,
+        errorDetail: null,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      odooOrderId: result.purchaseOrderId,
+      odooOrderName: result.purchaseOrderName,
+      id: updated.id,
+      status: updated.status,
+    });
+  } catch (error) {
+    const detail =
+      error instanceof Error ? error.message : String(error);
+
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { status: "ERROR", errorDetail: detail },
+    });
+
+    return NextResponse.json({ error: detail, status: "ERROR" }, { status: 500 });
+  }
+}
