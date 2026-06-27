@@ -7,7 +7,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
     "@fontsource/noto-sans": "^5.2.10",
@@ -15,6 +18,7 @@
     "@mantine/dates": "^9.2.0",
     "@mantine/hooks": "^9.2.0",
     "@pdf-lib/fontkit": "^1.1.1",
+    "@prisma/client": "^7.8.0",
     "@tanstack/react-query": "^5.100.10",
     "ag-grid-community": "^35.2.1",
     "ag-grid-react": "^35.2.1",
@@ -24,6 +28,7 @@
     "lucide-react": "^1.14.0",
     "next": "16.2.6",
     "pdf-lib": "^1.17.1",
+    "prisma": "^7.8.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
@@ -32,6 +37,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",

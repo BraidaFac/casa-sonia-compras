@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum OrderStatus {
+  DRAFT
+  CONFIRMED
+  ERROR
+}
+
+model Order {
+  id            Int         @id @default(autoincrement())
+  status        OrderStatus @default(DRAFT)
+  odooOrderId   Int?        @map("odoo_order_id")
+  odooOrderName String?     @map("odoo_order_name")
+  errorDetail   String?     @map("error_detail") @db.Text
+  supplierId    Int         @map("supplier_id")
+  supplierName  String      @map("supplier_name")
+  date          String
+  warehouseIds  Json        @map("warehouse_ids")
+  articles      Json
+  printColumns  Json        @map("print_columns")
+  printValues   Json        @map("print_values")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  @@map("orders")
+}
