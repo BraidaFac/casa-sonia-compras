@@ -1,22 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
+import { authenticateRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stripImagesForDB } from "@/lib/localOrders";
 import type { Article, PrintColumn, PrintValues } from "@/types";
 
-async function authenticate(request: NextRequest) {
-  const token = request.cookies.get("auth_token")?.value;
-  if (!token) return null;
-  try {
-    return await verifyToken(token);
-  } catch {
-    return null;
-  }
-}
-
 // GET /api/local-orders?status=DRAFT&supplier_id=1&date_from=2026-01-01&date_to=2026-12-31&limit=30&offset=0
 export async function GET(request: NextRequest) {
-  if (!(await authenticate(request))) {
+  if (!(await authenticateRequest(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -79,7 +69,7 @@ export async function GET(request: NextRequest) {
 
 // POST /api/local-orders — create draft
 export async function POST(request: NextRequest) {
-  if (!(await authenticate(request))) {
+  if (!(await authenticateRequest(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -92,6 +82,21 @@ export async function POST(request: NextRequest) {
     printColumns: PrintColumn[];
     printValues: PrintValues;
   };
+
+  const { supplierId, supplierName, date, articles } = body;
+
+  if (!supplierId || !supplierName || !date) {
+    return NextResponse.json(
+      { error: "supplierId, supplierName, and date are required" },
+      { status: 400 },
+    );
+  }
+  if (!Array.isArray(articles)) {
+    return NextResponse.json(
+      { error: "articles must be an array" },
+      { status: 400 },
+    );
+  }
 
   const order = await prisma.order.create({
     data: {

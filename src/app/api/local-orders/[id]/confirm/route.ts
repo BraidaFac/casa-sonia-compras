@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
+import { authenticateRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { odoo } from "@/lib/odoo";
 import { restorePreviewUrls } from "@/lib/localOrders";
 import { validateForConfirm } from "@/lib/orderValidation";
 import { createOrderInOdoo } from "@/lib/odooOrderCreation";
@@ -10,21 +11,11 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import type { LocalArticle, Article } from "@/types";
 
-async function authenticate(request: NextRequest) {
-  const token = request.cookies.get("auth_token")?.value;
-  if (!token) return null;
-  try {
-    return await verifyToken(token);
-  } catch {
-    return null;
-  }
-}
-
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await authenticate(request))) {
+  if (!(await authenticateRequest(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -81,14 +72,23 @@ export async function POST(
   }
 
   try {
+    const warehouseIdList =
+      Array.isArray(order.warehouseIds) && (order.warehouseIds as number[]).length > 0
+        ? (order.warehouseIds as number[])
+        : [];
+    const selectedWarehouses =
+      warehouseIdList.length > 0
+        ? await odoo.read("stock.warehouse", warehouseIdList, ["id", "name", "lot_stock_id"])
+        : [];
+
     const result = await createOrderInOdoo({
       supplierId: order.supplierId,
       date: order.date,
       articles,
-      warehouseIds: order.warehouseIds as number[],
+      warehouseIds: warehouseIdList,
       printColumns: order.printColumns as never,
       printValues: order.printValues as never,
-      selectedWarehouses: [],
+      selectedWarehouses,
     });
 
     // Sync images to Odoo (best-effort)

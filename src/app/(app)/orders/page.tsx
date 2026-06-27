@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Text, Group, Select, Modal, Stack } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { DatePickerInput } from "@mantine/dates";
 import "dayjs/locale/es";
 import { Plus, Send, Copy, Trash2, Edit2, AlertTriangle, Eye } from "lucide-react";
@@ -74,7 +75,15 @@ export default function OrdersPage() {
   async function handleConfirm(id: number) {
     setConfirming(id);
     try {
-      await fetch(`/api/local-orders/${id}/confirm`, { method: "POST" });
+      const res = await fetch(`/api/local-orders/${id}/confirm`, { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        notifications.show({
+          color: "red",
+          title: "Error al confirmar",
+          message: (err as { error?: string }).error || "La orden falló al confirmarse",
+        });
+      }
       fetchOrders();
     } finally {
       setConfirming(null);

@@ -1,15 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { odoo } from "@/lib/odoo";
-import type {
-  Article,
-  PrintColumn,
-  PrintValues,
-  Warehouse,
-} from "@/types";
-import {
-  createOrderInOdoo,
-  OdooValidationError,
-} from "@/lib/odooOrderCreation";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -51,49 +41,3 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const {
-    supplierId,
-    date,
-    articles,
-    warehouseIds = [],
-    printColumns = [],
-    printValues = {},
-    selectedWarehouses = [],
-  } = body as {
-    supplierId: number;
-    date: string;
-    articles: Article[];
-    warehouseIds: number[];
-    printColumns: PrintColumn[];
-    printValues: PrintValues;
-    selectedWarehouses: Warehouse[];
-  };
-
-  try {
-    const result = await createOrderInOdoo({
-      supplierId,
-      date,
-      articles,
-      warehouseIds,
-      printColumns,
-      printValues,
-      selectedWarehouses,
-    });
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof OdooValidationError) {
-      return NextResponse.json(
-        { error: error.message, validationErrors: error.validationErrors },
-        { status: error.statusCode },
-      );
-    }
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Error creating order",
-      },
-      { status: 500 },
-    );
-  }
-}

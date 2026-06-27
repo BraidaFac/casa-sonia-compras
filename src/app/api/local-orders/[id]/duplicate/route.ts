@@ -1,24 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
+import { authenticateRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { LocalArticle } from "@/types";
 import { randomUUID } from "crypto";
-
-async function authenticate(request: NextRequest) {
-  const token = request.cookies.get("auth_token")?.value;
-  if (!token) return null;
-  try {
-    return await verifyToken(token);
-  } catch {
-    return null;
-  }
-}
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await authenticate(request))) {
+  if (!(await authenticateRequest(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

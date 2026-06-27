@@ -1,18 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
+import { authenticateRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stripImagesForDB, restorePreviewUrls } from "@/lib/localOrders";
+import { deleteTempFolder } from "@/lib/imageStorage";
 import type { Article, LocalArticle, PrintColumn, PrintValues } from "@/types";
-
-async function authenticate(request: NextRequest) {
-  const token = request.cookies.get("auth_token")?.value;
-  if (!token) return null;
-  try {
-    return await verifyToken(token);
-  } catch {
-    return null;
-  }
-}
 
 async function getOrder(id: number) {
   return prisma.order.findUnique({ where: { id } });
@@ -23,7 +14,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await authenticate(request))) {
+  if (!(await authenticateRequest(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -56,7 +47,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await authenticate(request))) {
+  if (!(await authenticateRequest(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -119,7 +110,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await authenticate(request))) {
+  if (!(await authenticateRequest(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -140,6 +131,7 @@ export async function DELETE(
     );
   }
 
+  await deleteTempFolder(orderId).catch(() => {}); // best-effort
   await prisma.order.delete({ where: { id: orderId } });
   return new NextResponse(null, { status: 204 });
 }
