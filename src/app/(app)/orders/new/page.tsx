@@ -1,35 +1,65 @@
 "use client";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Group, Text, Badge, Alert } from "@mantine/core";
-
 import { DatePickerInput } from "@mantine/dates";
 import "dayjs/locale/es";
+import { useRouter } from "next/navigation";
 import { SupplierSearch } from "@/components/orders/SupplierSearch";
 import { OrderGrid } from "@/components/orders/OrderGrid";
-import type { Supplier } from "@/types";
+import { OrderFormFooter } from "@/components/orders/OrderFormFooter";
+import { DraftWarningModal } from "@/components/orders/DraftWarningModal";
+import { OrderProgressModal } from "@/components/orders/OrderProgressModal";
+import { validateForDraft } from "@/lib/orderValidation";
+import { stripImagesForDB } from "@/lib/localOrders";
+import type { Article, Supplier } from "@/types";
 
 const ORDER_DRAFT_KEY = "order_new_draft";
 
 export default function NewOrderPage() {
-  const [supplier, setSupplier] = useState<Supplier | null>(null);
-  const [date, setDate] = useState<Date | null>(null);
-  const [draftBanner, setDraftBanner] = useState(false);
-  const [gridKey, setGridKey] = useState(0);
-  const skipFirstSaveRef = useRef(true);
-
-  useEffect(() => {
-    setDate(new Date());
-    // Restore supplier + date from draft
+  const router = useRouter();
+  const [supplier, setSupplier] = useState<Supplier | null>(() => {
+    if (typeof window === "undefined") return null;
     try {
       const raw = localStorage.getItem(ORDER_DRAFT_KEY);
       if (raw) {
         const draft = JSON.parse(raw);
-        if (draft.supplier) setSupplier(draft.supplier);
-        if (draft.date) setDate(new Date(draft.date));
-        setDraftBanner(true);
+        return draft.supplier ?? null;
       }
     } catch {}
-  }, []);
+    return null;
+  });
+  const [date, setDate] = useState<Date | null>(() => {
+    if (typeof window === "undefined") return new Date();
+    try {
+      const raw = localStorage.getItem(ORDER_DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft.date) return new Date(draft.date);
+      }
+    } catch {}
+    return new Date();
+  });
+  const [draftBanner, setDraftBanner] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return !!localStorage.getItem(ORDER_DRAFT_KEY);
+    } catch {
+      return false;
+    }
+  });
+  const [gridKey, setGridKey] = useState(0);
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [progressStep, setProgressStep] = useState("Guardando borrador...");
+  const [progressError, setProgressError] = useState<string | undefined>(undefined);
+  const [draftWarning, setDraftWarning] = useState<{ open: boolean; warnings: string[] }>({
+    open: false,
+    warnings: [],
+  });
+  const [totals, setTotals] = useState({ units: 0, amount: 0 });
+  const skipFirstSaveRef = useRef(true);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-save supplier + date into draft (skip initial mount to avoid overwriting restored draft)
   useEffect(() => {
@@ -37,17 +67,31 @@ export default function NewOrderPage() {
       skipFirstSaveRef.current = false;
       return;
     }
-    try {
-      const raw = localStorage.getItem(ORDER_DRAFT_KEY);
-      if (!raw && !supplier && !date) return;
-      const current = raw ? JSON.parse(raw) : {};
-      localStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify({
-        ...current,
-        supplier,
-        date: date?.toISOString() ?? null,
-      }));
-    } catch {}
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      try {
+        const raw = localStorage.getItem(ORDER_DRAFT_KEY);
+        if (!raw && !supplier && !date) return;
+        const current = raw ? JSON.parse(raw) : {};
+        localStorage.setItem(
+          ORDER_DRAFT_KEY,
+          JSON.stringify({
+            ...current,
+            supplier,
+            date: date?.toISOString() ?? null,
+          }),
+        );
+      } catch {}
+    }, 5000);
   }, [supplier, date]);
+
+  const handleTotalsChange = useCallback((units: number, amount: number) => {
+    setTotals({ units, amount });
+  }, []);
+
+  const handleArticlesChange = useCallback((updated: Article[]) => {
+    setArticles(updated);
+  }, []);
 
   function discardDraft() {
     localStorage.removeItem(ORDER_DRAFT_KEY);
@@ -57,21 +101,95 @@ export default function NewOrderPage() {
     setGridKey((k) => k + 1);
   }
 
-  const [totals, setTotals] = useState({ units: 0, amount: 0 });
-  const handleTotalsChange = useCallback((units: number, amount: number) => {
-    setTotals({ units, amount });
-  }, []);
-
   const dateStr = date
     ? date.toISOString().split("T")[0]
     : new Date().toISOString().split("T")[0];
+
+  async function doSaveDraft(): Promise<{ id: string } | null> {
+    if (!supplier) return null;
+    setIsSaving(true);
+    try {
+      const localArticles = stripImagesForDB(articles);
+      const res = await fetch("/api/local-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          supplierId: supplier.id,
+          supplierName: supplier.name,
+          date: dateStr,
+          articles: localArticles,
+          warehouseIds: [],
+          printColumns: [],
+          printValues: {},
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.removeItem(ORDER_DRAFT_KEY);
+        return data;
+      }
+      return null;
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function handleSaveDraft() {
+    const localArticles = stripImagesForDB(articles);
+    const validation = validateForDraft({
+      supplierId: supplier?.id ?? null,
+      date: dateStr,
+      articles: localArticles,
+    });
+    if (!validation.valid) {
+      setDraftWarning({ open: true, warnings: validation.missing });
+      return;
+    }
+    void doSaveDraft().then((data) => {
+      if (data) router.push(`/orders/${data.id}/edit`);
+    });
+  }
+
+  async function handleConfirm() {
+    setProgressError(undefined);
+    setProgressStep("Guardando borrador...");
+    setIsConfirming(true);
+    let errorOccurred = false;
+    try {
+      const savedDraft = await doSaveDraft();
+      if (!savedDraft) {
+        setProgressError("No se pudo guardar el borrador. Verificá que el proveedor esté seleccionado.");
+        errorOccurred = true;
+        return;
+      }
+
+      setProgressStep("Enviando a Odoo...");
+      const confirmRes = await fetch(`/api/local-orders/${savedDraft.id}/confirm`, {
+        method: "POST",
+      });
+      const confirmData = await confirmRes.json();
+      if (!confirmRes.ok) {
+        setProgressError(confirmData?.error ?? "Error al confirmar la orden.");
+        errorOccurred = true;
+        return;
+      }
+
+      router.push("/orders");
+    } catch (err) {
+      setProgressError(err instanceof Error ? err.message : "Error inesperado.");
+      errorOccurred = true;
+    } finally {
+      // On success, navigation handles unmount; on error, keep modal open for user to dismiss
+      if (!errorOccurred) setIsConfirming(false);
+    }
+  }
 
   return (
     <div
       style={{
         minHeight: "100vh",
         background: "var(--bg)",
-        padding: "0 0 60px",
+        paddingBottom: 80,
       }}
     >
       {/* Top bar */}
@@ -140,7 +258,15 @@ export default function NewOrderPage() {
               <Text size="sm">Se recuperaron los datos de una sesión anterior.</Text>
               <button
                 onClick={discardDraft}
-                style={{ background: "none", border: "1px solid var(--mantine-color-amber-5)", borderRadius: 4, cursor: "pointer", color: "var(--mantine-color-amber-5)", fontSize: 12, padding: "2px 10px" }}
+                style={{
+                  background: "none",
+                  border: "1px solid var(--mantine-color-amber-5)",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  color: "var(--mantine-color-amber-5)",
+                  fontSize: 12,
+                  padding: "2px 10px",
+                }}
               >
                 Descartar borrador
               </button>
@@ -188,9 +314,38 @@ export default function NewOrderPage() {
           supplier={supplier}
           date={dateStr}
           onTotalsChange={handleTotalsChange}
+          onArticlesChange={handleArticlesChange}
           onDraftCleared={() => setDraftBanner(false)}
         />
       </div>
+
+      <OrderFormFooter
+        onBack={() => router.push("/orders")}
+        onSaveDraft={handleSaveDraft}
+        onConfirm={() => void handleConfirm()}
+        isSaving={isSaving}
+        isConfirming={isConfirming}
+        isNewOrder
+      />
+
+      <DraftWarningModal
+        opened={draftWarning.open}
+        warnings={draftWarning.warnings}
+        onCorrect={() => setDraftWarning({ open: false, warnings: [] })}
+        onSaveAnyway={() => {
+          setDraftWarning({ open: false, warnings: [] });
+          void doSaveDraft().then((data) => {
+            if (data) router.push(`/orders/${data.id}/edit`);
+          });
+        }}
+      />
+
+      <OrderProgressModal
+        opened={isConfirming}
+        step={progressStep}
+        error={progressError}
+        onClose={progressError ? () => setIsConfirming(false) : undefined}
+      />
     </div>
   );
 }
