@@ -9,9 +9,10 @@ interface Props<T> {
   columnDefs: ColDef<T>[];
   height?: number | string;
   onRowClicked?: (row: T) => void;
+  loading?: boolean;
 }
 
-export function OrdersTable<T>({ rowData, columnDefs, height = 500, onRowClicked }: Props<T>) {
+export function OrdersTable<T>({ rowData, columnDefs, height = 500, onRowClicked, loading }: Props<T>) {
   const gridOptions: GridOptions<T> = {
     defaultColDef: {
       sortable: true,
@@ -42,7 +43,7 @@ export function OrdersTable<T>({ rowData, columnDefs, height = 500, onRowClicked
         "--ag-header-foreground-color": "var(--text2)",
       } as React.CSSProperties}
     >
-      <AgGridReact rowData={rowData} columnDefs={columnDefs} gridOptions={gridOptions} />
+      <AgGridReact rowData={rowData} columnDefs={columnDefs} gridOptions={gridOptions} loading={loading} pagination={true} paginationPageSize={30} />
     </div>
   );
 }
