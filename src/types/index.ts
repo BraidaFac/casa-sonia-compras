@@ -58,6 +58,8 @@ export interface ArticleRow {
   prices?: Record<string, string>; // size name → price (granular mode)
   // key: `${warehouseId}:${sizeName}` → quantity string (warehouse mode)
   warehouseQuantities: Record<string, string>;
+  // edit mode: size name → purchase.order.line ID (populated when loading existing OC)
+  odooLineIds?: Record<string, number>;
 }
 
 // Imagen de producto — convertida a base64 en el browser
@@ -102,6 +104,17 @@ export interface OrderPayload {
   articles: Article[];
 }
 
+export interface OrderHeader {
+  id: number;
+  name: string;
+  supplierId: number;
+  supplierName: string;
+  date: string;
+  warehouseIds: number[];
+  state: string;
+  writeDate: string;
+}
+
 export interface OdooProduct {
   id: number;
   name: string;
@@ -130,3 +143,56 @@ export interface PrintColumn {
 
 // key: `${articleId}:${rowId}:${printColumnId}` → valor string
 export type PrintValues = Record<string, string>;
+
+// ─── Local DB order types ─────────────────────────────────────────────────────
+
+export type OrderStatus = "DRAFT" | "CONFIRMED" | "ERROR";
+
+// ProductImage as stored in DB: no base64/previewUrl for new images
+export interface LocalProductImage {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  isFromOdoo: boolean;
+  odooId?: number;
+  tempPath?: string;   // "/uploads/temp/[orderId]/[uuid].ext" — set after explicit save
+  // base64 and previewUrl are NEVER stored in DB
+}
+
+export type LocalColorImages = Record<string, LocalProductImage[]>;
+
+// Article as stored in DB — same as Article but colorImages uses LocalProductImage
+export interface LocalArticle extends Omit<Article, "colorImages"> {
+  colorImages: LocalColorImages;
+}
+
+export interface LocalOrder {
+  id: number;
+  status: OrderStatus;
+  odooOrderId: number | null;
+  odooOrderName: string | null;
+  errorDetail: string | null;
+  supplierId: number;
+  supplierName: string;
+  date: string;
+  warehouseIds: number[];
+  articles: LocalArticle[];
+  printColumns: PrintColumn[];
+  printValues: PrintValues;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LocalOrderSummary {
+  id: number;
+  status: OrderStatus;
+  odooOrderId: number | null;
+  odooOrderName: string | null;
+  errorDetail: string | null;
+  supplierId: number;
+  supplierName: string;
+  date: string;
+  articleCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
