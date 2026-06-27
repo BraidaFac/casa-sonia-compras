@@ -17,36 +17,29 @@ const ORDER_DRAFT_KEY = "order_new_draft";
 
 export default function NewOrderPage() {
   const router = useRouter();
-  const [supplier, setSupplier] = useState<Supplier | null>(() => {
-    if (typeof window === "undefined") return null;
+  const [supplier, setSupplier] = useState<Supplier | null>(null);
+  const [date, setDate] = useState<Date | null>(new Date());
+  const [draftBanner, setDraftBanner] = useState<boolean>(false);
+
+  // Restore draft on mount — runs only client-side, avoids hydration mismatch
+  useEffect(() => {
     try {
       const raw = localStorage.getItem(ORDER_DRAFT_KEY);
-      if (raw) {
-        const draft = JSON.parse(raw);
-        return draft.supplier ?? null;
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      const articles: unknown[] = Array.isArray(draft.articles) ? draft.articles : [];
+      // Only restore + show banner if draft has supplier AND ≥2 articles
+      if (!draft.supplier || articles.length < 2) {
+        localStorage.removeItem(ORDER_DRAFT_KEY);
+        return;
       }
-    } catch {}
-    return null;
-  });
-  const [date, setDate] = useState<Date | null>(() => {
-    if (typeof window === "undefined") return new Date();
-    try {
-      const raw = localStorage.getItem(ORDER_DRAFT_KEY);
-      if (raw) {
-        const draft = JSON.parse(raw);
-        if (draft.date) return new Date(draft.date);
-      }
-    } catch {}
-    return new Date();
-  });
-  const [draftBanner, setDraftBanner] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return !!localStorage.getItem(ORDER_DRAFT_KEY);
+      if (draft.supplier) setSupplier(draft.supplier);
+      if (draft.date) setDate(new Date(draft.date));
+      setDraftBanner(true);
     } catch {
-      return false;
+      // ignore
     }
-  });
+  }, []);
   const [gridKey, setGridKey] = useState(0);
   const [articles, setArticles] = useState<Article[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -61,7 +54,7 @@ export default function NewOrderPage() {
   const skipFirstSaveRef = useRef(true);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Auto-save supplier + date into draft (skip initial mount to avoid overwriting restored draft)
+  // Auto-save supplier + date into draft — only if draft already exists OR conditions are met
   useEffect(() => {
     if (skipFirstSaveRef.current) {
       skipFirstSaveRef.current = false;
@@ -71,7 +64,11 @@ export default function NewOrderPage() {
     autosaveTimerRef.current = setTimeout(() => {
       try {
         const raw = localStorage.getItem(ORDER_DRAFT_KEY);
-        if (!raw && !supplier && !date) return;
+        // Only create a new draft entry if supplier set + ≥2 articles already in draft
+        if (!raw) {
+          const draftArticles = Array.isArray(articles) ? articles : [];
+          if (!supplier || draftArticles.length < 2) return;
+        }
         const current = raw ? JSON.parse(raw) : {};
         localStorage.setItem(
           ORDER_DRAFT_KEY,
@@ -83,7 +80,7 @@ export default function NewOrderPage() {
         );
       } catch {}
     }, 5000);
-  }, [supplier, date]);
+  }, [supplier, date, articles]);
 
   const handleTotalsChange = useCallback((units: number, amount: number) => {
     setTotals({ units, amount });
@@ -322,9 +319,9 @@ export default function NewOrderPage() {
       <OrderFormFooter
         onBack={() => router.push("/orders")}
         onSaveDraft={handleSaveDraft}
-        onConfirm={() => void handleConfirm()}
         isSaving={isSaving}
         isConfirming={isConfirming}
+        showConfirm={false}
         isNewOrder
       />
 

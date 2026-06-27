@@ -1,13 +1,14 @@
 "use client";
-import { Button, Group, Text } from "@mantine/core";
+import { Button, Group } from "@mantine/core";
 import { Save, Send } from "lucide-react";
 
 interface OrderFormFooterProps {
   onBack: () => void;
   onSaveDraft: () => void;
-  onConfirm: () => void;
+  onConfirm?: () => void;
   isSaving: boolean;
   isConfirming: boolean;
+  showConfirm?: boolean; // edit page shows both; new page shows only save
   isNewOrder?: boolean;
 }
 
@@ -17,6 +18,7 @@ export function OrderFormFooter({
   onConfirm,
   isSaving,
   isConfirming,
+  showConfirm = false,
   isNewOrder,
 }: OrderFormFooterProps) {
   return (
@@ -35,7 +37,7 @@ export function OrderFormFooter({
         zIndex: 30,
       }}
     >
-      {!isNewOrder && (
+      {!isNewOrder ? (
         <Button
           variant="subtle"
           color="gray"
@@ -45,12 +47,13 @@ export function OrderFormFooter({
         >
           ← Volver
         </Button>
+      ) : (
+        <div />
       )}
-      {isNewOrder && <div />}
 
       <Group gap="sm" align="center">
         <Button
-          variant="outline"
+          variant={showConfirm ? "outline" : "filled"}
           color="amber"
           size="sm"
           leftSection={<Save size={14} />}
@@ -58,12 +61,10 @@ export function OrderFormFooter({
           loading={isSaving}
           disabled={isConfirming}
         >
-          Guardar borrador
+          Guardar
         </Button>
 
-        <div style={{ width: 1, height: 24, background: "var(--mantine-color-dark-5)" }} />
-
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+        {showConfirm && (
           <Button
             color="amber"
             size="sm"
@@ -74,10 +75,7 @@ export function OrderFormFooter({
           >
             Confirmar Orden
           </Button>
-          <Text size="xs" c="dimmed" mt={2}>
-            Envía a Odoo
-          </Text>
-        </div>
+        )}
       </Group>
     </div>
   );

@@ -293,6 +293,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
           onBack={() => router.push("/orders")}
           isSaving={isSaving}
           isConfirming={isConfirming}
+          showConfirm={true}
         />
       )}
 
