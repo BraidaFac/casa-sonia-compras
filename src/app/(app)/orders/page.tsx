@@ -1,307 +1,398 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button, Group, Select, Text } from "@mantine/core";
+import { Badge, Button, Text, Group, Select, Modal, Stack } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import "dayjs/locale/es";
-import { Plus, Edit2, ChevronLeft, ChevronRight } from "lucide-react";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { Plus, Send, Copy, Trash2, Edit2, AlertTriangle, Eye } from "lucide-react";
+import { OrdersTable } from "@/components/orders/OrdersTable";
+import { ErrorDetailModal } from "@/components/orders/ErrorDetailModal";
 import { SupplierSearch } from "@/components/orders/SupplierSearch";
-import type { Supplier } from "@/types";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import type { LocalOrderSummary, OrderStatus, Supplier } from "@/types";
+import type { ColDef, ICellRendererParams } from "ag-grid-community";
 
 const PAGE_SIZE = 30;
 
-interface OCSummary {
-  id: number;
-  name: string;
-  partner_id: [number, string];
-  state: string;
-  date_order: string;
-  amount_total: number;
-}
-
-const STATE_LABELS: Record<string, { label: string; color: string }> = {
-  draft: { label: "Borrador", color: "gray" },
-  sent: { label: "Enviada", color: "yellow" },
-  purchase: { label: "Confirmada", color: "green" },
+const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string }> = {
+  DRAFT: { label: "Borrador", color: "blue" },
+  CONFIRMED: { label: "Confirmada", color: "green" },
+  ERROR: { label: "Error", color: "red" },
 };
 
-function formatDate(dateStr: string): string {
-  if (!dateStr) return "-";
-  return dateStr.split(" ")[0].split("-").reverse().join("/");
+function formatDate(d: string) {
+  if (!d) return "-";
+  return d.split("T")[0].split("-").reverse().join("/");
 }
 
-function formatAmount(amount: number): string {
-  return amount.toLocaleString("es-AR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-export default function OrdersListPage() {
+export default function OrdersPage() {
   const router = useRouter();
-  const [orders, setOrders] = useState<OCSummary[]>([]);
+  const [orders, setOrders] = useState<LocalOrderSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const [supplier, setSupplier] = useState<Supplier | null>(null);
-  const [stateFilter, setStateFilter] = useState<string | null>(null);
-  const [dateFrom, setDateFrom] = useState<Date | null>(null);
-  const [dateTo, setDateTo] = useState<Date | null>(null);
   const [offset, setOffset] = useState(0);
 
-  // Track previous filter values to detect changes and reset offset
-  const filtersRef = useRef({ supplier, stateFilter, dateFrom, dateTo });
+  const [supplier, setSupplier] = useState<Supplier | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState<Date | null>(null);
+  const [dateTo, setDateTo] = useState<Date | null>(null);
 
-  const fetchOrders = useCallback(async (currentOffset: number) => {
+  const [errorModal, setErrorModal] = useState<{ open: boolean; detail: string | null }>({
+    open: false,
+    detail: null,
+  });
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [duplicating, setDuplicating] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [confirming, setConfirming] = useState<number | null>(null);
+
+  const fetchOrders = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(offset),
+      });
       if (supplier) params.set("supplier_id", String(supplier.id));
-      if (stateFilter) params.set("state", stateFilter);
+      if (statusFilter) params.set("status", statusFilter);
       if (dateFrom) params.set("date_from", dateFrom.toISOString().split("T")[0]);
       if (dateTo) params.set("date_to", dateTo.toISOString().split("T")[0]);
-      params.set("limit", String(PAGE_SIZE));
-      params.set("offset", String(currentOffset));
-
-      const res = await fetch(`/api/orders?${params.toString()}`);
-      if (!res.ok) throw new Error("Error al cargar órdenes");
-      const data = await res.json();
-      setOrders(data.orders || []);
-      setTotal(data.total ?? 0);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error desconocido");
+      const res = await fetch(`/api/local-orders?${params}`);
+      const json = await res.json();
+      setOrders(json.data ?? []);
+      setTotal(json.total ?? 0);
     } finally {
       setLoading(false);
     }
-  }, [supplier, stateFilter, dateFrom, dateTo]);
+  }, [supplier, statusFilter, dateFrom, dateTo, offset]);
 
-  // Reset offset when filters change
   useEffect(() => {
-    const prev = filtersRef.current;
-    const filtersChanged =
-      prev.supplier !== supplier ||
-      prev.stateFilter !== stateFilter ||
-      prev.dateFrom !== dateFrom ||
-      prev.dateTo !== dateTo;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchOrders();
+  }, [fetchOrders]);
 
-    if (filtersChanged) {
-      filtersRef.current = { supplier, stateFilter, dateFrom, dateTo };
-      setOffset(0);
-      fetchOrders(0);
-    } else {
-      fetchOrders(offset);
+  async function handleConfirm(id: number) {
+    setConfirming(id);
+    try {
+      await fetch(`/api/local-orders/${id}/confirm`, { method: "POST" });
+      fetchOrders();
+    } finally {
+      setConfirming(null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supplier, stateFilter, dateFrom, dateTo, offset]);
+  }
 
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-  const currentPage = Math.floor(offset / PAGE_SIZE) + 1;
-  const hasPrev = offset > 0;
-  const hasNext = offset + PAGE_SIZE < total;
+  async function handleDuplicate(id: number) {
+    setDuplicating(id);
+    try {
+      const res = await fetch(`/api/local-orders/${id}/duplicate`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) router.push(`/orders/${data.id}/edit`);
+    } finally {
+      setDuplicating(null);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    setDeleting(id);
+    try {
+      await fetch(`/api/local-orders/${id}`, { method: "DELETE" });
+      setDeleteConfirm(null);
+      fetchOrders();
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  const columnDefs: ColDef<LocalOrderSummary>[] = [
+    {
+      headerName: "Creada",
+      field: "createdAt",
+      width: 120,
+      valueFormatter: (p) => formatDate(p.value as string),
+    },
+    {
+      headerName: "Proveedor",
+      field: "supplierName",
+      flex: 1,
+      minWidth: 160,
+    },
+    {
+      headerName: "Estado",
+      field: "status",
+      width: 130,
+      cellRenderer: (p: ICellRendererParams<LocalOrderSummary>) => {
+        const cfg = STATUS_CONFIG[p.value as OrderStatus] ?? {
+          label: p.value,
+          color: "gray",
+        };
+        return (
+          <Badge color={cfg.color} variant="light" size="sm">
+            {cfg.label}
+          </Badge>
+        );
+      },
+    },
+    {
+      headerName: "Artículos",
+      field: "articleCount",
+      width: 100,
+      type: "numericColumn",
+    },
+    {
+      headerName: "Fecha OC",
+      field: "date",
+      width: 120,
+      valueFormatter: (p) =>
+        p.value ? (p.value as string).split("-").reverse().join("/") : "-",
+    },
+    {
+      headerName: "N° Odoo",
+      field: "odooOrderName",
+      width: 130,
+      valueFormatter: (p) => (p.value as string | null) ?? "-",
+    },
+    {
+      headerName: "Acciones",
+      width: 320,
+      sortable: false,
+      cellRenderer: (p: ICellRendererParams<LocalOrderSummary>) => {
+        const row = p.data!;
+        return (
+          <Group gap={4} wrap="nowrap" align="center" h="100%">
+            {row.status === "ERROR" && (
+              <Button
+                size="xs"
+                variant="subtle"
+                color="red"
+                leftSection={<AlertTriangle size={12} />}
+                onClick={() =>
+                  setErrorModal({ open: true, detail: row.errorDetail })
+                }
+              >
+                Ver error
+              </Button>
+            )}
+            {(row.status === "DRAFT" || row.status === "ERROR") && (
+              <Button
+                size="xs"
+                variant="subtle"
+                color="amber"
+                leftSection={<Edit2 size={12} />}
+                onClick={() => router.push(`/orders/${row.id}/edit`)}
+              >
+                Editar
+              </Button>
+            )}
+            {row.status === "DRAFT" && (
+              <Button
+                size="xs"
+                color="amber"
+                leftSection={<Send size={12} />}
+                loading={confirming === row.id}
+                onClick={() => handleConfirm(row.id)}
+              >
+                Confirmar
+              </Button>
+            )}
+            {row.status === "CONFIRMED" && (
+              <Button
+                size="xs"
+                variant="subtle"
+                color="gray"
+                leftSection={<Eye size={12} />}
+                onClick={() => router.push(`/orders/${row.id}/edit`)}
+              >
+                Ver
+              </Button>
+            )}
+            <Button
+              size="xs"
+              variant="subtle"
+              color="gray"
+              leftSection={<Copy size={12} />}
+              loading={duplicating === row.id}
+              onClick={() => handleDuplicate(row.id)}
+            >
+              Duplicar
+            </Button>
+            {(row.status === "DRAFT" || row.status === "ERROR") && (
+              <Button
+                size="xs"
+                variant="subtle"
+                color="red"
+                leftSection={<Trash2 size={12} />}
+                onClick={() => setDeleteConfirm(row.id)}
+              >
+                Eliminar
+              </Button>
+            )}
+          </Group>
+        );
+      },
+    },
+  ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", padding: "0 0 60px" }}>
+    <div style={{ padding: "24px 24px 80px" }}>
       {/* Header */}
-      <header
-        style={{
-          background: "var(--surface)",
-          borderBottom: "1px solid var(--border)",
-          padding: "12px 24px",
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          position: "sticky",
-          top: 0,
-          zIndex: 20,
-        }}
-      >
+      <Group justify="space-between" align="center" mb="lg">
         <h1
           style={{
             margin: 0,
             fontFamily: "var(--font-display)",
+            fontSize: 20,
             fontWeight: 700,
-            fontSize: 16,
             color: "var(--text)",
           }}
         >
-          Órdenes de Compra
+          Órdenes
         </h1>
         <Button
           leftSection={<Plus size={14} />}
           color="amber"
           size="sm"
-          style={{ marginLeft: "auto" }}
           onClick={() => router.push("/orders/new")}
         >
-          Nueva Orden
+          + Nueva Orden
         </Button>
-      </header>
+      </Group>
 
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px" }}>
-        {/* Filters */}
-        <Group mb="lg" gap="md" align="flex-end" wrap="wrap">
-          <div>
-            <Text size="xs" c="dimmed" fw={500} mb={4}>
-              Proveedor
+      {/* Filters */}
+      <Group mb="lg" gap="md" align="flex-end" wrap="wrap">
+        <div>
+          <Text size="xs" c="dimmed" fw={500} mb={4}>
+            Proveedor
+          </Text>
+          <SupplierSearch value={supplier} onChange={setSupplier} />
+        </div>
+        <Select
+          label={
+            <Text size="xs" c="dimmed" fw={500}>
+              Estado
             </Text>
-            <SupplierSearch value={supplier} onChange={setSupplier} />
-          </div>
+          }
+          placeholder="Todos"
+          data={[
+            { value: "DRAFT", label: "Borrador" },
+            { value: "CONFIRMED", label: "Confirmada" },
+            { value: "ERROR", label: "Error" },
+          ]}
+          value={statusFilter}
+          onChange={setStatusFilter}
+          clearable
+          w={160}
+          size="sm"
+        />
+        <DatePickerInput
+          label={
+            <Text size="xs" c="dimmed" fw={500}>
+              Desde
+            </Text>
+          }
+          value={dateFrom}
+          onChange={(v) => setDateFrom(v as Date | null)}
+          valueFormat="DD/MM/YYYY"
+          locale="es"
+          clearable
+          w={150}
+          size="sm"
+        />
+        <DatePickerInput
+          label={
+            <Text size="xs" c="dimmed" fw={500}>
+              Hasta
+            </Text>
+          }
+          value={dateTo}
+          onChange={(v) => setDateTo(v as Date | null)}
+          valueFormat="DD/MM/YYYY"
+          locale="es"
+          clearable
+          w={150}
+          size="sm"
+        />
+      </Group>
 
-          <Select
-            label={<Text size="xs" c="dimmed" fw={500}>Estado</Text>}
-            placeholder="Todos"
-            data={[
-              { value: "draft", label: "Borrador" },
-              { value: "sent", label: "Enviada" },
-              { value: "purchase", label: "Confirmada" },
-            ]}
-            value={stateFilter}
-            onChange={setStateFilter}
-            clearable
-            w={160}
-            size="sm"
-          />
-          <DatePickerInput
-            label={<Text size="xs" c="dimmed" fw={500}>Desde</Text>}
-            value={dateFrom}
-            onChange={(v) => setDateFrom(v as Date | null)}
-            valueFormat="DD/MM/YYYY"
-            locale="es"
-            clearable
-            w={150}
-            size="sm"
-          />
-          <DatePickerInput
-            label={<Text size="xs" c="dimmed" fw={500}>Hasta</Text>}
-            value={dateTo}
-            onChange={(v) => setDateTo(v as Date | null)}
-            valueFormat="DD/MM/YYYY"
-            locale="es"
-            clearable
-            w={150}
-            size="sm"
-          />
-        </Group>
-
-        {/* Content */}
-        {loading ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: 48, color: "var(--text2)", justifyContent: "center" }}>
-            <LoadingSpinner size={20} />
-            Cargando órdenes...
-          </div>
-        ) : error ? (
-          <div style={{ padding: 24, color: "var(--red)", fontSize: 14 }}>{error}</div>
-        ) : orders.length === 0 ? (
-          <div style={{ padding: 48, textAlign: "center", color: "var(--text3)", fontSize: 14 }}>
-            No hay órdenes que coincidan con los filtros.
-          </div>
-        ) : (
-          <>
-            <div
-              style={{
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                borderRadius: 8,
-                overflow: "hidden",
-              }}
-            >
-              {/* Table header */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "120px 1fr 120px 120px 140px 100px",
-                  gap: 16,
-                  padding: "10px 16px",
-                  borderBottom: "1px solid var(--border)",
-                  background: "var(--surface2, var(--surface))",
-                }}
+      {loading ? (
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            padding: 48,
+            justifyContent: "center",
+            color: "var(--text2)",
+          }}
+        >
+          <LoadingSpinner size={20} /> Cargando...
+        </div>
+      ) : (
+        <>
+          <OrdersTable rowData={orders} columnDefs={columnDefs} height={520} />
+          <Group justify="space-between" mt="md">
+            <Text size="xs" c="dimmed">
+              {total} orden{total !== 1 ? "es" : ""}
+            </Text>
+            <Group gap="xs">
+              <Button
+                variant="subtle"
+                color="gray"
+                size="xs"
+                disabled={offset === 0}
+                onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
               >
-                {["N° Orden", "Proveedor", "Estado", "Fecha", "Total", ""].map((h) => (
-                  <Text key={h} size="xs" c="dimmed" fw={600} style={{ textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                    {h}
-                  </Text>
-                ))}
-              </div>
-
-              {/* Rows */}
-              {orders.map((order) => {
-                const stateInfo = STATE_LABELS[order.state] || { label: order.state, color: "gray" };
-                const supplierName = Array.isArray(order.partner_id) ? order.partner_id[1] : "";
-                return (
-                  <div
-                    key={order.id}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "120px 1fr 120px 120px 140px 100px",
-                      gap: 16,
-                      padding: "12px 16px",
-                      borderBottom: "1px solid var(--border)",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text size="sm" fw={600} style={{ fontFamily: "var(--font-mono)", color: "var(--text)" }}>
-                      {order.name}
-                    </Text>
-                    <Text size="sm" c="dimmed" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {supplierName}
-                    </Text>
-                    <Badge color={stateInfo.color} variant="light" size="sm">
-                      {stateInfo.label}
-                    </Badge>
-                    <Text size="sm" c="dimmed">
-                      {formatDate(order.date_order)}
-                    </Text>
-                    <Text size="sm" style={{ fontFamily: "var(--font-mono)" }}>
-                      ${formatAmount(order.amount_total)}
-                    </Text>
-                    <Button
-                      variant="subtle"
-                      color="amber"
-                      size="xs"
-                      leftSection={<Edit2 size={12} />}
-                      onClick={() => router.push(`/orders/${order.id}/edit`)}
-                    >
-                      Editar
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Pagination */}
-            <Group justify="space-between" mt="md" align="center">
-              <Text size="xs" c="dimmed">
-                {total} orden{total !== 1 ? "es" : ""} · página {currentPage} de {totalPages || 1}
-              </Text>
-              <Group gap="xs">
-                <Button
-                  variant="subtle"
-                  color="gray"
-                  size="xs"
-                  leftSection={<ChevronLeft size={14} />}
-                  disabled={!hasPrev}
-                  onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-                >
-                  Anterior
-                </Button>
-                <Button
-                  variant="subtle"
-                  color="gray"
-                  size="xs"
-                  rightSection={<ChevronRight size={14} />}
-                  disabled={!hasNext}
-                  onClick={() => setOffset((o) => o + PAGE_SIZE)}
-                >
-                  Siguiente
-                </Button>
-              </Group>
+                ← Anterior
+              </Button>
+              <Button
+                variant="subtle"
+                color="gray"
+                size="xs"
+                disabled={offset + PAGE_SIZE >= total}
+                onClick={() => setOffset((o) => o + PAGE_SIZE)}
+              >
+                Siguiente →
+              </Button>
             </Group>
-          </>
-        )}
-      </div>
+          </Group>
+        </>
+      )}
+
+      <ErrorDetailModal
+        opened={errorModal.open}
+        errorDetail={errorModal.detail ?? ""}
+        onClose={() => setErrorModal({ open: false, detail: null })}
+      />
+
+      <Modal
+        opened={deleteConfirm !== null}
+        onClose={() => setDeleteConfirm(null)}
+        title={<Text fw={600}>Eliminar borrador</Text>}
+        centered
+        size="sm"
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            ¿Eliminás este borrador? Esta acción no se puede deshacer.
+          </Text>
+          <Group justify="flex-end" gap="sm">
+            <Button
+              variant="subtle"
+              color="gray"
+              onClick={() => setDeleteConfirm(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              color="red"
+              loading={deleting !== null}
+              onClick={() =>
+                deleteConfirm !== null && handleDelete(deleteConfirm)
+              }
+            >
+              Eliminar
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </div>
   );
 }
