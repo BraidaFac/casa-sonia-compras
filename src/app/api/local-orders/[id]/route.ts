@@ -141,5 +141,5 @@ export async function DELETE(
   }
 
   await prisma.order.delete({ where: { id: orderId } });
-  return NextResponse.json({ ok: true });
+  return new NextResponse(null, { status: 204 });
 }

@@ -49,7 +49,6 @@ export const REQUIRED_ATTR_FAMILIES: { key: string; label: string; names: string
   { key: "temporada", label: "Temporada", names: ["temporada"] },
   { key: "ocacion", label: "Ocasión", names: ["ocacion", "ocasión", "ocación"] },
   { key: "tipo de producto", label: "Tipo de Producto", names: ["tipo de producto"] },
-  { key: "compradora", label: "Compradora", names: ["compradora"] },
 ];
 
 // Flat list para uso interno

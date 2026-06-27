@@ -1,4 +1,4 @@
-import { PDFDocument, rgb } from "pdf-lib";
+import { PDFDocument, rgb, degrees } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import fs from "fs";
 import path from "path";
@@ -917,5 +917,24 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
     x: MARGIN, y: MARGIN - 10, size: 7, font, color: rgb(0.6, 0.6, 0.6),
   });
 
+  return pdfDoc.save();
+}
+
+export async function watermarkPDF(inputBytes: Uint8Array): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.load(inputBytes, { ignoreEncryption: true });
+  const pages = pdfDoc.getPages();
+  const { regular } = await embedFonts(pdfDoc);
+  for (const page of pages) {
+    const { width, height } = page.getSize();
+    page.drawText("ORDEN NO VÁLIDA", {
+      x: width / 4,
+      y: height / 2,
+      size: 52,
+      font: regular,
+      color: rgb(0.8, 0.1, 0.1),
+      opacity: 0.35,
+      rotate: degrees(45),
+    });
+  }
   return pdfDoc.save();
 }

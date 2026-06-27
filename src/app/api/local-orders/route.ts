@@ -62,16 +62,19 @@ export async function GET(request: NextRequest) {
   ]);
 
   // Compute articleCount from JSON, strip full articles from list response
-  const summaries = orders.map((o) => ({
-    ...o,
-    articleCount: Array.isArray(o.articles) ? (o.articles as unknown[]).length : 0,
-    articles: undefined,
-    errorDetail: o.status === "ERROR" ? o.errorDetail : null,
-    createdAt: o.createdAt.toISOString(),
-    updatedAt: o.updatedAt.toISOString(),
-  }));
+  const summaries = orders.map((o) => {
+    const { articles, ...rest } = o;
+    return {
+      ...rest,
+      articleCount: Array.isArray(articles) ? (articles as unknown[]).length : 0,
+      errorDetail: o.status === "ERROR" ? o.errorDetail : null,
+      createdAt: o.createdAt.toISOString(),
+      updatedAt: o.updatedAt.toISOString(),
+    };
+  });
 
-  return NextResponse.json({ orders: summaries, total });
+  const page = Math.floor(offset / limit);
+  return NextResponse.json({ data: summaries, total, page, limit });
 }
 
 // POST /api/local-orders — create draft

@@ -1,6 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button, Badge, Group, Text, Alert, Combobox, useCombobox, InputBase, Tooltip, MultiSelect } from "@mantine/core";
+
+const ORDER_DRAFT_KEY = "order_new_draft";
 import { Plus } from "lucide-react";
 import { ArticleRow } from "./ArticleRow";
 import { ConfirmModal } from "./ConfirmModal";
@@ -19,6 +21,14 @@ interface Props {
   supplier: Supplier | null;
   date: string;
   onTotalsChange?: (units: number, amount: number) => void;
+  // Edit mode
+  mode?: "create" | "edit";
+  initialArticles?: Article[];
+  orderId?: number;
+  orderWriteDate?: string;
+  onSaveChanges?: (articles: Article[], snapshot: Article[]) => Promise<void>;
+  onDraftCleared?: () => void;
+  initialWarehouseIds?: number[];
 }
 
 interface AttrValidationError {
@@ -41,16 +51,6 @@ function createEmptyArticle(
       locked: true,
     });
   }
-  if (globalCompradora) {
-    attributes.push({
-      attributeId: globalCompradora.attributeId,
-      attributeName: "Compradora",
-      values: [globalCompradora.compradora],
-      generatesVariants: false,
-      locked: true,
-    });
-  }
-
   return {
     id: crypto.randomUUID(),
     name: "",
@@ -72,19 +72,47 @@ function createEmptyArticle(
   };
 }
 
-export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
-  const [articles, setArticles] = useState<Article[]>([]);
-  useEffect(() => { setArticles([createEmptyArticle()]); }, []);
+export function OrderGrid({ supplier, date, onTotalsChange, mode = "create", initialArticles, orderId, orderWriteDate, onSaveChanges, onDraftCleared, initialWarehouseIds }: Props) {
+  const isEditMode = mode === "edit";
+
+  // Read draft once at init time (create mode only, lazy useState runs exactly once)
+  const [draft] = useState<Record<string, unknown> | null>(() => {
+    if (isEditMode) return null;
+    try {
+      const raw = localStorage.getItem(ORDER_DRAFT_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [articles, setArticles] = useState<Article[]>(() => {
+    if (isEditMode) return initialArticles?.length ? initialArticles : [createEmptyArticle()];
+    const draftArticles = draft?.articles as Article[] | undefined;
+    return draftArticles?.length ? draftArticles : [createEmptyArticle()];
+  });
+  const originalSnapshot = useRef<Article[]>(isEditMode && initialArticles?.length ? initialArticles : []);
+  const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (isEditMode && initialArticles && initialArticles.length > 0) {
+      setArticles(initialArticles);
+      originalSnapshot.current = initialArticles;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [showConfirm, setShowConfirm] = useState(false);
-  const [printColumns, setPrintColumns] = useState<PrintColumn[]>([]);
-  const [printValues, setPrintValues] = useState<PrintValues>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [printColumns, setPrintColumns] = useState<PrintColumn[]>(() => (draft?.printColumns as PrintColumn[]) ?? []);
+  const [printValues, setPrintValues] = useState<PrintValues>(() => (draft?.printValues as PrintValues) ?? {});
   const [attrValidationErrors, setAttrValidationErrors] = useState<AttrValidationError[]>([]);
   const [validateMode, setValidateMode] = useState(false);
-  const [globalBrand, setGlobalBrand] = useState<AttributeValue | null>(null);
-  const [brandSearch, setBrandSearch] = useState("");
-  const [globalCompradora, setGlobalCompradora] = useState<AttributeValue | null>(null);
-  const [compradoaSearch, setCompradoaSearch] = useState("");
-  const [selectedWarehouses, setSelectedWarehouses] = useState<Warehouse[]>([]);
+  const [globalBrand, setGlobalBrand] = useState<AttributeValue | null>(() => (draft?.globalBrand as AttributeValue) ?? null);
+  const [brandSearch, setBrandSearch] = useState<string>(() => (draft?.brandSearch as string) ?? "");
+  const [globalCompradora, setGlobalCompradora] = useState<AttributeValue | null>(() => (draft?.globalCompradora as AttributeValue) ?? null);
+  const [compradoaSearch, setCompradoaSearch] = useState<string>(() => (draft?.compradoaSearch as string) ?? "");
+  const [selectedWarehouses, setSelectedWarehouses] = useState<Warehouse[]>(() => (draft?.selectedWarehouses as Warehouse[]) ?? []);
 
   const { data: attrData, isLoading: attrLoading, error: attrError, refetch: refetchAttrs } = useAttributes();
   const { data: sizeAttributes = [] } = useSizeAttributes();
@@ -93,6 +121,16 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
   const { data: categories = [] } = useCategories();
   const { data: allWarehouses = [] } = useWarehouses();
   const { data: colorBaseOptions = [] } = useColorBaseOptions();
+
+  // Hydrate selectedWarehouses from initialWarehouseIds once allWarehouses loads (edit mode)
+  const warehousesHydratedRef = useRef(false);
+  useEffect(() => {
+    if (!isEditMode || !initialWarehouseIds?.length || !allWarehouses.length || warehousesHydratedRef.current) return;
+    warehousesHydratedRef.current = true;
+    const matched = allWarehouses.filter((w) => initialWarehouseIds.includes(w.id));
+    if (matched.length > 0) setSelectedWarehouses(matched);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allWarehouses]);
 
   const allColors = attrData?.colors || [];
   const colorAttributeId = attrData?.colorAttributeId ?? 0;
@@ -365,6 +403,34 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasDirtyData]);
+
+  // Auto-save draft to localStorage (create mode only, debounced 1.5s)
+  useEffect(() => {
+    if (isEditMode) return;
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    draftSaveTimerRef.current = setTimeout(() => {
+      try {
+        const raw = localStorage.getItem(ORDER_DRAFT_KEY);
+        const current = raw ? JSON.parse(raw) : {};
+        localStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify({
+          ...current,
+          savedAt: new Date().toISOString(),
+          articles,
+          globalBrand,
+          brandSearch,
+          globalCompradora,
+          compradoaSearch,
+          selectedWarehouses,
+          printColumns,
+          printValues,
+        }));
+      } catch {}
+    }, 1500);
+    return () => {
+      if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [articles, globalBrand, brandSearch, globalCompradora, compradoaSearch, selectedWarehouses, printColumns, printValues]);
 
   function articleRowHasQty(article: Article, row: { quantities: Record<string, string>; warehouseQuantities?: Record<string, string> }): boolean {
     if (selectedWarehouses.length > 0) {
@@ -739,7 +805,8 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
             <Button
               color="amber"
               size="md"
-              disabled={!!disabledReason || (validateMode && hasMissingRequiredAttrs)}
+              loading={isSaving}
+              disabled={!!disabledReason || (validateMode && hasMissingRequiredAttrs) || isSaving}
               onClick={async () => {
                 if (hasMissingRequiredAttrs) {
                   setValidateMode(true);
@@ -752,10 +819,19 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
                   return;
                 }
                 setAttrValidationErrors([]);
-                setShowConfirm(true);
+                if (isEditMode) {
+                  setIsSaving(true);
+                  try {
+                    await onSaveChanges?.(articles, originalSnapshot.current);
+                  } finally {
+                    setIsSaving(false);
+                  }
+                } else {
+                  setShowConfirm(true);
+                }
               }}
             >
-              Revisar orden →
+              {isEditMode ? (isSaving ? "Guardando..." : "Guardar cambios →") : "Revisar orden →"}
             </Button>
           </span>
         </Tooltip>
@@ -771,6 +847,8 @@ export function OrderGrid({ supplier, date, onTotalsChange }: Props) {
           printValues={printValues}
           onClose={() => setShowConfirm(false)}
           onConfirmed={() => {
+            localStorage.removeItem(ORDER_DRAFT_KEY);
+            onDraftCleared?.();
             const brandInfo =
               globalBrand && brandAttributeId
                 ? { attributeId: brandAttributeId, brand: globalBrand }
