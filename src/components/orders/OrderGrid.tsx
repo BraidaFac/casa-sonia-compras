@@ -25,8 +25,7 @@ interface Props {
   mode?: "create" | "edit";
   initialArticles?: Article[];
   orderId?: number;
-  orderWriteDate?: string;
-  onSaveChanges?: (articles: Article[], snapshot: Article[]) => Promise<void>;
+  onArticlesChange?: (articles: Article[]) => void;
   onDraftCleared?: () => void;
   initialWarehouseIds?: number[];
 }
@@ -72,7 +71,7 @@ function createEmptyArticle(
   };
 }
 
-export function OrderGrid({ supplier, date, onTotalsChange, mode = "create", initialArticles, orderId, orderWriteDate, onSaveChanges, onDraftCleared, initialWarehouseIds }: Props) {
+export function OrderGrid({ supplier, date, onTotalsChange, mode = "create", initialArticles, onArticlesChange, onDraftCleared, initialWarehouseIds }: Props) {
   const isEditMode = mode === "edit";
 
   // Read draft once at init time (create mode only, lazy useState runs exactly once)
@@ -91,19 +90,26 @@ export function OrderGrid({ supplier, date, onTotalsChange, mode = "create", ini
     const draftArticles = draft?.articles as Article[] | undefined;
     return draftArticles?.length ? draftArticles : [createEmptyArticle()];
   });
-  const originalSnapshot = useRef<Article[]>(isEditMode && initialArticles?.length ? initialArticles : []);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function updateArticles(updater: Article[] | ((prev: Article[]) => Article[])) {
+    setArticles((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      onArticlesChange?.(next);
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (isEditMode && initialArticles && initialArticles.length > 0) {
-      setArticles(initialArticles);
-      originalSnapshot.current = initialArticles;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      updateArticles(initialArticles);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [showConfirm, setShowConfirm] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSaving] = useState(false);
   const [printColumns, setPrintColumns] = useState<PrintColumn[]>(() => (draft?.printColumns as PrintColumn[]) ?? []);
   const [printValues, setPrintValues] = useState<PrintValues>(() => (draft?.printValues as PrintValues) ?? {});
   const [attrValidationErrors, setAttrValidationErrors] = useState<AttrValidationError[]>([]);
@@ -128,6 +134,7 @@ export function OrderGrid({ supplier, date, onTotalsChange, mode = "create", ini
     if (!isEditMode || !initialWarehouseIds?.length || !allWarehouses.length || warehousesHydratedRef.current) return;
     warehousesHydratedRef.current = true;
     const matched = allWarehouses.filter((w) => initialWarehouseIds.includes(w.id));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (matched.length > 0) setSelectedWarehouses(matched);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allWarehouses]);
@@ -160,7 +167,7 @@ export function OrderGrid({ supplier, date, onTotalsChange, mode = "create", ini
     setGlobalBrand(brand);
     if (!brand || !brandAttributeId) return;
 
-    setArticles((prev) =>
+    updateArticles((prev) =>
       prev.map((a) => {
         const hasBrand = a.attributes.some((attr) =>
           attr.attributeName.toLowerCase().includes("marca"),
@@ -186,7 +193,7 @@ export function OrderGrid({ supplier, date, onTotalsChange, mode = "create", ini
     setGlobalCompradora(compradora);
     if (!compradora || !compradoaAttributeId) return;
 
-    setArticles((prev) =>
+    updateArticles((prev) =>
       prev.map((a) => {
         const hasCompradora = a.attributes.some((attr) =>
           attr.attributeName.toLowerCase().includes("compradora"),
@@ -241,11 +248,11 @@ export function OrderGrid({ supplier, date, onTotalsChange, mode = "create", ini
   }
 
   function updateArticle(id: string, updated: Article) {
-    setArticles((prev) => prev.map((a) => (a.id === id ? updated : a)));
+    updateArticles((prev) => prev.map((a) => (a.id === id ? updated : a)));
   }
 
   function removeArticle(id: string) {
-    setArticles((prev) => prev.filter((a) => a.id !== id));
+    updateArticles((prev) => prev.filter((a) => a.id !== id));
   }
 
   function duplicateArticle(id: string) {
@@ -274,7 +281,7 @@ export function OrderGrid({ supplier, date, onTotalsChange, mode = "create", ini
       })),
     };
 
-    setArticles((prev) => {
+    updateArticles((prev) => {
       const idx = prev.findIndex((a) => a.id === id);
       const next = [...prev];
       next.splice(idx + 1, 0, duplicated);
@@ -291,7 +298,7 @@ export function OrderGrid({ supplier, date, onTotalsChange, mode = "create", ini
       globalCompradora && compradoaAttributeId
         ? { attributeId: compradoaAttributeId, compradora: globalCompradora }
         : null;
-    setArticles((prev) => [...prev, createEmptyArticle(brandInfo, compradoaInfo)]);
+    updateArticles((prev) => [...prev, createEmptyArticle(brandInfo, compradoaInfo)]);
   }
 
   function validateAttributesExist(): AttrValidationError[] {
@@ -425,7 +432,7 @@ export function OrderGrid({ supplier, date, onTotalsChange, mode = "create", ini
           printValues,
         }));
       } catch {}
-    }, 1500);
+    }, 5000);
     return () => {
       if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
     };
@@ -819,19 +826,10 @@ export function OrderGrid({ supplier, date, onTotalsChange, mode = "create", ini
                   return;
                 }
                 setAttrValidationErrors([]);
-                if (isEditMode) {
-                  setIsSaving(true);
-                  try {
-                    await onSaveChanges?.(articles, originalSnapshot.current);
-                  } finally {
-                    setIsSaving(false);
-                  }
-                } else {
-                  setShowConfirm(true);
-                }
+                setShowConfirm(true);
               }}
             >
-              {isEditMode ? (isSaving ? "Guardando..." : "Guardar cambios →") : "Revisar orden →"}
+              Revisar orden →
             </Button>
           </span>
         </Tooltip>
@@ -857,7 +855,7 @@ export function OrderGrid({ supplier, date, onTotalsChange, mode = "create", ini
               globalCompradora && compradoaAttributeId
                 ? { attributeId: compradoaAttributeId, compradora: globalCompradora }
                 : null;
-            setArticles([createEmptyArticle(brandInfo, compradoaInfo)]);
+            updateArticles([createEmptyArticle(brandInfo, compradoaInfo)]);
             setAttrValidationErrors([]);
             setShowConfirm(false);
           }}

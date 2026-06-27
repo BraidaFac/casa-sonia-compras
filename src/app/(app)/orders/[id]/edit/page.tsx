@@ -342,54 +342,9 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
           mode="edit"
           initialArticles={loadedData.articles}
           orderId={loadedData.order.id}
-          orderWriteDate={loadedData.order.writeDate}
           initialWarehouseIds={loadedData.order.warehouseIds}
-          onSaveChanges={async (articles, snapshot) => {
-            // 1. Compute and show diff modal
-            const diff = computeDiff(articles, snapshot, supplier, loadedData!.order, date);
-            const confirmed = await new Promise<boolean>((resolve) => {
-              setPendingDiff(diff);
-              setDiffModalOpen(true);
-              confirmRef.current = resolve;
-            });
-            if (!confirmed) return;
-
-            // 2. Run save with progress
-            setSaveInProgress(true);
-            setSaveError(null);
-            try {
-              const res = await fetch(`/api/orders/${id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  articles,
-                  snapshot,
-                  supplierId: supplier?.id,
-                  date: dateStr,
-                  writeDate: loadedData!.order.writeDate,
-                }),
-              });
-              const data = await res.json();
-              if (!res.ok) {
-                setSaveError(data.error || "Error al guardar");
-                return;
-              }
-              if (data.errors?.length > 0) {
-                setSaveError("Guardado con errores: " + data.errors.join("; "));
-                return;
-              }
-              // 3. Show result modal, wait for dismiss
-              setPdfName(data.pdfName || null);
-              await new Promise<void>((resolve) => {
-                setResultModalOpen(true);
-                resultResolveRef.current = resolve;
-              });
-              router.push("/orders");
-            } catch {
-              setSaveError("Error de conexión");
-            } finally {
-              setSaveInProgress(false);
-            }
+          onArticlesChange={(_articles) => {
+            // Task 15 will implement the save-draft flow here
           }}
         />
       </div>
