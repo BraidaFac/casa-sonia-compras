@@ -1,8 +1,9 @@
 "use client";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tooltip } from "@mantine/core";
-import { ClipboardList, Store, Package, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { ClipboardList, Store, Package, Plus, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/orders", label: "Órdenes", icon: ClipboardList },
@@ -26,8 +27,30 @@ function readStoredCollapsed(): boolean {
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  // Lazy initializer reads from localStorage (runs client-side only — "use client")
-  const [collapsed, setCollapsed] = useState<boolean>(readStoredCollapsed);
+  const queryClient = useQueryClient();
+  const [collapsed, setCollapsed] = useState<boolean>(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  async function handleRefreshCache() {
+    setIsRefreshing(true);
+    try {
+      await fetch("/api/cache/clear", { method: "POST" });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    setCollapsed(mq.matches || readStoredCollapsed());
+    const handler = (e: MediaQueryListEvent) => {
+      if (e.matches) setCollapsed(true);
+      else setCollapsed(readStoredCollapsed());
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   function toggleCollapsed() {
     const next = !collapsed;
@@ -40,6 +63,10 @@ export function Sidebar() {
   }
 
   const width = collapsed ? 56 : 220;
+
+  useEffect(() => {
+    document.documentElement.style.setProperty("--sidebar-width", `${width}px`);
+  }, [width]);
 
   return (
     <aside
@@ -217,6 +244,55 @@ export function Sidebar() {
           </Tooltip>
         ))}
       </nav>
+
+      {/* Footer — refresh cache */}
+      <div
+        style={{
+          padding: collapsed ? "10px 8px" : "10px 16px",
+          borderTop: "1px solid var(--border)",
+        }}
+      >
+        <Tooltip
+          label={
+            collapsed
+              ? "Refrescar catálogo"
+              : "Actualiza los datos de artículos, colores y talles desde Odoo. Útil si agregaste productos nuevos o modificaste atributos."
+          }
+          position="right"
+          withArrow
+          multiline
+          w={220}
+        >
+          <button
+            onClick={handleRefreshCache}
+            disabled={isRefreshing}
+            style={{
+              width: "100%",
+              background: "none",
+              border: "none",
+              borderRadius: 6,
+              padding: collapsed ? "8px" : "8px 12px",
+              cursor: isRefreshing ? "default" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: collapsed ? "center" : "flex-start",
+              gap: 8,
+              color: "var(--text3)",
+              fontSize: 12,
+              fontFamily: "var(--font-sans)",
+              opacity: isRefreshing ? 0.5 : 1,
+            }}
+          >
+            <RefreshCw
+              size={14}
+              style={{
+                animation: isRefreshing ? "spin 1s linear infinite" : "none",
+              }}
+            />
+            {!collapsed && (isRefreshing ? "Refrescando..." : "Refrescar")}
+          </button>
+        </Tooltip>
+      </div>
     </aside>
   );
 }

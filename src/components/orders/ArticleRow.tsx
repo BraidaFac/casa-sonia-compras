@@ -49,6 +49,7 @@ import type {
   SizeValue,
   SizeAttribute,
   OdooProduct,
+  OdooProductLite,
   PrintColumn,
   ProductCategory,
   ProductImage,
@@ -81,6 +82,8 @@ interface Props {
   onOpenSizeModal?: () => void;
   missingRequiredKeys?: string[];
   isFirstMissingArticle?: boolean;
+  orderId?: number;
+  readOnly?: boolean;
 }
 
 const COLOR_COL = "__color__";
@@ -112,8 +115,11 @@ export function ArticleRow({
   onOpenSizeModal,
   missingRequiredKeys = [],
   isFirstMissingArticle = false,
+  orderId,
+  readOnly = false,
 }: Props) {
   const [debouncedNameQuery, setDebouncedNameQuery] = useState("");
+  const [isFetchingDetail, setIsFetchingDetail] = useState(false);
   const [sizePickerOpen, setSizePickerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string | null>("quantities");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -186,7 +192,6 @@ export function ArticleRow({
     await refetchAttributes();
     await queryClient.invalidateQueries({ queryKey: ["attribute-values"] });
     await queryClient.invalidateQueries({ queryKey: ["brands"] });
-    await queryClient.invalidateQueries({ queryKey: ["compradora"] });
   }, [refetchAttributes, queryClient]);
 
   const nameCombobox = useCombobox({
@@ -218,7 +223,7 @@ export function ArticleRow({
     if (nameTimerRef.current) clearTimeout(nameTimerRef.current);
     nameTimerRef.current = setTimeout(
       () => setDebouncedNameQuery(article.name),
-      300,
+      500,
     );
     return () => {
       if (nameTimerRef.current) clearTimeout(nameTimerRef.current);
@@ -262,7 +267,33 @@ export function ArticleRow({
     });
   }
 
-  async function handleSelectProduct(p: OdooProduct) {
+  async function handleSelectProduct(lite: OdooProductLite) {
+    setIsFetchingDetail(true);
+    nameCombobox.closeDropdown();
+    let detail: Pick<
+      OdooProduct,
+      | "colors"
+      | "sizes"
+      | "sizeAttributeId"
+      | "extraAttributes"
+      | "maxCoeficiente"
+    > = {
+      colors: [],
+      sizes: [],
+      sizeAttributeId: null,
+      extraAttributes: [],
+      maxCoeficiente: 0,
+    };
+    try {
+      const res = await fetch(`/api/products/${lite.id}/detail`);
+      if (res.ok) detail = await res.json();
+    } catch (err) {
+      console.error("Error fetching product detail:", err);
+    } finally {
+      setIsFetchingDetail(false);
+    }
+    const p: OdooProduct = { ...lite, ...detail };
+
     const newRows: ArticleRowType[] =
       p.colors.length > 0
         ? p.colors.map((color) => ({
@@ -286,7 +317,10 @@ export function ArticleRow({
             },
           ];
 
-    const baseAttributes = (p.extraAttributes || []).map((a) => ({ ...a, locked: true }));
+    const baseAttributes = (p.extraAttributes || []).map((a) => ({
+      ...a,
+      locked: true,
+    }));
     const existingAttrIds = new Set(baseAttributes.map((a) => a.attributeId));
     const allPreloadedNames = [
       ...REQUIRED_ATTR_FAMILIES.flatMap((f) => f.names),
@@ -325,6 +359,7 @@ export function ArticleRow({
       colorImages: {},
       deletedOdooImageIds: [],
       clearedPrimaryColorNames: [],
+      originalSizeIds: p.sizes.map((s) => s.id),
     };
 
     onChange(newArticle);
@@ -332,7 +367,6 @@ export function ArticleRow({
     if (p.category) {
       setCategorySearch(p.category.name);
     }
-    nameCombobox.closeDropdown();
 
     // Fetch variant images from Odoo asynchronously
     if (p.id) {
@@ -376,11 +410,25 @@ export function ArticleRow({
     });
   }
 
+  function isOdooColor(row: { color: ColorValue | null }): boolean {
+    return !!(article.existingProductId && row.color && !row.color.isNew);
+  }
+
+  function isOdooSize(idx: number): boolean {
+    return !!(
+      article.existingProductId &&
+      article.originalSizeIds?.includes(article.sizes[idx].id)
+    );
+  }
+
   function removeRow(rowId: string) {
+    const row = article.rows.find((r) => r.id === rowId);
+    if (row && isOdooColor(row)) return;
     onChange({ ...article, rows: article.rows.filter((r) => r.id !== rowId) });
   }
 
   function removeSize(idx: number) {
+    if (isOdooSize(idx)) return;
     const sizeName = article.sizes[idx].name;
     const newSizes = article.sizes.filter((_, i) => i !== idx);
     const newRows = article.rows.map((r) => {
@@ -516,6 +564,41 @@ export function ArticleRow({
       article.sizes.reduce((s2, size) => {
         const qty = parseInt(row.quantities[size.name] || "0", 10);
         return s2 + (isNaN(qty) ? 0 : qty);
+      }, 0)
+    );
+  }, 0);
+
+  const articleSubtotal = article.rows.reduce((sum, row) => {
+    if (selectedWarehouses.length > 0) {
+      return (
+        sum +
+        Object.entries(row.warehouseQuantities || {}).reduce(
+          (s, [key, val]) => {
+            const qty = parseInt(val || "0", 10);
+            if (!qty) return s;
+            const sizeName = key.split(":").slice(1).join(":");
+            const price = article.priceGranular
+              ? parseFloat(row.prices?.[sizeName] || "") ||
+                parseFloat(article.price) ||
+                0
+              : parseFloat(article.price) || 0;
+            return s + qty * price;
+          },
+          0,
+        )
+      );
+    }
+    return (
+      sum +
+      article.sizes.reduce((s, size) => {
+        const qty = parseInt(row.quantities[size.name] || "0", 10);
+        if (!qty) return s;
+        const price = article.priceGranular
+          ? parseFloat(row.prices?.[size.name] || "") ||
+            parseFloat(article.price) ||
+            0
+          : parseFloat(article.price) || 0;
+        return s + qty * price;
       }, 0)
     );
   }, 0);
@@ -665,6 +748,7 @@ export function ArticleRow({
 
     const newImages: ProductImage[] = [];
     const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    const validFiles: File[] = [];
 
     for (const file of Array.from(files)) {
       if (!allowedTypes.includes(file.type)) {
@@ -691,26 +775,80 @@ export function ArticleRow({
         continue;
       }
 
+      validFiles.push(file);
+    }
+
+    // Convert valid files to base64 for preview
+    const base64Results = await Promise.all(
+      validFiles.map(async (file) => {
+        try {
+          const base64 = await fileToBase64(file);
+          return { file, base64, error: null };
+        } catch {
+          return { file, base64: null, error: "Error procesando la imagen." };
+        }
+      }),
+    );
+
+    // Upload to server if orderId is available
+    const tempPaths: Record<string, string> = {};
+    if (orderId) {
       try {
-        const base64 = await fileToBase64(file);
-        const previewUrl = `data:${file.type};base64,${base64}`;
-        newImages.push({
-          id: crypto.randomUUID(),
-          fileName: file.name,
-          base64,
-          mimeType: file.type,
-          previewUrl,
-        });
+        const formData = new FormData();
+        formData.append("articleId", article.id);
+        formData.append("colorName", colorName);
+        for (const { file, base64 } of base64Results) {
+          if (base64 !== null) formData.append("file", file);
+        }
+        if (formData.has("file")) {
+          const res = await fetch(`/api/local-orders/${orderId}/images`, {
+            method: "POST",
+            body: formData,
+          });
+          if (res.ok) {
+            const data = await res.json();
+            // API returns results in order of uploaded files
+            const validWithBase64 = base64Results.filter(
+              (r) => r.base64 !== null,
+            );
+            (data.results as { imageId: string; tempPath: string }[]).forEach(
+              (result, i) => {
+                if (validWithBase64[i]) {
+                  tempPaths[validWithBase64[i].file.name + i] = result.tempPath;
+                }
+              },
+            );
+          }
+        }
       } catch {
+        // Non-fatal: images remain in memory only
+        console.error("Error uploading images to temp storage");
+      }
+    }
+
+    let tempIndex = 0;
+    for (const { file, base64, error } of base64Results) {
+      if (error || base64 === null) {
         newImages.push({
           id: crypto.randomUUID(),
           fileName: file.name,
           base64: "",
           mimeType: file.type,
           previewUrl: "",
-          error: "Error procesando la imagen.",
+          error: error ?? "Error procesando la imagen.",
         });
+        continue;
       }
+      const tempPath = tempPaths[file.name + tempIndex] ?? undefined;
+      newImages.push({
+        id: crypto.randomUUID(),
+        fileName: file.name,
+        base64,
+        mimeType: file.type,
+        previewUrl: `data:${file.type};base64,${base64}`,
+        tempPath,
+      });
+      tempIndex++;
     }
 
     const existingImages = article.colorImages[colorName] || [];
@@ -733,6 +871,15 @@ export function ArticleRow({
     const existing = article.colorImages[colorName] || [];
     const imgToRemove = existing.find((i) => i.id === imageId);
     const remaining = existing.filter((i) => i.id !== imageId);
+
+    // Delete temp file from server (best-effort)
+    if (orderId && imgToRemove?.tempPath) {
+      void fetch(`/api/local-orders/${orderId}/images`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tempPath: imgToRemove.tempPath }),
+      });
+    }
 
     const deletedOdooImageIds = [...(article.deletedOdooImageIds || [])];
     const clearedPrimaryColorNames = [
@@ -913,7 +1060,7 @@ export function ArticleRow({
         }}
       >
         {/* Duplicate & Remove — top-right corner */}
-        <div
+        {!readOnly && <div
           style={{
             position: "absolute",
             top: 6,
@@ -942,7 +1089,7 @@ export function ArticleRow({
           >
             <X size={14} />
           </ActionIcon>
-        </div>
+        </div>}
 
         {/* Article header — always visible */}
         <div
@@ -991,7 +1138,7 @@ export function ArticleRow({
                   return;
                 }
                 const p = filteredProducts.find((p) => String(p.id) === val);
-                if (p) handleSelectProduct(p as OdooProduct);
+                if (p) handleSelectProduct(p);
               }}
               withinPortal
             >
@@ -1004,7 +1151,7 @@ export function ArticleRow({
                   style={{ width: "100%" }}
                   styles={{ input: { fontWeight: 600 } }}
                   rightSection={
-                    isFetchingProducts ? (
+                    isFetchingProducts || isFetchingDetail ? (
                       <Loader size="xs" color="amber" />
                     ) : null
                   }
@@ -1036,7 +1183,7 @@ export function ArticleRow({
                       filteredProducts.length === 1
                     ) {
                       e.preventDefault();
-                      handleSelectProduct(filteredProducts[0] as OdooProduct);
+                      handleSelectProduct(filteredProducts[0]);
                     }
                   }}
                 />
@@ -1050,7 +1197,7 @@ export function ArticleRow({
                     <Combobox.Option key={p.id} value={String(p.id)}>
                       <div>
                         <span style={{ fontWeight: 600 }}>{p.name}</span>
-                        {(p as OdooProduct).referencia && (
+                        {p.referencia && (
                           <span
                             style={{
                               color: "var(--text3)",
@@ -1058,15 +1205,10 @@ export function ArticleRow({
                               marginLeft: 6,
                             }}
                           >
-                            {(p as OdooProduct).referencia}
+                            {p.referencia}
                           </span>
                         )}
                       </div>
-                      {(p.colors.length > 0 || p.sizes.length > 0) && (
-                        <span style={{ color: "var(--text3)", fontSize: 11 }}>
-                          {p.colors.length} colores · {p.sizes.length} talles
-                        </span>
-                      )}
                     </Combobox.Option>
                   ))}
                   {article.name.trim() && !isFetchingProducts && (
@@ -1342,6 +1484,9 @@ export function ArticleRow({
             <Tabs.Tab value="description">Datos Web</Tabs.Tab>
           </Tabs.List>
 
+          {/* Tab panel content — pointer-events disabled in readOnly to allow tab switching but block edits */}
+          <div style={readOnly ? { pointerEvents: "none", userSelect: "none", opacity: 0.85 } : undefined}>
+
           {/* Cantidades tab */}
           <Tabs.Panel value="quantities" pt="sm">
             {/* Hidden print cols chips */}
@@ -1574,16 +1719,18 @@ export function ArticleRow({
                               : {}),
                           }}
                         >
-                          <ActionIcon
-                            variant="subtle"
-                            color="gray"
-                            size={14}
-                            title="Eliminar talle"
-                            onClick={() => removeSize(realIdx)}
-                            style={{ position: "absolute", top: 2, right: 2 }}
-                          >
-                            <X size={10} />
-                          </ActionIcon>
+                          {!isOdooSize(realIdx) && (
+                            <ActionIcon
+                              variant="subtle"
+                              color="gray"
+                              size={14}
+                              title="Eliminar talle"
+                              onClick={() => removeSize(realIdx)}
+                              style={{ position: "absolute", top: 2, right: 2 }}
+                            >
+                              <X size={10} />
+                            </ActionIcon>
+                          )}
                           <div
                             style={{
                               display: "flex",
@@ -1742,16 +1889,18 @@ export function ArticleRow({
                                   }
                                 />
                               </div>
-                              <ActionIcon
-                                variant="subtle"
-                                color="gray"
-                                size="xs"
-                                tabIndex={-1}
-                                onClick={() => removeRow(row.id)}
-                                style={{ flexShrink: 0, marginTop: 2 }}
-                              >
-                                <X size={12} />
-                              </ActionIcon>
+                              {!isOdooColor(row) && (
+                                <ActionIcon
+                                  variant="subtle"
+                                  color="gray"
+                                  size="xs"
+                                  tabIndex={-1}
+                                  onClick={() => removeRow(row.id)}
+                                  style={{ flexShrink: 0, marginTop: 2 }}
+                                >
+                                  <X size={12} />
+                                </ActionIcon>
+                              )}
                             </div>
                           </td>
 
@@ -1940,16 +2089,18 @@ export function ArticleRow({
                                       }
                                     />
                                   </div>
-                                  <ActionIcon
-                                    variant="subtle"
-                                    color="gray"
-                                    size="xs"
-                                    tabIndex={-1}
-                                    onClick={() => removeRow(row.id)}
-                                    style={{ flexShrink: 0, marginTop: 2 }}
-                                  >
-                                    <X size={12} />
-                                  </ActionIcon>
+                                  {!isOdooColor(row) && (
+                                    <ActionIcon
+                                      variant="subtle"
+                                      color="gray"
+                                      size="xs"
+                                      tabIndex={-1}
+                                      onClick={() => removeRow(row.id)}
+                                      style={{ flexShrink: 0, marginTop: 2 }}
+                                    >
+                                      <X size={12} />
+                                    </ActionIcon>
+                                  )}
                                 </div>
                               </td>
                             )}
@@ -2281,6 +2432,27 @@ export function ArticleRow({
                                         {img.fileName}
                                       </Text>
                                     </div>
+                                  ) : !img.previewUrl ? (
+                                    <div
+                                      style={{
+                                        width: "100%",
+                                        height: "100%",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        padding: 4,
+                                      }}
+                                    >
+                                      <Text
+                                        size="xs"
+                                        c="dimmed"
+                                        ta="center"
+                                        lh={1.2}
+                                      >
+                                        {img.fileName}
+                                      </Text>
+                                    </div>
                                   ) : (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img
@@ -2471,7 +2643,50 @@ export function ArticleRow({
               </div>
             </Stack>
           </Tabs.Panel>
+          </div>{/* end readOnly panel wrapper */}
         </Tabs>
+
+        {totalUnits > 0 && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              alignItems: "center",
+              gap: 10,
+              marginTop: 10,
+              paddingTop: 8,
+              borderTop: "1px solid var(--border)",
+            }}
+          >
+            <Text size="xs" c="dimmed">
+              {totalUnits} {totalUnits === 1 ? "unidad" : "unidades"}
+            </Text>
+            {articleSubtotal > 0 && (
+              <>
+                <span
+                  style={{
+                    color: "var(--mantine-color-dark-4)",
+                    fontSize: 12,
+                    lineHeight: 1,
+                  }}
+                >
+                  ·
+                </span>
+                <Text
+                  size="xs"
+                  fw={600}
+                  style={{ color: "var(--mantine-color-amber-4)" }}
+                >
+                  Subtotal $
+                  {articleSubtotal.toLocaleString("es-AR", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </Text>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </>
   );

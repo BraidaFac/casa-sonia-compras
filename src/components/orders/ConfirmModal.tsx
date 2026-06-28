@@ -16,6 +16,7 @@ import { CheckCircle } from "lucide-react";
 import type { Article, Supplier, PrintColumn, PrintValues, Warehouse } from "@/types";
 
 interface Props {
+  orderId: number;
   supplier: Supplier;
   date: string;
   articles: Article[];
@@ -24,110 +25,26 @@ interface Props {
   printValues: PrintValues;
   onClose: () => void;
   onConfirmed: () => void;
-  onValidationError: (errors: { articleName: string; type: "color" | "size"; value: string }[]) => void;
-}
-
-interface ImageSyncEntry {
-  articleId: string;
-  templateId: number;
-  resolvedColors: { id: number; name: string }[];
-  variantMap: [string, number][];
 }
 
 interface OrderResult {
-  purchaseOrderId: number;
-  purchaseOrderName: string;
-  imageSyncData?: ImageSyncEntry[];
+  odooOrderId: number;
+  odooOrderName: string;
 }
 
 interface OrderError {
   error: string;
-  createdProductIds?: number[];
-  validationErrors?: { articleName: string; type: "color" | "size"; value: string }[];
 }
 
-async function createOrder(body: {
-  supplierId: number;
-  date: string;
-  articles: Article[];
-  warehouseIds: number[];
-  printColumns: import("@/types").PrintColumn[];
-  printValues: import("@/types").PrintValues;
-  selectedWarehouses: import("@/types").Warehouse[];
-}): Promise<OrderResult> {
-  // Strip image data to avoid Vercel 4.5MB payload limit
-  const articlesStripped = body.articles.map((a) => ({
-    ...a,
-    colorImages: {},
-    deletedOdooImageIds: [],
-    clearedPrimaryColorNames: [],
-  }));
-
-  const res = await fetch("/api/orders", {
+async function confirmLocalOrder(orderId: number): Promise<OrderResult> {
+  const res = await fetch(`/api/local-orders/${orderId}/confirm`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...body, articles: articlesStripped }),
   });
-
   if (!res.ok) {
     const err: OrderError = await res.json();
     throw err;
   }
-
   return res.json();
-}
-
-async function syncImagesAfterOrder(
-  articles: Article[],
-  imageSyncData: ImageSyncEntry[],
-): Promise<void> {
-  for (const entry of imageSyncData) {
-    const article = articles.find((a) => a.id === entry.articleId);
-    if (!article) continue;
-
-    // Build lean colorImages: strip previewUrl from all images, strip base64 from
-    // Odoo images (already in Odoo — server doesn't need to re-upload them).
-    // This avoids Vercel's 4.5MB payload limit when products have many/large Odoo images.
-    const colorImagesLean: Record<string, object[]> = {};
-    for (const [colorName, images] of Object.entries(article.colorImages || {})) {
-      colorImagesLean[colorName] = images.map((img) => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { previewUrl, base64, ...rest } = img;
-        return img.isFromOdoo
-          ? { ...rest, base64: "" }        // Odoo image: strip data, keep flags
-          : { ...rest, base64 };            // New image: keep base64, drop previewUrl
-      });
-    }
-
-    const hasImages =
-      Object.values(colorImagesLean).some((imgs) =>
-        imgs.some((img: object) => (img as { base64?: string }).base64),
-      ) ||
-      (article.deletedOdooImageIds?.length ?? 0) > 0 ||
-      (article.clearedPrimaryColorNames?.length ?? 0) > 0;
-
-    if (!hasImages) continue;
-
-    try {
-      const res = await fetch(`/api/products/${entry.templateId}/sync-images`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          colorImages: colorImagesLean,
-          deletedOdooImageIds: article.deletedOdooImageIds || [],
-          clearedPrimaryColorNames: article.clearedPrimaryColorNames || [],
-          resolvedColors: entry.resolvedColors,
-          variantMap: entry.variantMap,
-        }),
-      });
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        console.error(`Image sync failed for article ${entry.articleId}: ${res.status}`, errText);
-      }
-    } catch (err) {
-      console.error(`Error syncing images for article ${entry.articleId}:`, err);
-    }
-  }
 }
 
 function calcArticleSummary(article: Article, warehouseMode: boolean) {
@@ -190,7 +107,7 @@ function calcArticleSummary(article: Article, warehouseMode: boolean) {
   return { units, variants: variantSet.size, priceDisplay, amount };
 }
 
-export function ConfirmModal({ supplier, date, articles, selectedWarehouses, printColumns, printValues, onClose, onConfirmed, onValidationError }: Props) {
+export function ConfirmModal({ orderId, supplier, date, articles, selectedWarehouses, printColumns, printValues, onClose, onConfirmed }: Props) {
   const [step, setStep] = useState<"preview" | "submitting" | "done">("preview");
   const [result, setResult] = useState<OrderResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -200,7 +117,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
   const [pdfOrientation, setPdfOrientation] = useState<"landscape" | "portrait">("landscape");
 
   const mutation = useMutation({
-    mutationFn: createOrder,
+    mutationFn: () => confirmLocalOrder(orderId),
     onMutate: () => {
       setStep("submitting");
       setSubmitError(null);
@@ -208,39 +125,12 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
     onSuccess: (data) => {
       setResult(data);
       setStep("done");
-      // Fire-and-forget image sync (best-effort, doesn't block UI)
-      console.log("[ImageSync] imageSyncData:", data.imageSyncData);
-      console.log("[ImageSync] articles colorImages:", articles.map(a => ({ id: a.id, colors: Object.keys(a.colorImages || {}), counts: Object.fromEntries(Object.entries(a.colorImages || {}).map(([k,v]) => [k, v.length])) })));
-      if (data.imageSyncData && data.imageSyncData.length > 0) {
-        syncImagesAfterOrder(articles, data.imageSyncData).catch((err) =>
-          console.error("Image sync failed:", err),
-        );
-      } else {
-        console.warn("[ImageSync] No imageSyncData returned from server — skipping sync");
-      }
     },
     onError: (error: OrderError) => {
-      if (error.validationErrors && error.validationErrors.length > 0) {
-        onValidationError(error.validationErrors);
-        onClose();
-      } else {
-        setSubmitError(error.error || "Error al crear la orden");
-        setStep("preview");
-      }
+      setSubmitError(error.error || "Error al confirmar la orden");
+      setStep("preview");
     },
   });
-
-  function handleSubmit() {
-    mutation.mutate({
-      supplierId: supplier.id,
-      date,
-      articles,
-      warehouseIds: selectedWarehouses.map((w) => w.id),
-      printColumns,
-      printValues,
-      selectedWarehouses,
-    });
-  }
 
   async function downloadPdf(comment: string) {
     if (!result) return;
@@ -251,7 +141,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          orderId: result.purchaseOrderId,
+          orderId: result.odooOrderId,
           printColumns,
           printValues,
           articles: articlesForPdf,
@@ -266,7 +156,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${result.purchaseOrderName} - ${supplier.name} - ${date}.pdf`;
+      a.download = `${result.odooOrderName} - ${supplier.name} - ${date}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -283,7 +173,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          orderId: result.purchaseOrderId,
+          orderId: result.odooOrderId,
           printColumns,
           printValues,
           articles: articlesForPdf,
@@ -297,7 +187,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${result.purchaseOrderName} - ${supplier.name} - ${date} - INT.pdf`;
+      a.download = `${result.odooOrderName} - ${supplier.name} - ${date} - INT.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -309,10 +199,6 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
   const summaries = articles.map((a) => ({ ...a, ...calcArticleSummary(a, warehouseMode) }));
   const grandTotal = summaries.reduce((s, a) => s + a.amount, 0);
   const grandUnits = summaries.reduce((s, a) => s + a.units, 0);
-
-  const missingSizeAttribute = articles.some(
-    (a) => !a.sizeAttributeId && a.sizes.length > 0,
-  );
 
   return (
     <Modal
@@ -337,7 +223,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
         <Stack align="center" py="lg" gap="md">
           <CheckCircle size={48} color="var(--green)" />
           <Text fw={600} size="lg">
-            Orden creada: {result.purchaseOrderName}
+            Orden creada: {result.odooOrderName}
           </Text>
           <Group gap="xs" align="center">
             <Text size="xs" c="dimmed">Orientación del PDF:</Text>
@@ -362,7 +248,6 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
               Cerrar
             </Button>
           </Group>
-
         </Stack>
       ) : (
         <Stack gap="md">
@@ -401,12 +286,6 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
             </Table.Tfoot>
           </Table>
 
-          {missingSizeAttribute && (
-            <Text size="xs" c="orange">
-              Advertencia: algunos artículos no tienen tipo de talle seleccionado. La confirmación puede fallar.
-            </Text>
-          )}
-
           {step === "submitting" && (
             <Group gap="xs" c="dimmed">
               <Loader size="xs" color="amber" />
@@ -437,7 +316,7 @@ export function ConfirmModal({ supplier, date, articles, selectedWarehouses, pri
             )}
             <Button
               color="amber"
-              onClick={handleSubmit}
+              onClick={() => mutation.mutate()}
               loading={step === "submitting"}
               disabled={step === "submitting"}
             >

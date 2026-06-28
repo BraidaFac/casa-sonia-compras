@@ -1,0 +1,35 @@
+# Agregar este servicio a tu docker-compose.yml existente en el VPS.
+# Ajusta: network name, mysql service name, DATABASE_URL host.
+
+services:
+  casa-sonia-compras:
+    image: ghcr.io/TU_USUARIO_GITHUB/TU_REPO:latest
+    container_name: casa-sonia-compras
+    restart: unless-stopped
+    ports:
+      - "3001:3000"   # Puerto externo:3000 interno. Cambia 3001 si ya está ocupado.
+    environment:
+      DATABASE_URL: "mysql://casa_sonia:PASSWORD@mysql:3306/casa_sonia_compras"
+      APP_USER: ""
+      APP_PASSWORD: ""
+      JWT_SECRET: ""
+      ODOO_URL: ""
+      ODOO_DB: ""
+      ODOO_API_KEY: ""
+      NEXT_PUBLIC_APP_NAME: "Casa Sonia Compras"
+      DEFAULT_PRICE_COEFICIENTE: "2.2"
+      NEXT_PUBLIC_DEFAULT_PRICE_COEFICIENTE: "2.2"
+      OPENROUTER_API_KEY: ""
+      OPENROUTER_MODEL: ""
+      GOOGLE_OAUTH_CLIENT_ID: ""
+      GOOGLE_OAUTH_CLIENT_SECRET: ""
+      GOOGLE_OAUTH_REFRESH_TOKEN: ""
+      GOOGLE_DRIVE_ROOT_FOLDER_ID: ""
+    networks:
+      - tu_red_existente   # <-- nombre de tu network en el compose
+    depends_on:
+      - mysql              # <-- nombre de tu servicio MySQL
+
+networks:
+  tu_red_existente:
+    external: true

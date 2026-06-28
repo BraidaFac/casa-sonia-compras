@@ -5,7 +5,7 @@ interface DraftWarningModalProps {
   opened: boolean;
   warnings: string[];
   onCorrect: () => void;
-  onSaveAnyway: () => void;
+  onSaveAnyway?: () => void;
 }
 
 export function DraftWarningModal({
@@ -35,11 +35,13 @@ export function DraftWarningModal({
           </List>
         )}
         <Group justify="flex-end" gap="sm">
-          <Button variant="subtle" color="gray" onClick={onCorrect}>
+          {onSaveAnyway && (
+            <Button variant="subtle" color="gray" onClick={onSaveAnyway}>
+              Guardar igual
+            </Button>
+          )}
+          <Button variant="filled" color="amber" onClick={onCorrect}>
             Corregir
-          </Button>
-          <Button color="amber" variant="outline" onClick={onSaveAnyway}>
-            Guardar igual →
           </Button>
         </Group>
       </Stack>

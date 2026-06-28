@@ -34,6 +34,7 @@ export async function GET(
   return NextResponse.json({
     ...order,
     articles,
+    compradoraIds: order.compradoraIds as unknown as number[],
     warehouseIds: order.warehouseIds as unknown as number[],
     printColumns: order.printColumns as unknown as PrintColumn[],
     printValues: order.printValues as unknown as PrintValues,
@@ -71,6 +72,9 @@ export async function PUT(
   const body = (await request.json()) as {
     supplierId?: number;
     supplierName?: string;
+    brandId?: number | null;
+    brandName?: string | null;
+    compradoraIds?: number[];
     date?: string;
     articles?: Article[];
     warehouseIds?: number[];
@@ -86,6 +90,9 @@ export async function PUT(
       errorDetail: order.status === "ERROR" ? null : order.errorDetail,
       ...(body.supplierId !== undefined ? { supplierId: body.supplierId } : {}),
       ...(body.supplierName !== undefined ? { supplierName: body.supplierName } : {}),
+      ...("brandId" in body ? { brandId: body.brandId ?? null } : {}),
+      ...("brandName" in body ? { brandName: body.brandName ?? null } : {}),
+      ...("compradoraIds" in body ? { compradoraIds: (body.compradoraIds ?? []) as unknown as object } : {}),
       ...(body.date !== undefined ? { date: body.date } : {}),
       ...(body.articles !== undefined
         ? { articles: stripImagesForDB(body.articles) as unknown as object }

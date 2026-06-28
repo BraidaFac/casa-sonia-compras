@@ -1,16 +1,37 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button, Text, Group, Select, Modal, Stack } from "@mantine/core";
+import {
+  Badge,
+  Button,
+  Text,
+  Group,
+  Select,
+  Modal,
+  Stack,
+  ActionIcon,
+  Tooltip,
+} from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { DatePickerInput } from "@mantine/dates";
 import "dayjs/locale/es";
-import { Plus, Send, Copy, Trash2, Edit2, AlertTriangle, Eye } from "lucide-react";
+import {
+  Plus,
+  Send,
+  Copy,
+  Trash2,
+  Edit2,
+  AlertTriangle,
+  Eye,
+} from "lucide-react";
 import { OrdersTable } from "@/components/orders/OrdersTable";
+import { ConfirmModal } from "@/components/orders/ConfirmModal";
 import { ErrorDetailModal } from "@/components/orders/ErrorDetailModal";
+import { ValidationErrorModal } from "@/components/orders/ValidationErrorModal";
 import { SupplierSearch } from "@/components/orders/SupplierSearch";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import type { LocalOrderSummary, OrderStatus, Supplier } from "@/types";
+import type { LocalOrderSummary, LocalOrder, OrderStatus, Supplier } from "@/types";
+import { validateForConfirm } from "@/lib/orderValidation";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 
 const PAGE_SIZE = 30;
@@ -38,7 +59,10 @@ export default function OrdersPage() {
   const [dateFrom, setDateFrom] = useState<Date | null>(null);
   const [dateTo, setDateTo] = useState<Date | null>(null);
 
-  const [errorModal, setErrorModal] = useState<{ open: boolean; detail: string | null }>({
+  const [errorModal, setErrorModal] = useState<{
+    open: boolean;
+    detail: string | null;
+  }>({
     open: false,
     detail: null,
   });
@@ -46,6 +70,8 @@ export default function OrdersPage() {
   const [duplicating, setDuplicating] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [confirming, setConfirming] = useState<number | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ order: LocalOrder } | null>(null);
+  const [validationModal, setValidationModal] = useState<{ warnings: string[]; orderId: number } | null>(null);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -56,7 +82,8 @@ export default function OrdersPage() {
       });
       if (supplier) params.set("supplier_id", String(supplier.id));
       if (statusFilter) params.set("status", statusFilter);
-      if (dateFrom) params.set("date_from", dateFrom.toISOString().split("T")[0]);
+      if (dateFrom)
+        params.set("date_from", dateFrom.toISOString().split("T")[0]);
       if (dateTo) params.set("date_to", dateTo.toISOString().split("T")[0]);
       const res = await fetch(`/api/local-orders?${params}`);
       const json = await res.json();
@@ -75,16 +102,26 @@ export default function OrdersPage() {
   async function handleConfirm(id: number) {
     setConfirming(id);
     try {
-      const res = await fetch(`/api/local-orders/${id}/confirm`, { method: "POST" });
+      const res = await fetch(`/api/local-orders/${id}`);
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        notifications.show({
-          color: "red",
-          title: "Error al confirmar",
-          message: (err as { error?: string }).error || "La orden falló al confirmarse",
-        });
+        notifications.show({ color: "red", title: "Error", message: "No se pudo cargar la orden" });
+        return;
       }
-      fetchOrders();
+      const order: LocalOrder = await res.json();
+
+      const validation = validateForConfirm({
+        supplierId: order.supplierId,
+        brandId: order.brandId,
+        compradoraIds: order.compradoraIds ?? [],
+        date: order.date,
+        articles: order.articles as import("@/types").Article[],
+      });
+      if (!validation.valid) {
+        setValidationModal({ warnings: validation.missing, orderId: id });
+        return;
+      }
+
+      setConfirmModal({ order });
     } finally {
       setConfirming(null);
     }
@@ -93,7 +130,9 @@ export default function OrdersPage() {
   async function handleDuplicate(id: number) {
     setDuplicating(id);
     try {
-      const res = await fetch(`/api/local-orders/${id}/duplicate`, { method: "POST" });
+      const res = await fetch(`/api/local-orders/${id}/duplicate`, {
+        method: "POST",
+      });
       const data = await res.json();
       if (res.ok) router.push(`/orders/${data.id}/edit`);
     } finally {
@@ -162,78 +201,85 @@ export default function OrdersPage() {
     },
     {
       headerName: "Acciones",
-      width: 320,
+      width: 180,
       sortable: false,
       cellRenderer: (p: ICellRendererParams<LocalOrderSummary>) => {
         const row = p.data!;
         return (
           <Group gap={4} wrap="nowrap" align="center" h="100%">
             {row.status === "ERROR" && (
-              <Button
-                size="xs"
-                variant="subtle"
-                color="red"
-                leftSection={<AlertTriangle size={12} />}
-                onClick={() =>
-                  setErrorModal({ open: true, detail: row.errorDetail })
-                }
-              >
-                Ver error
-              </Button>
+              <Tooltip label="Ver error" withArrow>
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  color="red"
+                  onClick={() =>
+                    setErrorModal({ open: true, detail: row.errorDetail })
+                  }
+                >
+                  <AlertTriangle size={14} />
+                </ActionIcon>
+              </Tooltip>
             )}
             {(row.status === "DRAFT" || row.status === "ERROR") && (
-              <Button
-                size="xs"
-                variant="subtle"
-                color="amber"
-                leftSection={<Edit2 size={12} />}
-                onClick={() => router.push(`/orders/${row.id}/edit`)}
-              >
-                Editar
-              </Button>
+              <Tooltip label="Editar" withArrow>
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  color="amber"
+                  onClick={() => router.push(`/orders/${row.id}/edit`)}
+                >
+                  <Edit2 size={14} />
+                </ActionIcon>
+              </Tooltip>
             )}
             {row.status === "DRAFT" && (
-              <Button
-                size="xs"
-                color="amber"
-                leftSection={<Send size={12} />}
-                loading={confirming === row.id}
-                onClick={() => handleConfirm(row.id)}
-              >
-                Confirmar
-              </Button>
+              <Tooltip label="Confirmar" withArrow>
+                <ActionIcon
+                  size="sm"
+                  variant="filled"
+                  color="amber"
+                  loading={confirming === row.id}
+                  onClick={() => handleConfirm(row.id)}
+                >
+                  <Send size={14} />
+                </ActionIcon>
+              </Tooltip>
             )}
             {row.status === "CONFIRMED" && (
-              <Button
-                size="xs"
+              <Tooltip label="Ver" withArrow>
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  color="gray"
+                  onClick={() => router.push(`/orders/${row.id}/edit`)}
+                >
+                  <Eye size={14} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+            <Tooltip label="Duplicar" withArrow>
+              <ActionIcon
+                size="sm"
                 variant="subtle"
                 color="gray"
-                leftSection={<Eye size={12} />}
-                onClick={() => router.push(`/orders/${row.id}/edit`)}
+                loading={duplicating === row.id}
+                onClick={() => handleDuplicate(row.id)}
               >
-                Ver
-              </Button>
-            )}
-            <Button
-              size="xs"
-              variant="subtle"
-              color="gray"
-              leftSection={<Copy size={12} />}
-              loading={duplicating === row.id}
-              onClick={() => handleDuplicate(row.id)}
-            >
-              Duplicar
-            </Button>
+                <Copy size={14} />
+              </ActionIcon>
+            </Tooltip>
             {(row.status === "DRAFT" || row.status === "ERROR") && (
-              <Button
-                size="xs"
-                variant="subtle"
-                color="red"
-                leftSection={<Trash2 size={12} />}
-                onClick={() => setDeleteConfirm(row.id)}
-              >
-                Eliminar
-              </Button>
+              <Tooltip label="Eliminar" withArrow>
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  color="red"
+                  onClick={() => setDeleteConfirm(row.id)}
+                >
+                  <Trash2 size={14} />
+                </ActionIcon>
+              </Tooltip>
             )}
           </Group>
         );
@@ -242,7 +288,7 @@ export default function OrdersPage() {
   ];
 
   return (
-    <div style={{ padding: "24px 24px 80px" }}>
+    <div className="page-pad">
       {/* Header */}
       <Group justify="space-between" align="center" mb="lg">
         <h1
@@ -262,7 +308,7 @@ export default function OrdersPage() {
           size="sm"
           onClick={() => router.push("/orders/new")}
         >
-          + Nueva Orden
+          Nueva Orden
         </Button>
       </Group>
 
@@ -369,6 +415,30 @@ export default function OrdersPage() {
         opened={errorModal.open}
         errorDetail={errorModal.detail ?? ""}
         onClose={() => setErrorModal({ open: false, detail: null })}
+      />
+
+      {confirmModal && (
+        <ConfirmModal
+          orderId={confirmModal.order.id}
+          supplier={{ id: confirmModal.order.supplierId, name: confirmModal.order.supplierName }}
+          date={confirmModal.order.date}
+          articles={confirmModal.order.articles as import("@/types").Article[]}
+          selectedWarehouses={(confirmModal.order.warehouseIds as number[]).map((id) => ({ id, name: "", code: "" }))}
+          printColumns={(confirmModal.order.printColumns as import("@/types").PrintColumn[]) ?? []}
+          printValues={(confirmModal.order.printValues as import("@/types").PrintValues) ?? {}}
+          onClose={() => setConfirmModal(null)}
+          onConfirmed={() => { setConfirmModal(null); fetchOrders(); }}
+        />
+      )}
+
+      <ValidationErrorModal
+        opened={validationModal !== null}
+        onClose={() => setValidationModal(null)}
+        warnings={validationModal?.warnings ?? []}
+        onEdit={() => {
+          router.push(`/orders/${validationModal!.orderId}/edit`);
+          setValidationModal(null);
+        }}
       />
 
       <Modal

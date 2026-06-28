@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   outputFileTracingIncludes: {
     "/api/pdf": [
       "./node_modules/@fontsource/noto-sans/files/noto-sans-latin-400-normal.woff",

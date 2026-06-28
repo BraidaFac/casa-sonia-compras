@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# AI/Claude tooling
+.claude/
+.superpowers/
+PRODUCT.md
+
+# Prisma generated client (regenerated at build time)
+prisma/generated/

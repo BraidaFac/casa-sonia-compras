@@ -1,13 +1,11 @@
 "use client";
 import { AgGridReact } from "ag-grid-react";
-import { ModuleRegistry, AllCommunityModule, themeQuartz } from "ag-grid-community";
+import { ModuleRegistry, AllCommunityModule, themeQuartz, colorSchemeDark } from "ag-grid-community";
 import type { ColDef, GridOptions } from "ag-grid-community";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-const darkTheme = themeQuartz.withPart({
-  mode: "dark",
-});
+const darkTheme = themeQuartz.withPart(colorSchemeDark);
 
 interface Props<T> {
   rowData: T[];

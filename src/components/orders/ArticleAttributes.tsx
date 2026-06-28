@@ -41,15 +41,8 @@ interface ConfirmDeleteState {
   isSize: boolean;
 }
 
-// Familias de atributos requeridos (agrupados por sinónimos con/sin tilde)
-export const REQUIRED_ATTR_FAMILIES: { key: string; label: string; names: string[] }[] = [
-  { key: "marca", label: "Marca", names: ["marca"] },
-  { key: "composicion", label: "Composición", names: ["composicion", "composición"] },
-  { key: "genero", label: "Género", names: ["genero", "género"] },
-  { key: "temporada", label: "Temporada", names: ["temporada"] },
-  { key: "ocacion", label: "Ocasión", names: ["ocacion", "ocasión", "ocación"] },
-  { key: "tipo de producto", label: "Tipo de Producto", names: ["tipo de producto"] },
-];
+export { REQUIRED_ATTR_FAMILIES } from "@/lib/required-attrs";
+import { REQUIRED_ATTR_FAMILIES } from "@/lib/required-attrs";
 
 // Flat list para uso interno
 const REQUIRED_ATTR_NAMES = REQUIRED_ATTR_FAMILIES.flatMap((f) => f.names);

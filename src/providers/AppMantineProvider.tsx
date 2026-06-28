@@ -37,7 +37,7 @@ const theme = createTheme({
 export function AppMantineProvider({ children }: { children: React.ReactNode }) {
   return (
     <MantineProvider theme={theme} defaultColorScheme="dark">
-      <Notifications />
+      <Notifications position="top-right" zIndex={200} />
       {children}
     </MantineProvider>
   );

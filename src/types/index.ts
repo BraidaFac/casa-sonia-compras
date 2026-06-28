@@ -73,6 +73,7 @@ export interface ProductImage {
   error?: string;      // mensaje de error si falló
   isFromOdoo?: boolean; // true si fue cargada desde Odoo (imagen primaria)
   odooId?: number;     // ID del registro product.image en Odoo (solo imágenes adicionales)
+  tempPath?: string;   // "/uploads/temp/[orderId]/[uuid].ext" — set after upload to server
 }
 
 // Imágenes por color — key: colorName → array de imágenes
@@ -96,6 +97,7 @@ export interface Article {
   deletedOdooImageIds: number[];       // IDs de product.image a eliminar en Odoo al guardar
   clearedPrimaryColorNames: string[];  // colores cuya imagen primaria fue borrada (limpiar image_variant_1920)
   maxCoeficiente: number; // 0 if new article or no Tipo de Producto
+  originalSizeIds?: number[]; // IDs de talles que ya existían en Odoo al cargar producto existente (no se pueden eliminar)
 }
 
 export interface OrderPayload {
@@ -115,14 +117,17 @@ export interface OrderHeader {
   writeDate: string;
 }
 
-export interface OdooProduct {
+export interface OdooProductLite {
   id: number;
   name: string;
   referencia: string;
   defaultCode: string;
   listPrice: number;
-  maxCoeficiente: number;
   category: ProductCategory | null;
+}
+
+export interface OdooProduct extends OdooProductLite {
+  maxCoeficiente: number;
   colors: AttributeValue[];
   sizes: SizeValue[];
   sizeAttributeId: number | null;
@@ -153,7 +158,7 @@ export interface LocalProductImage {
   id: string;
   fileName: string;
   mimeType: string;
-  isFromOdoo: boolean;
+  isFromOdoo?: boolean;
   odooId?: number;
   tempPath?: string;   // "/uploads/temp/[orderId]/[uuid].ext" — set after explicit save
   // base64 and previewUrl are NEVER stored in DB
@@ -174,6 +179,9 @@ export interface LocalOrder {
   errorDetail: string | null;
   supplierId: number;
   supplierName: string;
+  brandId: number | null;
+  brandName: string | null;
+  compradoraIds: number[];
   date: string;
   warehouseIds: number[];
   articles: LocalArticle[];

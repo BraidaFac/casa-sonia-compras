@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { odoo } from "@/lib/odoo";
-import { restorePreviewUrls } from "@/lib/localOrders";
+import { restorePreviewUrls, stripImagesForDB } from "@/lib/localOrders";
 import { validateForConfirm } from "@/lib/orderValidation";
 import { createOrderInOdoo } from "@/lib/odooOrderCreation";
 import { deleteTempFolder } from "@/lib/imageStorage";
@@ -60,8 +60,10 @@ export async function POST(
 
   // Strict validation
   const validation = validateForConfirm({
-    supplierId: order.supplierId,
-    date: order.date,
+    ...order,
+    compradoraIds: Array.isArray(order.compradoraIds)
+      ? (order.compradoraIds as number[])
+      : undefined,
     articles: localArticles,
   });
   if (!validation.valid) {
@@ -73,12 +75,17 @@ export async function POST(
 
   try {
     const warehouseIdList =
-      Array.isArray(order.warehouseIds) && (order.warehouseIds as number[]).length > 0
+      Array.isArray(order.warehouseIds) &&
+      (order.warehouseIds as number[]).length > 0
         ? (order.warehouseIds as number[])
         : [];
     const selectedWarehouses =
       warehouseIdList.length > 0
-        ? await odoo.read("stock.warehouse", warehouseIdList, ["id", "name", "lot_stock_id"])
+        ? await odoo.read("stock.warehouse", warehouseIdList, [
+            "id",
+            "name",
+            "lot_stock_id",
+          ])
         : [];
 
     const result = await createOrderInOdoo({
@@ -89,6 +96,7 @@ export async function POST(
       printColumns: order.printColumns as never,
       printValues: order.printValues as never,
       selectedWarehouses,
+      compradoraIds: (order.compradoraIds as number[]) ?? [],
     });
 
     // Sync images to Odoo (best-effort)
@@ -110,6 +118,30 @@ export async function POST(
     // Cleanup temp files
     await deleteTempFolder(orderId);
 
+    // Backfill existingProductId on articles that were newly created in Odoo.
+    // Without this, the edit page can't fetch images from Odoo after confirmation.
+    const templateIdByArticleId = new Map(
+      result.imageSyncData.map((e) => [e.articleId, e.templateId]),
+    );
+    const updatedLocalArticles = stripImagesForDB(articles).map((a) => {
+      const templateId = templateIdByArticleId.get(a.id);
+      const withProductId =
+        templateId && !a.existingProductId
+          ? { ...a, existingProductId: templateId }
+          : a;
+      // Clear tempPath — temp files deleted by deleteTempFolder above.
+      // Images are now in Odoo; edit page loads them via /api/products/[id]/images.
+      return {
+        ...withProductId,
+        colorImages: Object.fromEntries(
+          Object.entries(withProductId.colorImages).map(([color, imgs]) => [
+            color,
+            imgs.map((img) => ({ ...img, tempPath: undefined })),
+          ]),
+        ),
+      };
+    });
+
     // Update DB — CONFIRMED
     const updated = await prisma.order.update({
       where: { id: orderId },
@@ -118,6 +150,7 @@ export async function POST(
         odooOrderId: result.purchaseOrderId,
         odooOrderName: result.purchaseOrderName,
         errorDetail: null,
+        articles: updatedLocalArticles as unknown as object,
       },
     });
 
@@ -129,14 +162,16 @@ export async function POST(
       status: updated.status,
     });
   } catch (error) {
-    const detail =
-      error instanceof Error ? error.message : String(error);
+    const detail = error instanceof Error ? error.message : String(error);
 
     await prisma.order.update({
       where: { id: orderId },
       data: { status: "ERROR", errorDetail: detail },
     });
 
-    return NextResponse.json({ error: detail, status: "ERROR" }, { status: 500 });
+    return NextResponse.json(
+      { error: `Se revirtió la operación. Motivo: ${detail}`, status: "ERROR" },
+      { status: 500 },
+    );
   }
 }

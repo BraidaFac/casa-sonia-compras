@@ -76,6 +76,9 @@ export async function POST(request: NextRequest) {
   const body = (await request.json()) as {
     supplierId: number;
     supplierName: string;
+    brandId?: number | null;
+    brandName?: string | null;
+    compradoraIds?: number[];
     date: string;
     articles: Article[];
     warehouseIds: number[];
@@ -102,6 +105,9 @@ export async function POST(request: NextRequest) {
     data: {
       supplierId: body.supplierId,
       supplierName: body.supplierName,
+      brandId: body.brandId ?? null,
+      brandName: body.brandName ?? null,
+      compradoraIds: (body.compradoraIds ?? []) as unknown as object,
       date: body.date,
       warehouseIds: (body.warehouseIds ?? []) as unknown as object,
       articles: stripImagesForDB(body.articles ?? []) as unknown as object,

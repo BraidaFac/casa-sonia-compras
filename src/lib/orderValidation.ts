@@ -1,12 +1,15 @@
 import type { LocalArticle } from "@/types";
+import { getMissingRequiredFamilies } from "./required-attrs";
 
 export interface ValidationResult {
   valid: boolean;
-  missing: string[];   // human-readable list of missing fields
+  missing: string[]; // human-readable list of missing fields
 }
 
 interface OrderData {
   supplierId: number | null;
+  brandId?: number | null;
+  compradoraIds?: number[];
   date: string | null;
   articles: LocalArticle[];
 }
@@ -19,13 +22,15 @@ export function validateForDraft(order: OrderData): ValidationResult {
   const missing: string[] = [];
 
   if (!order.supplierId) missing.push("Proveedor no seleccionado");
+  if (!order.brandId) missing.push("Marca no seleccionada");
   if (!order.date) missing.push("Fecha no seleccionada");
   if (order.articles.length === 0) missing.push("Sin artículos");
 
   for (const article of order.articles) {
     const label = article.name || "(artículo sin nombre)";
     if (!article.category) missing.push(`"${label}": falta categoría`);
-    if (!article.sizeAttributeId) missing.push(`"${label}": falta tipo de talle`);
+    if (!article.sizeAttributeId)
+      missing.push(`"${label}": falta tipo de talle`);
   }
 
   return { valid: missing.length === 0, missing };
@@ -38,26 +43,42 @@ export function validateForConfirm(order: OrderData): ValidationResult {
   const base = validateForDraft(order);
   const missing = [...base.missing];
 
+  if (!order.compradoraIds?.length) missing.push("Comprador no seleccionado");
+
   for (const article of order.articles) {
     const label = article.name || "(artículo sin nombre)";
 
     if (!article.name) missing.push(`Artículo sin nombre`);
 
-    const hasQty = article.rows.some((row) =>
-      article.sizes.some((size) => parseInt(row.quantities[size.name] || "0") > 0),
-    );
+    const hasQty = article.rows.some((row) => {
+      const normal = article.sizes.some(
+        (size) => parseInt(row.quantities[size.name] || "0") > 0,
+      );
+      const warehouse = Object.values(row.warehouseQuantities || {}).some(
+        (v) => parseInt(v || "0") > 0,
+      );
+      return normal || warehouse;
+    });
     if (!hasQty) missing.push(`"${label}": sin cantidades cargadas`);
+
+    const missingAttrs = getMissingRequiredFamilies(article.attributes ?? []);
+    for (const family of missingAttrs) {
+      missing.push(`"${label}": falta atributo "${family.label}"`);
+    }
 
     for (const row of article.rows) {
       if (!row.color) continue;
       if (row.color.isNew) {
         if (!row.color.colorBase)
-          missing.push(`"${label}" color "${row.color.name}": falta Color Base`);
+          missing.push(
+            `"${label}" color "${row.color.name}": falta Color Base`,
+          );
         if (!row.color.hexColor)
           missing.push(`"${label}" color "${row.color.name}": falta color HEX`);
       }
     }
   }
+  console.log(missing);
 
   return { valid: missing.length === 0, missing };
 }

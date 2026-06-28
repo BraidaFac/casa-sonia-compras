@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @import "../styles/theme.css";
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -24,6 +29,46 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 input[type="number"] {
   -moz-appearance: textfield;
+}
+
+/* ── Responsive layout helpers ──────────────────────────────── */
+/* Desktop ≥1024px */
+.page-pad        { padding: 24px 24px 80px; }
+.page-inner-pad  { padding: 24px 24px 0; }
+
+/* Tablet 640–1023px */
+@media (max-width: 1023px) {
+  .page-pad        { padding: 16px 16px 80px; }
+  .page-inner-pad  { padding: 16px 16px 0; }
+}
+
+/* Mobile <640px */
+@media (max-width: 639px) {
+  .page-pad        { padding: 12px 12px 80px; }
+  .page-inner-pad  { padding: 12px 12px 0; }
+}
+
+/* ── Sticky bar / footer responsive padding ─────────────────── */
+.sticky-bar-pad { padding: 10px 24px; }
+.footer-bar-pad {
+  padding: 6px 24px;
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
+}
+
+@media (max-width: 1023px) {
+  .sticky-bar-pad { padding: 8px 16px; }
+  .footer-bar-pad {
+    padding: 6px 16px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 639px) {
+  .sticky-bar-pad { padding: 6px 12px; }
+  .footer-bar-pad {
+    padding: 6px 12px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+  }
 }
 
 /* Scrollbar */

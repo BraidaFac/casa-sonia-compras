@@ -1,0 +1,11 @@
+.git
+.gitignore
+.env
+.env.local
+.next
+node_modules
+npm-debug.log
+README.md
+.claude
+.superpowers
+prisma/generated

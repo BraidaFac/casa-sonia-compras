@@ -1,0 +1,40 @@
+name: Deploy Casa Sonia Compras
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PASS }}
+
+      - name: Build image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USER }}/casa_sonia_compras:latest .
+
+      - name: Push image
+        run: |
+          docker push ${{ secrets.DOCKER_USER }}/casa_sonia_compras:latest
+
+      - name: Deploy on VPS
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          port: 5424
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /root/Infra
+            docker compose pull casa-sonia-compras
+            docker compose up -d casa-sonia-compras

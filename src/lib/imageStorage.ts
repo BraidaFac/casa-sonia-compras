@@ -1,5 +1,5 @@
-import { writeFile, mkdir, rm } from "fs/promises";
-import { join } from "path";
+import { writeFile, mkdir, rm, unlink } from "fs/promises";
+import { join, dirname } from "path";
 
 const TEMP_BASE = join(process.cwd(), "public", "uploads", "temp");
 
@@ -7,23 +7,44 @@ export function getTempDir(orderId: number): string {
   return join(TEMP_BASE, String(orderId));
 }
 
-export function getTempPublicPath(orderId: number, filename: string): string {
-  return `/uploads/temp/${orderId}/${filename}`;
+export function getTempPublicPath(
+  orderId: number,
+  articleId: string,
+  colorName: string,
+  filename: string,
+): string {
+  const safeColor = colorName.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return `/uploads/temp/${orderId}/${articleId}/${safeColor}/${filename}`;
 }
 
 /**
- * Save a single image file to /uploads/temp/[orderId]/[filename].
+ * Save a single image file to /uploads/temp/[orderId]/[articleId]/[colorName]/[filename].
  * Returns the server path stored in LocalProductImage.tempPath.
  */
 export async function saveTempImage(
   orderId: number,
+  articleId: string,
+  colorName: string,
   filename: string,
   buffer: Buffer,
 ): Promise<string> {
-  const dir = getTempDir(orderId);
-  await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, filename), buffer);
-  return getTempPublicPath(orderId, filename);
+  const publicPath = getTempPublicPath(orderId, articleId, colorName, filename);
+  const absPath = join(process.cwd(), "public", publicPath.replace(/^\//, ""));
+  await mkdir(dirname(absPath), { recursive: true });
+  await writeFile(absPath, buffer);
+  return publicPath;
+}
+
+/**
+ * Delete a single temp image file by its public path.
+ */
+export async function deleteTempImage(tempPath: string): Promise<void> {
+  try {
+    const absPath = join(process.cwd(), "public", tempPath.replace(/^\//, ""));
+    await unlink(absPath);
+  } catch {
+    // best-effort
+  }
 }
 
 /**

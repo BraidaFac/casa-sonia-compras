@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Combobox, InputBase, useCombobox, Loader } from "@mantine/core";
 import { useSuppliers } from "@/hooks/useSuppliers";
 import type { Supplier } from "@/types";
@@ -7,14 +7,22 @@ import type { Supplier } from "@/types";
 interface Props {
   value: Supplier | null;
   onChange: (supplier: Supplier | null) => void;
+  disabled?: boolean;
 }
 
-export function SupplierSearch({ value, onChange }: Props) {
+export function SupplierSearch({ value, onChange, disabled = false }: Props) {
   const [search, setSearch] = useState(value?.name || "");
 
   const combobox = useCombobox({
     onDropdownClose: () => combobox.resetSelectedOption(),
   });
+
+  useEffect(() => {
+    if (!combobox.dropdownOpened) {
+      setSearch(value?.name || "");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
 
   const { data: suppliers, isLoading } = useSuppliers();
 
@@ -47,9 +55,10 @@ export function SupplierSearch({ value, onChange }: Props) {
           value={search}
           placeholder="Buscar proveedor..."
           w={320}
+          disabled={disabled}
           rightSection={isLoading ? <Loader size="xs" color="amber" /> : null}
-          onChange={(e) => handleSearchChange(e.currentTarget.value)}
-          onFocus={() => combobox.openDropdown()}
+          onChange={(e) => { if (!disabled) handleSearchChange(e.currentTarget.value); }}
+          onFocus={() => { if (!disabled) combobox.openDropdown(); }}
           onBlur={() => {
             combobox.closeDropdown();
             if (!value) setSearch("");

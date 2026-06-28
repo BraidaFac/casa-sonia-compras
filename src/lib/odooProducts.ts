@@ -11,6 +11,58 @@ export interface OdooVariant {
   product_template_attribute_value_ids: number[];
 }
 
+/**
+ * Batch-resolve a list of articles (by name + referencia) to existing Odoo
+ * product.template IDs in a single request. Returns a map of article UUID →
+ * templateId for articles that matched. Referencia (default_code /
+ * x_studio_referencia) takes priority over name to avoid false positives.
+ */
+export async function batchResolveProductIds(
+  articles: { id: string; name: string; referencia: string }[],
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (articles.length === 0) return result;
+
+  const names = articles.map((a) => a.name).filter(Boolean);
+  const refs = [...new Set(articles.map((a) => a.referencia).filter(Boolean))];
+
+  // Build OR domain across name, default_code, x_studio_referencia
+  type OdooLeaf = [string, string, string | string[]];
+  type OdooDomain = ("|" | OdooLeaf)[];
+  let domain: OdooDomain;
+  if (refs.length > 0) {
+    domain = [
+      "|",
+      ["name", "in", names] as OdooLeaf,
+      ["default_code", "in", refs] as OdooLeaf,
+    ];
+  } else {
+    domain = [["name", "in", names] as OdooLeaf];
+  }
+
+  const found: { id: number; name: string; default_code: string }[] =
+    await odoo.searchRead("product.template", domain, [
+      "id",
+      "name",
+      "default_code",
+    ]);
+
+  // Build lookup maps — default_code takes priority over name
+  const nameToId = new Map(found.map((p) => [p.name.toLowerCase(), p.id]));
+  const defaultCodeToId = new Map(
+    found.filter((p) => p.default_code).map((p) => [p.default_code, p.id]),
+  );
+
+  for (const article of articles) {
+    const byRef = article.referencia ? defaultCodeToId.get(article.referencia) : undefined;
+    const byName = article.name ? nameToId.get(article.name.toLowerCase()) : undefined;
+    const id = byRef ?? byName;
+    if (id) result.set(article.id, id);
+  }
+
+  return result;
+}
+
 export async function resolveAttributeValues(
   values: AttributeValue[],
   attributeId: number,
@@ -389,6 +441,8 @@ export async function syncProductImages(
 
   if (!article.colorImages || Object.keys(article.colorImages).length === 0) return;
 
+  let templateImageWritten = false;
+
   for (const [colorName, images] of Object.entries(article.colorImages)) {
     const validImages = images.filter((img) => img.base64 && !img.error);
     if (validImages.length === 0) continue;
@@ -405,7 +459,7 @@ export async function syncProductImages(
       if (key.startsWith(`${resolvedColor.id}:`)) variantIdsForColor.push(variantId);
     }
 
-    // ── IMAGEN PRINCIPAL — solo escribir si es nueva (no vino de Odoo) ──────
+    // ── IMAGEN PRINCIPAL DE VARIANTE ──────────────────────────────────────────
     if (variantIdsForColor.length > 0 && !primaryImage.isFromOdoo) {
       try {
         await odoo.write("product.product", variantIdsForColor, {
@@ -413,6 +467,19 @@ export async function syncProductImages(
         });
       } catch (err) {
         console.error(`Error seteando imagen principal para color ${colorName}:`, err);
+      }
+
+      // ── IMAGEN PRINCIPAL DEL TEMPLATE (primera imagen nueva que aparezca) ───
+      // product.template.image_1920 es necesaria para la vista de catálogo y web.
+      if (!templateImageWritten) {
+        try {
+          await odoo.write("product.template", [templateId], {
+            image_1920: primaryImage.base64,
+          });
+          templateImageWritten = true;
+        } catch (err) {
+          console.error(`Error seteando image_1920 en template ${templateId}:`, err);
+        }
       }
     }
 

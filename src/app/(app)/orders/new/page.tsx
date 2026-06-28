@@ -1,52 +1,106 @@
 "use client";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Group, Text, Badge, Alert } from "@mantine/core";
-import { DatePickerInput } from "@mantine/dates";
-import "dayjs/locale/es";
 import { useRouter } from "next/navigation";
-import { SupplierSearch } from "@/components/orders/SupplierSearch";
+import { notifications } from "@mantine/notifications";
+import { DatosCabeceraOrden } from "@/components/orders/DatosCabeceraOrden";
+import { OrderStickyBar } from "@/components/orders/OrderStickyBar";
 import { OrderGrid } from "@/components/orders/OrderGrid";
 import { OrderFormFooter } from "@/components/orders/OrderFormFooter";
 import { DraftWarningModal } from "@/components/orders/DraftWarningModal";
 import { OrderProgressModal } from "@/components/orders/OrderProgressModal";
-import { validateForDraft } from "@/lib/orderValidation";
+import { validateForConfirm } from "@/lib/orderValidation";
 import { stripImagesForDB } from "@/lib/localOrders";
-import type { Article, Supplier } from "@/types";
+import type {
+  Article,
+  AttributeValue,
+  Supplier,
+  Warehouse,
+  PrintColumn,
+  PrintValues,
+} from "@/types";
 
 const ORDER_DRAFT_KEY = "order_new_draft";
 
+function readDraft(): {
+  supplier: Supplier | null;
+  date: Date | null;
+  globalBrand: AttributeValue | null;
+  selectedWarehouses: Warehouse[];
+  show: boolean;
+} {
+  try {
+    const raw = localStorage.getItem(ORDER_DRAFT_KEY);
+    if (!raw)
+      return {
+        supplier: null,
+        date: null,
+        globalBrand: null,
+        selectedWarehouses: [],
+        show: false,
+      };
+    const draft = JSON.parse(raw);
+    const articles: unknown[] = Array.isArray(draft.articles)
+      ? draft.articles
+      : [];
+    if (!draft.supplier || articles.length < 2) {
+      localStorage.removeItem(ORDER_DRAFT_KEY);
+      return {
+        supplier: null,
+        date: null,
+        globalBrand: null,
+        selectedWarehouses: [],
+        show: false,
+      };
+    }
+    return {
+      supplier: draft.supplier ?? null,
+      date: draft.date ? new Date(draft.date) : null,
+      globalBrand: (draft.globalBrand as AttributeValue) ?? null,
+      selectedWarehouses: Array.isArray(draft.selectedWarehouses)
+        ? (draft.selectedWarehouses as Warehouse[])
+        : [],
+      show: true,
+    };
+  } catch {
+    return {
+      supplier: null,
+      date: null,
+      globalBrand: null,
+      selectedWarehouses: [],
+      show: false,
+    };
+  }
+}
+
 export default function NewOrderPage() {
   const router = useRouter();
-  const [supplier, setSupplier] = useState<Supplier | null>(null);
-  const [date, setDate] = useState<Date | null>(new Date());
-  const [draftBanner, setDraftBanner] = useState<boolean>(false);
-
-  // Restore draft on mount — runs only client-side, avoids hydration mismatch
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(ORDER_DRAFT_KEY);
-      if (!raw) return;
-      const draft = JSON.parse(raw);
-      const articles: unknown[] = Array.isArray(draft.articles) ? draft.articles : [];
-      // Only restore + show banner if draft has supplier AND ≥2 articles
-      if (!draft.supplier || articles.length < 2) {
-        localStorage.removeItem(ORDER_DRAFT_KEY);
-        return;
-      }
-      if (draft.supplier) setSupplier(draft.supplier);
-      if (draft.date) setDate(new Date(draft.date));
-      setDraftBanner(true);
-    } catch {
-      // ignore
-    }
-  }, []);
+  // Single localStorage read — avoids removeItem race between 3 separate lazy initializers
+  const [_draft] = useState(readDraft);
+  const [supplier, setSupplier] = useState<Supplier | null>(_draft.supplier);
+  const [date, setDate] = useState<Date | null>(_draft.date ?? new Date());
+  const [globalBrand, setGlobalBrand] = useState<AttributeValue | null>(
+    _draft.globalBrand,
+  );
+  const [compradoras, setCompradoras] = useState<{ id: number; name: string }[]>([]);
+  const [draftBanner, setDraftBanner] = useState<boolean>(_draft.show);
   const [gridKey, setGridKey] = useState(0);
   const [articles, setArticles] = useState<Article[]>([]);
+  const [selectedWarehouses, setSelectedWarehouses] = useState<Warehouse[]>(
+    _draft.selectedWarehouses,
+  );
+  const [printColumns, setPrintColumns] = useState<PrintColumn[]>([]);
+  const [printValues, setPrintValues] = useState<PrintValues>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [progressStep, setProgressStep] = useState("Guardando borrador...");
-  const [progressError, setProgressError] = useState<string | undefined>(undefined);
-  const [draftWarning, setDraftWarning] = useState<{ open: boolean; warnings: string[] }>({
+  const [progressError, setProgressError] = useState<string | undefined>(
+    undefined,
+  );
+  const [draftWarning, setDraftWarning] = useState<{
+    open: boolean;
+    warnings: string[];
+  }>({
     open: false,
     warnings: [],
   });
@@ -102,6 +156,44 @@ export default function NewOrderPage() {
     ? date.toISOString().split("T")[0]
     : new Date().toISOString().split("T")[0];
 
+  async function uploadPendingImages(orderId: string, currentArticles: typeof articles) {
+    // Find images without tempPath (in-memory only, not yet on server)
+    const updatedArticles = currentArticles.map((article) => ({ ...article, colorImages: { ...article.colorImages } }));
+
+    for (const article of updatedArticles) {
+      for (const [colorName, images] of Object.entries(article.colorImages)) {
+        const pending = images.filter((img) => !img.tempPath && !img.isFromOdoo && img.base64);
+        if (pending.length === 0) continue;
+
+        const formData = new FormData();
+        formData.append("articleId", article.id);
+        formData.append("colorName", colorName);
+        for (const img of pending) {
+          const byteArray = Uint8Array.from(atob(img.base64), (c) => c.charCodeAt(0));
+          const blob = new Blob([byteArray], { type: img.mimeType });
+          formData.append("file", new File([blob], img.fileName, { type: img.mimeType }));
+        }
+
+        try {
+          const res = await fetch(`/api/local-orders/${orderId}/images`, { method: "POST", body: formData });
+          if (res.ok) {
+            const data = await res.json() as { results: { imageId: string; tempPath: string }[] };
+            let idx = 0;
+            article.colorImages[colorName] = images.map((img) => {
+              if (!img.tempPath && !img.isFromOdoo && img.base64 && data.results[idx]) {
+                return { ...img, tempPath: data.results[idx++].tempPath };
+              }
+              return img;
+            });
+          }
+        } catch {
+          // best-effort
+        }
+      }
+    }
+    return updatedArticles;
+  }
+
   async function doSaveDraft(): Promise<{ id: string } | null> {
     if (!supplier) return null;
     setIsSaving(true);
@@ -113,28 +205,77 @@ export default function NewOrderPage() {
         body: JSON.stringify({
           supplierId: supplier.id,
           supplierName: supplier.name,
+          brandId: globalBrand?.id ?? null,
+          brandName: globalBrand?.name ?? null,
+          compradoraIds: compradoras.map((c) => c.id),
           date: dateStr,
           articles: localArticles,
-          warehouseIds: [],
-          printColumns: [],
-          printValues: {},
+          warehouseIds: selectedWarehouses.map((w) => w.id),
+          printColumns,
+          printValues,
         }),
       });
       const data = await res.json();
-      if (res.ok) {
-        localStorage.removeItem(ORDER_DRAFT_KEY);
-        return data;
+      if (!res.ok) {
+        notifications.show({ color: "red", title: "Error al guardar", message: data?.error ?? "Error del servidor." });
+        return null;
       }
-      return null;
+
+      const { id } = data as { id: string };
+
+      // Upload any in-memory images to server and update articles with tempPaths
+      const updatedArticles = await uploadPendingImages(id, articles);
+      const hasNewTempPaths = updatedArticles.some((a) =>
+        Object.values(a.colorImages).some((imgs) => imgs.some((img) => img.tempPath)),
+      );
+      if (hasNewTempPaths) {
+        await fetch(`/api/local-orders/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ articles: stripImagesForDB(updatedArticles) }),
+        });
+      }
+
+      localStorage.removeItem(ORDER_DRAFT_KEY);
+      return data;
     } finally {
       setIsSaving(false);
     }
   }
 
   function handleSaveDraft() {
+    if (!supplier) {
+      notifications.show({ color: "red", title: "Falta proveedor", message: "Seleccioná un proveedor antes de guardar." });
+      return;
+    }
+    void doSaveDraft().then((data) => {
+      if (data) {
+        setSupplier(null);
+        setDate(new Date());
+        setGlobalBrand(null);
+        setCompradoras([]);
+        setSelectedWarehouses([]);
+        setGridKey((k) => k + 1);
+        setDraftBanner(false);
+        notifications.show({
+          color: "green",
+          title: "Borrador guardado",
+          message: "La orden fue guardada. El formulario está listo para una nueva OC.",
+        });
+      } else {
+        notifications.show({ color: "red", title: "Error al guardar", message: "No se pudo guardar el borrador. Verificá los datos." });
+      }
+    }).catch(() => {
+      notifications.show({ color: "red", title: "Error al guardar", message: "Ocurrió un error inesperado." });
+    });
+  }
+
+  async function handleConfirm() {
     const localArticles = stripImagesForDB(articles);
-    const validation = validateForDraft({
+    const validation = validateForConfirm({
       supplierId: supplier?.id ?? null,
+      brandId: globalBrand?.id ?? null,
+      compradoraIds: compradoras.map((c) => c.id),
       date: dateStr,
       articles: localArticles,
     });
@@ -142,12 +283,6 @@ export default function NewOrderPage() {
       setDraftWarning({ open: true, warnings: validation.missing });
       return;
     }
-    void doSaveDraft().then((data) => {
-      if (data) router.push(`/orders/${data.id}/edit`);
-    });
-  }
-
-  async function handleConfirm() {
     setProgressError(undefined);
     setProgressStep("Guardando borrador...");
     setIsConfirming(true);
@@ -155,15 +290,20 @@ export default function NewOrderPage() {
     try {
       const savedDraft = await doSaveDraft();
       if (!savedDraft) {
-        setProgressError("No se pudo guardar el borrador. Verificá que el proveedor esté seleccionado.");
+        setProgressError(
+          "No se pudo guardar el borrador. Verificá que el proveedor esté seleccionado.",
+        );
         errorOccurred = true;
         return;
       }
 
       setProgressStep("Enviando a Odoo...");
-      const confirmRes = await fetch(`/api/local-orders/${savedDraft.id}/confirm`, {
-        method: "POST",
-      });
+      const confirmRes = await fetch(
+        `/api/local-orders/${savedDraft.id}/confirm`,
+        {
+          method: "POST",
+        },
+      );
       const confirmData = await confirmRes.json();
       if (!confirmRes.ok) {
         setProgressError(confirmData?.error ?? "Error al confirmar la orden.");
@@ -173,7 +313,9 @@ export default function NewOrderPage() {
 
       router.push("/orders");
     } catch (err) {
-      setProgressError(err instanceof Error ? err.message : "Error inesperado.");
+      setProgressError(
+        err instanceof Error ? err.message : "Error inesperado.",
+      );
       errorOccurred = true;
     } finally {
       // On success, navigation handles unmount; on error, keep modal open for user to dismiss
@@ -184,63 +326,23 @@ export default function NewOrderPage() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         background: "var(--bg)",
         paddingBottom: 80,
       }}
     >
-      {/* Top bar */}
-      <header
-        style={{
-          background: "var(--surface)",
-          borderBottom: "1px solid var(--border)",
-          padding: "12px 24px",
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          position: "sticky",
-          top: 0,
-          zIndex: 20,
-        }}
+      <OrderStickyBar
+        title="Nueva Orden de Compra"
+        supplier={supplier}
+        articles={articles}
+        totalUnits={totals.units}
+        totalAmount={totals.amount}
+      />
+
+      <div
+        style={{ maxWidth: 1200, margin: "0 auto" }}
+        className="page-inner-pad"
       >
-        <h1
-          style={{
-            margin: 0,
-            fontFamily: "var(--font-display)",
-            fontWeight: 700,
-            fontSize: 16,
-            color: "var(--text)",
-          }}
-        >
-          Nueva Orden de Compra
-        </h1>
-
-        {(supplier || totals.units > 0) && (
-          <Group gap="sm" ml="auto" wrap="nowrap">
-            {supplier && (
-              <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap" }}>
-                {supplier.name}
-              </Text>
-            )}
-            {totals.units > 0 && (
-              <>
-                <Badge color="amber" variant="light" size="md">
-                  {totals.units} u.
-                </Badge>
-                <Badge color="amber" variant="outline" size="md">
-                  $
-                  {totals.amount.toLocaleString("es-AR", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </Badge>
-              </>
-            )}
-          </Group>
-        )}
-      </header>
-
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 24px 0" }}>
         {/* Draft restore banner */}
         {draftBanner && (
           <Alert
@@ -252,7 +354,9 @@ export default function NewOrderPage() {
             onClose={() => setDraftBanner(false)}
           >
             <Group gap="sm" align="center">
-              <Text size="sm">Se recuperaron los datos de una sesión anterior.</Text>
+              <Text size="sm">
+                Se recuperaron los datos de una sesión anterior.
+              </Text>
               <button
                 onClick={discardDraft}
                 style={{
@@ -271,39 +375,18 @@ export default function NewOrderPage() {
           </Alert>
         )}
 
-        {/* Supplier + Date bar */}
-        <Group gap="xl" mb="xs" align="flex-end" wrap="wrap">
-          <div>
-            <Text size="xs" c="dimmed" fw={500} mb={6}>
-              Proveedor
-            </Text>
-            <SupplierSearch value={supplier} onChange={setSupplier} />
-          </div>
-
-          <DatePickerInput
-            label={
-              <Text size="xs" c="dimmed" fw={500}>
-                Fecha
-              </Text>
-            }
-            value={date}
-            onChange={(val) => setDate(val as Date | null)}
-            valueFormat="DD/MM/YYYY"
-            locale="es"
-            w={180}
-          />
-
-          {supplier && (
-            <Badge
-              color="amber"
-              variant="outline"
-              size="lg"
-              style={{ marginLeft: "auto" }}
-            >
-              {supplier.name}
-            </Badge>
-          )}
-        </Group>
+        <DatosCabeceraOrden
+          supplier={supplier}
+          onSupplierChange={setSupplier}
+          date={date}
+          onDateChange={(v) => setDate(v)}
+          globalBrand={globalBrand}
+          onGlobalBrandChange={setGlobalBrand}
+          compradoras={compradoras}
+          onCompradorasChange={setCompradoras}
+          selectedWarehouses={selectedWarehouses}
+          onSelectedWarehousesChange={setSelectedWarehouses}
+        />
 
         {/* Order grid */}
         <OrderGrid
@@ -313,6 +396,10 @@ export default function NewOrderPage() {
           onTotalsChange={handleTotalsChange}
           onArticlesChange={handleArticlesChange}
           onDraftCleared={() => setDraftBanner(false)}
+          globalBrand={globalBrand}
+          selectedWarehouses={selectedWarehouses}
+          onPrintColumnsChange={setPrintColumns}
+          onPrintValuesChange={setPrintValues}
         />
       </div>
 
@@ -329,12 +416,6 @@ export default function NewOrderPage() {
         opened={draftWarning.open}
         warnings={draftWarning.warnings}
         onCorrect={() => setDraftWarning({ open: false, warnings: [] })}
-        onSaveAnyway={() => {
-          setDraftWarning({ open: false, warnings: [] });
-          void doSaveDraft().then((data) => {
-            if (data) router.push(`/orders/${data.id}/edit`);
-          });
-        }}
       />
 
       <OrderProgressModal

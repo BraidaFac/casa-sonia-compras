@@ -15,6 +15,7 @@ import {
   getOrCreateProduct,
   getVariants,
   mapVariantToColorSize,
+  batchResolveProductIds,
   type ResolvedAttributeValue,
 } from "@/lib/odooProducts";
 
@@ -63,6 +64,7 @@ export async function createOrderInOdoo(params: {
   printColumns: PrintColumn[];
   printValues: PrintValues;
   selectedWarehouses: Warehouse[];
+  compradoraIds?: number[];
 }): Promise<OdooCreationResult> {
   const {
     supplierId,
@@ -72,6 +74,7 @@ export async function createOrderInOdoo(params: {
     printColumns,
     printValues,
     selectedWarehouses,
+    compradoraIds,
   } = params;
 
   // Normalize article names and color names to Title Case
@@ -201,8 +204,30 @@ export async function createOrderInOdoo(params: {
     }
   >();
 
+  // Batch-resolve articles missing existingProductId against Odoo in one request
+  // (by name + referencia). Prevents duplicate product creation when confirming
+  // orders whose articles already exist in Odoo but lack the local existingProductId
+  // (e.g. duplicated from a confirmed order that pre-dates the backfill logic).
+  const needsLookup = resolvedArticles
+    .filter(({ article }) => !article.existingProductId && article.name)
+    .map(({ article }) => article);
+  if (needsLookup.length > 0) {
+    const resolvedMap = await batchResolveProductIds(needsLookup);
+    for (const article of needsLookup) {
+      const id = resolvedMap.get(article.id);
+      if (id) {
+        console.log("[odooOrderCreation] pre-resolved existingProductId for:", article.name, "ref:", article.referencia, "→", id);
+        article.existingProductId = id;
+      }
+    }
+  }
+
+  // Tracked outside try so the outer catch can cancel/delete it if needed
+  let createdPurchaseOrderId: number | undefined;
+
   try {
     for (const { article, resolvedColors, resolvedSizes } of resolvedArticles) {
+      console.log("[odooOrderCreation] processing article:", article.name, "existingProductId:", article.existingProductId);
       const templateId = await getOrCreateProduct(
         article,
         resolvedColors,
@@ -210,6 +235,7 @@ export async function createOrderInOdoo(params: {
         colorAttributeId,
         article.sizeAttributeId!,
       );
+      console.log("[odooOrderCreation] getOrCreateProduct OK, templateId:", templateId);
 
       if (!article.existingProductId) {
         createdProductIds.push(templateId);
@@ -247,15 +273,18 @@ export async function createOrderInOdoo(params: {
         costPrice,
         totalQty,
       );
+      console.log("[odooOrderCreation] createOrUpdateSupplierInfo OK");
       if (supplierInfoId) createdSupplierInfoIds.push(supplierInfoId);
 
       const pricelistItemId = await createOrUpdatePricelistItem(
         templateId,
         salePrice,
       );
+      console.log("[odooOrderCreation] createOrUpdatePricelistItem OK");
       if (pricelistItemId) createdPricelistItemIds.push(pricelistItemId);
 
       const variants = await getVariants(templateId);
+      console.log("[odooOrderCreation] getVariants OK, count:", variants.length);
 
       const variantMap = await mapVariantToColorSize(
         variants,
@@ -324,15 +353,20 @@ export async function createOrderInOdoo(params: {
       );
     }
 
-    // Create purchase.order
-    const purchaseOrderId = await odoo.create("purchase.order", {
+    // Create purchase.order (without user_id to avoid Odoo constraint issues on creation)
+    console.log("[odooOrderCreation] creating purchase.order with compradoraIds:", compradoraIds);
+    createdPurchaseOrderId = await odoo.create("purchase.order", {
       partner_id: supplierId,
       date_order: date,
       order_line: allOrderLines,
       ...(warehouseIds.length > 0
         ? { x_studio_sucursal: [[6, 0, warehouseIds]] }
         : {}),
+      ...(compradoraIds?.length
+        ? { x_studio_compradores: [[6, 0, compradoraIds]] }
+        : {}),
     });
+    const purchaseOrderId = createdPurchaseOrderId;
 
     const orderData = await odoo.searchRead(
       "purchase.order",
@@ -340,12 +374,17 @@ export async function createOrderInOdoo(params: {
       ["name", "partner_id", "date_order"],
     );
 
-    // Confirm order — if this fails, unlink to avoid dangling draft orders
+    // Confirm order — if this fails, cancel + unlink to avoid dangling orders
     try {
       await odoo.call("purchase.order", "button_confirm", {
         ids: purchaseOrderId,
       });
     } catch (confirmErr) {
+      console.error("[odooOrderCreation] button_confirm failed:", confirmErr);
+      // button_confirm may confirm the order before throwing — cancel first
+      try {
+        await odoo.call("purchase.order", "button_cancel", { ids: purchaseOrderId });
+      } catch { /* ignore — might still be in draft */ }
       try {
         await odoo.unlink("purchase.order", [purchaseOrderId]);
       } catch {
@@ -418,6 +457,21 @@ export async function createOrderInOdoo(params: {
       imageSyncData,
     };
   } catch (error) {
+    console.error("[odooOrderCreation] outer catch — triggering rollback. Original error:", error);
+    // Cancel and delete purchase order if it was created (may be confirmed if button_confirm
+    // confirmed the state before throwing). Must do this before unlinking products
+    // so the order no longer references them.
+    if (createdPurchaseOrderId !== undefined) {
+      try {
+        await odoo.call("purchase.order", "button_cancel", { ids: createdPurchaseOrderId });
+      } catch { /* ignore — might be draft or already deleted by inner catch */ }
+      try {
+        await odoo.unlink("purchase.order", [createdPurchaseOrderId]);
+      } catch {
+        console.error("Rollback of purchase.order failed for id:", createdPurchaseOrderId);
+      }
+    }
+
     // Rollback products/supplier info/pricelist items on failure
     if (createdPricelistItemIds.length > 0) {
       try {
@@ -440,13 +494,18 @@ export async function createOrderInOdoo(params: {
       }
     }
     if (createdProductIds.length > 0) {
-      try {
-        await odoo.unlink("product.template", createdProductIds);
-      } catch {
-        console.error(
-          "Rollback failed for product.template ids:",
-          createdProductIds,
-        );
+      for (const templateId of createdProductIds) {
+        try {
+          // Disable POS availability first — active POS sessions block deletion
+          await odoo.write("product.template", [templateId], { available_in_pos: false });
+        } catch {
+          console.error("Rollback: could not disable available_in_pos for template:", templateId);
+        }
+        try {
+          await odoo.unlink("product.template", [templateId]);
+        } catch {
+          console.error("Rollback failed for product.template id:", templateId);
+        }
       }
     }
     throw error;

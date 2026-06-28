@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { saveTempImage } from "@/lib/imageStorage";
+import { saveTempImage, deleteTempImage } from "@/lib/imageStorage";
 import { randomUUID } from "crypto";
 import { extname } from "path";
 
@@ -31,16 +31,41 @@ export async function POST(
   }
 
   const formData = await request.formData();
+  const articleId = formData.get("articleId")?.toString() ?? "unknown";
+  const colorName = formData.get("colorName")?.toString() ?? "unknown";
   const results: { imageId: string; tempPath: string }[] = [];
 
-  for (const [, value] of formData.entries()) {
-    if (!(value instanceof File)) continue;
+  for (const [key, value] of formData.entries()) {
+    if (key !== "file" || !(value instanceof File)) continue;
     const ext = extname(value.name) || ".jpg";
     const filename = `${randomUUID()}${ext}`;
     const buffer = Buffer.from(await value.arrayBuffer());
-    const tempPath = await saveTempImage(orderId, filename, buffer);
+    const tempPath = await saveTempImage(orderId, articleId, colorName, filename, buffer);
     results.push({ imageId: randomUUID(), tempPath });
   }
 
   return NextResponse.json({ results }, { status: 201 });
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  if (!(await authenticateRequest(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const orderId = parseInt(id, 10);
+  if (isNaN(orderId)) {
+    return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+  }
+
+  const { tempPath } = (await request.json()) as { tempPath: string };
+  if (!tempPath) {
+    return NextResponse.json({ error: "tempPath requerido" }, { status: 400 });
+  }
+
+  await deleteTempImage(tempPath);
+  return new NextResponse(null, { status: 204 });
 }

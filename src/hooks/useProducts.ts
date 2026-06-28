@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import type { OdooProduct } from "@/types";
+import type { OdooProductLite } from "@/types";
 
-async function fetchProducts(q: string): Promise<OdooProduct[]> {
+async function fetchProducts(q: string): Promise<OdooProductLite[]> {
   const res = await fetch(`/api/products?q=${encodeURIComponent(q)}`);
   if (!res.ok) throw new Error("Error fetching products");
   return res.json();

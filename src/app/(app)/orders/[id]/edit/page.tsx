@@ -3,21 +3,35 @@ import { useState, useCallback, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import { Group, Text, Badge, Alert } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { DatePickerInput } from "@mantine/dates";
-import "dayjs/locale/es";
 import { AlertTriangle } from "lucide-react";
-import { SupplierSearch } from "@/components/orders/SupplierSearch";
+import { DatosCabeceraOrden } from "@/components/orders/DatosCabeceraOrden";
 import { OrderGrid } from "@/components/orders/OrderGrid";
 import { OrderFormFooter } from "@/components/orders/OrderFormFooter";
+import { OrderStickyBar } from "@/components/orders/OrderStickyBar";
+import { ConfirmModal } from "@/components/orders/ConfirmModal";
 import { DraftWarningModal } from "@/components/orders/DraftWarningModal";
 import { OrderProgressModal } from "@/components/orders/OrderProgressModal";
 import { ErrorDetailModal } from "@/components/orders/ErrorDetailModal";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { stripImagesForDB } from "@/lib/localOrders";
-import { validateForDraft, validateForConfirm } from "@/lib/orderValidation";
-import type { Article, LocalOrder, Supplier } from "@/types";
+import { validateForConfirm } from "@/lib/orderValidation";
+import { getMissingRequiredFamilies } from "@/lib/required-attrs";
+import type {
+  Article,
+  AttributeValue,
+  ColorImages,
+  LocalOrder,
+  Supplier,
+  PrintColumn,
+  PrintValues,
+  Warehouse,
+} from "@/types";
 
-export default function EditOrderPage({ params }: { params: Promise<{ id: string }> }) {
+export default function EditOrderPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = use(params);
   const router = useRouter();
 
@@ -37,7 +51,18 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
   const [isSaving, setIsSaving] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [progressStep, setProgressStep] = useState("Guardando...");
-  const [progressError, setProgressError] = useState<string | undefined>(undefined);
+  const [progressError, setProgressError] = useState<string | undefined>(
+    undefined,
+  );
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showValidation, setShowValidation] = useState(false);
+
+  // Track OrderGrid internal state for ConfirmModal
+  const [printColumns, setPrintColumns] = useState<PrintColumn[]>([]);
+  const [printValues, setPrintValues] = useState<PrintValues>({});
+  const [selectedWarehouses, setSelectedWarehouses] = useState<Warehouse[]>([]);
+  const [globalBrand, setGlobalBrand] = useState<AttributeValue | null>(null);
+  const [compradoras, setCompradoras] = useState<{ id: number; name: string }[]>([]);
 
   const [draftWarning, setDraftWarning] = useState<{
     open: boolean;
@@ -61,11 +86,46 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
         const loaded = data as LocalOrder;
         setOrder(loaded);
         setSupplier({ id: loaded.supplierId, name: loaded.supplierName });
+        if (loaded.brandId && loaded.brandName) {
+          setGlobalBrand({ id: loaded.brandId, name: loaded.brandName });
+        }
+        // compradoraIds hydrated in DatosCabeceraOrden via initialCompradoraIds
         if (loaded.date) {
           const [y, m, d] = loaded.date.split("-").map(Number);
           setDate(new Date(y, m - 1, d));
         }
-        setArticles(loaded.articles as unknown as Article[]);
+        let loadedArticles = loaded.articles as unknown as Article[];
+
+        // Fetch Odoo images BEFORE setting state so OrderGrid mounts with correct images.
+        // (OrderGrid only reads initialArticles once on mount — background updates are ignored.)
+        const articlesWithProduct = loadedArticles.filter((a) => a.existingProductId);
+        if (articlesWithProduct.length > 0) {
+          const imageResults = await Promise.allSettled(
+            articlesWithProduct.map(async (article) => {
+              const imgRes = await fetch(
+                `/api/products/${article.existingProductId}/images`,
+              );
+              if (!imgRes.ok) return null;
+              const colorImages = (await imgRes.json()) as ColorImages;
+              if (Object.keys(colorImages).length === 0) return null;
+              return { articleId: article.id, colorImages };
+            }),
+          );
+          const imageMap = new Map<string, ColorImages>();
+          for (const r of imageResults) {
+            if (r.status === "fulfilled" && r.value) {
+              imageMap.set(r.value.articleId, r.value.colorImages);
+            }
+          }
+          if (imageMap.size > 0) {
+            loadedArticles = loadedArticles.map((a) => {
+              const colorImages = imageMap.get(a.id);
+              return colorImages ? { ...a, colorImages } : a;
+            });
+          }
+        }
+
+        setArticles(loadedArticles);
       } catch {
         setLoadError("Error de conexión");
       } finally {
@@ -79,7 +139,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
     ? date.toISOString().split("T")[0]
     : new Date().toISOString().split("T")[0];
 
-  async function doSaveDraft(): Promise<boolean> {
+  async function doSaveDraft(silent = false): Promise<boolean> {
     setIsSaving(true);
     try {
       const localArticles = stripImagesForDB(articles);
@@ -89,9 +149,12 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
         body: JSON.stringify({
           supplierId: supplier?.id,
           supplierName: supplier?.name,
+          brandId: globalBrand?.id ?? null,
+          brandName: globalBrand?.name ?? null,
+          compradoraIds: compradoras.map((c) => c.id),
           date: dateStr,
           articles: localArticles,
-          warehouseIds: order?.warehouseIds ?? [],
+          warehouseIds: selectedWarehouses.map((w) => w.id),
         }),
       });
       const data = await res.json();
@@ -106,6 +169,13 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
       setOrder((prev) =>
         prev ? { ...prev, status: data.status ?? prev.status } : prev,
       );
+      if (!silent) {
+        notifications.show({
+          color: "green",
+          title: "Borrador guardado",
+          message: "Los cambios fueron guardados correctamente.",
+        });
+      }
       return true;
     } finally {
       setIsSaving(false);
@@ -113,69 +183,61 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
   }
 
   function handleSaveDraft() {
-    const localArticles = stripImagesForDB(articles);
-    const validation = validateForDraft({
-      supplierId: supplier?.id ?? null,
-      date: dateStr,
-      articles: localArticles,
-    });
-    if (!validation.valid) {
-      setDraftWarning({ open: true, warnings: validation.missing, mode: "draft" });
-      return;
-    }
     void doSaveDraft().then((ok) => {
       if (ok) {
-        notifications.show({
-          color: "green",
-          title: "Borrador guardado",
-          message: "Los cambios fueron guardados correctamente",
-        });
+        router.push("/orders");
       }
     });
   }
 
   async function handleConfirm() {
     const localArticles = stripImagesForDB(articles);
+
+    // Check required attributes — activates red highlights in OrderGrid
+    const attrWarnings: string[] = [];
+    for (const article of articles) {
+      const label = article.name || "(artículo sin nombre)";
+      const missing = getMissingRequiredFamilies(article.attributes ?? []);
+      for (const f of missing)
+        attrWarnings.push(`"${label}": falta atributo "${f.label}"`);
+    }
+    if (attrWarnings.length > 0) {
+      setShowValidation(true);
+      setDraftWarning({ open: true, warnings: attrWarnings, mode: "confirm" });
+      return;
+    }
+
     const validation = validateForConfirm({
       supplierId: supplier?.id ?? null,
+      brandId: globalBrand?.id ?? null,
+      compradoraIds: compradoras.map((c) => c.id),
       date: dateStr,
       articles: localArticles,
     });
     if (!validation.valid) {
-      setDraftWarning({ open: true, warnings: validation.missing, mode: "confirm" });
+      setDraftWarning({
+        open: true,
+        warnings: validation.missing,
+        mode: "confirm",
+      });
       return;
     }
 
+    // Save draft first, then open ConfirmModal for review
     setProgressError(undefined);
-    setProgressStep("Guardando borrador...");
     setIsConfirming(true);
-    let errorOccurred = false;
     try {
-      const saved = await doSaveDraft();
+      const saved = await doSaveDraft(true);
       if (!saved) {
         setProgressError("No se pudo guardar el borrador antes de confirmar.");
-        errorOccurred = true;
         return;
       }
-      setProgressStep("Enviando a Odoo...");
-      const res = await fetch(`/api/local-orders/${id}/confirm`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        setProgressError(data.error || "Error al confirmar la orden");
-        setOrder((prev) =>
-          prev
-            ? { ...prev, status: "ERROR", errorDetail: data.error ?? null }
-            : prev,
-        );
-        errorOccurred = true;
-        return;
-      }
-      router.push("/orders");
+      setIsConfirming(false);
+      setShowConfirmModal(true);
     } catch (err) {
       setProgressError(err instanceof Error ? err.message : "Error inesperado");
-      errorOccurred = true;
     } finally {
-      if (!errorOccurred) setIsConfirming(false);
+      setIsConfirming(false);
     }
   }
 
@@ -217,14 +279,28 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
   if (!order) return null;
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", paddingBottom: 80 }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 24px 0" }}>
-        <Text size="xs" c="dimmed" mb={4}>
-          {order.status === "CONFIRMED"
+    <div
+      style={{
+        minHeight: "100dvh",
+        background: "var(--bg)",
+        paddingBottom: 80,
+      }}
+    >
+      <OrderStickyBar
+        title={
+          order.status === "CONFIRMED"
             ? `Orden confirmada · ${order.odooOrderName}`
-            : `Editando borrador #${order.id}`}
-        </Text>
-
+            : `Editando borrador #${order.id}`
+        }
+        supplier={supplier}
+        articles={articles}
+        totalUnits={totals.units}
+        totalAmount={totals.amount}
+      />
+      <div
+        style={{ maxWidth: 1200, margin: "0 auto" }}
+        className="page-inner-pad"
+      >
         {order.status === "ERROR" && (
           <Alert
             color="red"
@@ -245,35 +321,33 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
           </Alert>
         )}
 
-        <Group gap="xl" mb="xs" align="flex-end" wrap="wrap">
-          <div>
-            <Text size="xs" c="dimmed" fw={500} mb={6}>
-              Proveedor
-            </Text>
-            <SupplierSearch
-              value={supplier}
-              onChange={isConfirmed ? () => {} : setSupplier}
-            />
-          </div>
-          <DatePickerInput
-            label={
-              <Text size="xs" c="dimmed" fw={500}>
-                Fecha
-              </Text>
-            }
-            value={date}
-            onChange={isConfirmed ? () => {} : (v) => setDate(v as Date | null)}
-            valueFormat="DD/MM/YYYY"
-            locale="es"
-            w={180}
-            disabled={isConfirmed}
-          />
-          {totals.units > 0 && (
-            <Badge color="amber" variant="light" size="md" style={{ marginLeft: "auto" }}>
-              {totals.units} u.
-            </Badge>
-          )}
-        </Group>
+        <DatosCabeceraOrden
+          supplier={supplier}
+          onSupplierChange={setSupplier}
+          date={date}
+          onDateChange={(v) => setDate(v)}
+          globalBrand={globalBrand}
+          onGlobalBrandChange={setGlobalBrand}
+          compradoras={compradoras}
+          onCompradorasChange={setCompradoras}
+          initialCompradoraIds={order.compradoraIds as number[]}
+          selectedWarehouses={selectedWarehouses}
+          onSelectedWarehousesChange={setSelectedWarehouses}
+          initialWarehouseIds={order.warehouseIds as number[]}
+          disabled={isConfirmed}
+          extraContent={
+            totals.units > 0 ? (
+              <Badge
+                color="amber"
+                variant="light"
+                size="md"
+                style={{ marginLeft: "auto" }}
+              >
+                {totals.units} u.
+              </Badge>
+            ) : null
+          }
+        />
 
         <OrderGrid
           supplier={supplier}
@@ -283,6 +357,12 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
           initialArticles={articles}
           orderId={order.id}
           onArticlesChange={setArticles}
+          globalBrand={globalBrand}
+          selectedWarehouses={selectedWarehouses}
+          onPrintColumnsChange={setPrintColumns}
+          onPrintValuesChange={setPrintValues}
+          showValidation={showValidation}
+          readOnly={isConfirmed}
         />
       </div>
 
@@ -299,6 +379,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
 
       {isConfirmed && (
         <div
+          className="footer-bar-pad"
           style={{
             position: "fixed",
             bottom: 0,
@@ -306,7 +387,6 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
             right: 0,
             background: "var(--surface)",
             borderTop: "1px solid var(--border)",
-            padding: "12px 24px",
             display: "flex",
             justifyContent: "flex-start",
           }}
@@ -326,22 +406,6 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
         opened={draftWarning.open}
         warnings={draftWarning.warnings}
         onCorrect={() => setDraftWarning((p) => ({ ...p, open: false }))}
-        onSaveAnyway={
-          draftWarning.mode === "draft"
-            ? () => {
-                setDraftWarning((p) => ({ ...p, open: false }));
-                void doSaveDraft().then((ok) => {
-                  if (ok) {
-                    notifications.show({
-                      color: "green",
-                      title: "Borrador guardado",
-                      message: "Los cambios fueron guardados correctamente",
-                    });
-                  }
-                });
-              }
-            : () => setDraftWarning((p) => ({ ...p, open: false }))
-        }
       />
 
       <OrderProgressModal
@@ -357,6 +421,20 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
             : undefined
         }
       />
+
+      {showConfirmModal && supplier && (
+        <ConfirmModal
+          orderId={order.id}
+          supplier={supplier}
+          date={dateStr}
+          articles={articles}
+          selectedWarehouses={selectedWarehouses}
+          printColumns={printColumns}
+          printValues={printValues}
+          onClose={() => setShowConfirmModal(false)}
+          onConfirmed={() => router.push("/orders")}
+        />
+      )}
 
       <ErrorDetailModal
         opened={errorModal}

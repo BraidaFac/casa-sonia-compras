@@ -4,6 +4,7 @@ import { QueryProvider } from "@/providers/QueryProvider";
 import { AppMantineProvider } from "@/providers/AppMantineProvider";
 import "@mantine/core/styles.css";
 import "@mantine/dates/styles.css";
+import "@mantine/notifications/styles.css";
 import "./globals.css";
 
 const syne = Syne({

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { batchResolveProductIds } from "@/lib/odooProducts";
 import type { LocalArticle } from "@/types";
 import { randomUUID } from "crypto";
 
@@ -25,13 +26,28 @@ export async function POST(
 
   // Reset article IDs and row IDs so duplicate is fully independent
   const sourceArticles = source.articles as unknown as LocalArticle[];
+
+  // For CONFIRMED orders: batch-resolve articles missing existingProductId from Odoo
+  // (by name + referencia). Covers orders confirmed before the backfill logic existed.
+  let resolvedIdBySourceId = new Map<string, number>();
+  if (source.status === "CONFIRMED") {
+    const needsLookup = sourceArticles.filter((a) => !a.existingProductId && a.name);
+    if (needsLookup.length > 0) {
+      resolvedIdBySourceId = await batchResolveProductIds(needsLookup);
+    }
+  }
+
   const freshArticles = sourceArticles.map((a) => ({
     ...a,
     id: randomUUID(),
+    existingProductId: a.existingProductId ?? resolvedIdBySourceId.get(a.id) ?? null,
     rows: a.rows.map((r) => ({
       ...r,
       id: randomUUID(),
       odooLineIds: undefined,
+      // Colors that were isNew in the source are already in Odoo after confirmation.
+      // Reset the flag so they're treated as existing on the next confirmation.
+      color: r.color ? { ...r.color, isNew: false } : null,
     })),
     deletedOdooImageIds: [],
     clearedPrimaryColorNames: [],
@@ -49,10 +65,10 @@ export async function POST(
       supplierId: source.supplierId,
       supplierName: source.supplierName,
       date: source.date,
-      warehouseIds: source.warehouseIds,
+      warehouseIds: source.warehouseIds as unknown as object,
       articles: freshArticles as unknown as object,
-      printColumns: source.printColumns,
-      printValues: source.printValues,
+      printColumns: source.printColumns as unknown as object,
+      printValues: source.printValues as unknown as object,
     },
   });
 

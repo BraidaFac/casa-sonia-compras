@@ -1,5 +1,6 @@
 "use client";
 import { Button, Group } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 import { Save, Send } from "lucide-react";
 
 interface OrderFormFooterProps {
@@ -8,7 +9,7 @@ interface OrderFormFooterProps {
   onConfirm?: () => void;
   isSaving: boolean;
   isConfirming: boolean;
-  showConfirm?: boolean; // edit page shows both; new page shows only save
+  showConfirm?: boolean;
   isNewOrder?: boolean;
 }
 
@@ -21,16 +22,18 @@ export function OrderFormFooter({
   showConfirm = false,
   isNewOrder,
 }: OrderFormFooterProps) {
+  const isMobile = useMediaQuery("(max-width: 639px)");
+
   return (
     <div
+      className="footer-bar-pad"
       style={{
         position: "fixed",
         bottom: 0,
-        left: 0,
+        left: "var(--sidebar-width, 0px)",
         right: 0,
         background: "var(--mantine-color-dark-8)",
         borderTop: "1px solid var(--mantine-color-dark-5)",
-        padding: "12px 24px",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -51,29 +54,29 @@ export function OrderFormFooter({
         <div />
       )}
 
-      <Group gap="sm" align="center">
+      <Group gap={isMobile ? "xs" : "sm"} align="center">
         <Button
           variant={showConfirm ? "outline" : "filled"}
           color="amber"
           size="sm"
-          leftSection={<Save size={14} />}
+          leftSection={!isMobile ? <Save size={14} /> : undefined}
           onClick={onSaveDraft}
           loading={isSaving}
           disabled={isConfirming}
         >
-          Guardar
+          {isMobile ? <Save size={14} /> : "Guardar"}
         </Button>
 
         {showConfirm && (
           <Button
             color="amber"
             size="sm"
-            leftSection={<Send size={14} />}
+            leftSection={!isMobile ? <Send size={14} /> : undefined}
             onClick={onConfirm}
             loading={isConfirming}
             disabled={isSaving}
           >
-            Confirmar Orden
+            {isMobile ? <Send size={14} /> : "Confirmar Orden"}
           </Button>
         )}
       </Group>

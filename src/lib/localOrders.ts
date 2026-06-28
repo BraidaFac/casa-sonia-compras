@@ -17,7 +17,7 @@ export function stripImagesForDB(articles: Article[]): LocalArticle[] {
             mimeType: img.mimeType,
             isFromOdoo: img.isFromOdoo ?? false,
             odooId: img.odooId,
-            tempPath: (img as ProductImage & { tempPath?: string }).tempPath,
+            tempPath: img.tempPath,
           }),
         ),
       ]),
@@ -43,6 +43,7 @@ export function restorePreviewUrls(articles: LocalArticle[]): Article[] {
             mimeType: img.mimeType,
             isFromOdoo: img.isFromOdoo,
             odooId: img.odooId,
+            tempPath: img.tempPath,
             base64: "",        // empty — UI will show placeholder
             previewUrl: img.tempPath
               ? `/uploads/${img.tempPath.replace(/^\/uploads\//, "")}`

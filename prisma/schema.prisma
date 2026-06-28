@@ -21,6 +21,9 @@ model Order {
   errorDetail   String?     @db.Text @map("error_detail")
   supplierId    Int         @map("supplier_id")
   supplierName  String      @map("supplier_name")
+  brandId       Int?        @map("brand_id")
+  brandName     String?     @map("brand_name")
+  compradoraIds  Json        @default("[]") @map("compradora_ids")
   date          String
   warehouseIds  Json        @map("warehouse_ids")
   articles      Json

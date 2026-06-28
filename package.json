@@ -19,6 +19,7 @@
     "@mantine/hooks": "^9.2.0",
     "@mantine/notifications": "^9.4.0",
     "@pdf-lib/fontkit": "^1.1.1",
+    "@prisma/adapter-mariadb": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@prisma/client-runtime-utils": "7.8.0",
     "@tanstack/react-query": "^5.100.10",
@@ -28,11 +29,15 @@
     "dayjs": "^1.11.20",
     "jose": "^6.2.3",
     "lucide-react": "^1.14.0",
+    "mariadb": "^3.5.3",
     "next": "16.2.6",
     "pdf-lib": "^1.17.1",
     "prisma": "^7.8.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@prisma/engines", "prisma", "sharp", "unrs-resolver"]
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
