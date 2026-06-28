@@ -1,9 +1,11 @@
 # Stage 1: Install deps
+# npm used (not pnpm) — flat node_modules (copyable) + no build-script restrictions
+# so @prisma/engines downloads its linux-musl binary via postinstall
 FROM node:22-alpine AS deps
-RUN corepack enable && corepack prepare pnpm@11.1.1 --activate
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --ignore-scripts
+COPY package.json ./
+RUN apk add --no-cache python3 make g++ && \
+    npm install --legacy-peer-deps
 
 # Stage 2: Build
 FROM node:22-alpine AS builder
@@ -25,11 +27,11 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Prisma: migrations, config, and CLI needed at runtime
+# Prisma: migrations, config, CLI and engines (flat npm node_modules, no broken symlinks)
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=deps /app/node_modules/prisma ./node_modules/prisma
+COPY --from=deps /app/node_modules/@prisma ./node_modules/@prisma
 
 # Entrypoint: run migrations then start app
 COPY docker-entrypoint.sh ./
