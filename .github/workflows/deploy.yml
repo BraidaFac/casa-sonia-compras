@@ -8,7 +8,6 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    environment: production
 
     steps:
       - name: Checkout
@@ -37,5 +36,5 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd /root/Infra
-            docker compose pull casa-sonia-compras
-            docker compose up -d casa-sonia-compras
+            docker compose pull casa_sonia_compras
+            docker compose up -d casa_sonia_compras
