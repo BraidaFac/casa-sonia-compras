@@ -30,8 +30,6 @@ COPY --from=builder /app/.next/static ./.next/static
 # Prisma: migrations + config files
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
-# Install prisma CLI in isolated dir — run via NODE_PATH in entrypoint
-RUN cd /tmp && npm install prisma@7.8.0
 
 # Entrypoint: run migrations then start app
 COPY docker-entrypoint.sh ./

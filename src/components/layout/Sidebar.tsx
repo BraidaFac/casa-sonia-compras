@@ -29,6 +29,7 @@ export function Sidebar() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [collapsed, setCollapsed] = useState<boolean>(false);
+  const [showText, setShowText] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   async function handleRefreshCache() {
@@ -52,9 +53,19 @@ export function Sidebar() {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
+  useEffect(() => {
+    if (collapsed) {
+      setShowText(false);
+    } else {
+      const t = setTimeout(() => setShowText(true), 160);
+      return () => clearTimeout(t);
+    }
+  }, [collapsed]);
+
   function toggleCollapsed() {
     const next = !collapsed;
     setCollapsed(next);
+    document.documentElement.style.setProperty("--sidebar-width", `${next ? 56 : 220}px`);
     try {
       localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0");
     } catch {
@@ -68,36 +79,40 @@ export function Sidebar() {
     document.documentElement.style.setProperty("--sidebar-width", `${width}px`);
   }, [width]);
 
+  // showText drives layout: collapsed visual state until text is ready to appear
+  const exp = showText; // shorthand: true = expanded layout
+
   return (
     <aside
       style={{
         width,
-        minHeight: "100dvh",
+        height: "100dvh",
         background: "var(--surface)",
         borderRight: "1px solid var(--border)",
         display: "flex",
         flexDirection: "column",
         transition: "width 200ms ease",
-        flexShrink: 0,
-        position: "sticky",
+        position: "fixed",
         top: 0,
-        alignSelf: "flex-start",
+        left: 0,
+        zIndex: 100,
         overflow: "hidden",
       }}
     >
       {/* Logo + toggle */}
       <div
         style={{
-          padding: collapsed ? "16px 8px" : "16px",
+          padding: exp ? "0 16px" : "0 8px",
           display: "flex",
           alignItems: "center",
-          justifyContent: collapsed ? "center" : "space-between",
+          justifyContent: exp ? "space-between" : "center",
           borderBottom: "1px solid var(--border)",
-          minHeight: 57,
+          height: 56,
+          flexShrink: 0,
         }}
       >
-        {!collapsed && (
-          <img src="/CS.png" alt="Casa Sonia" style={{ height: 28, width: "auto" }} />
+        {exp && (
+          <img src="/CS.png" alt="Casa Sonia" style={{ height: 24, width: "auto" }} />
         )}
         <button
           onClick={toggleCollapsed}
@@ -119,7 +134,7 @@ export function Sidebar() {
       </div>
 
       {/* Nueva Orden button */}
-      <div style={{ padding: collapsed ? "12px 8px" : "12px 16px", borderBottom: "1px solid var(--border)" }}>
+      <div style={{ padding: exp ? "12px 16px" : "12px 8px", borderBottom: "1px solid var(--border)" }}>
         <Tooltip label="Nueva Orden" disabled={!collapsed} position="right" withArrow>
           <button
             onClick={() => router.push("/orders/new")}
@@ -129,11 +144,11 @@ export function Sidebar() {
               color: "#000",
               border: "none",
               borderRadius: 6,
-              padding: collapsed ? "8px" : "8px 12px",
+              padding: exp ? "8px 12px" : "8px",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              justifyContent: collapsed ? "center" : "flex-start",
+              justifyContent: exp ? "flex-start" : "center",
               gap: 8,
               fontWeight: 600,
               fontSize: 13,
@@ -141,13 +156,13 @@ export function Sidebar() {
             }}
           >
             <Plus size={16} />
-            {!collapsed && "Nueva Orden"}
+            {exp && "Nueva Orden"}
           </button>
         </Tooltip>
       </div>
 
       {/* Nav items */}
-      <nav style={{ flex: 1, padding: collapsed ? "8px 4px" : "8px 8px" }}>
+      <nav style={{ flex: 1, padding: exp ? "8px 8px" : "8px 4px" }}>
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
@@ -164,11 +179,11 @@ export function Sidebar() {
                     ? "2px solid var(--mantine-color-amber-6)"
                     : "2px solid transparent",
                   borderRadius: active ? "0 6px 6px 0" : 6,
-                  padding: collapsed ? "10px" : "10px 12px",
+                  padding: exp ? "10px 12px" : "10px",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: collapsed ? "center" : "flex-start",
+                  justifyContent: exp ? "flex-start" : "center",
                   gap: 10,
                   color: active ? "var(--mantine-color-amber-4)" : "var(--text2)",
                   fontSize: 13,
@@ -187,7 +202,7 @@ export function Sidebar() {
                 }}
               >
                 <Icon size={16} />
-                {!collapsed && label}
+                {exp && label}
               </button>
             </Tooltip>
           );
@@ -211,11 +226,11 @@ export function Sidebar() {
                 border: "none",
                 borderLeft: "2px solid transparent",
                 borderRadius: 6,
-                padding: collapsed ? "10px" : "10px 12px",
+                padding: exp ? "10px 12px" : "10px",
                 cursor: "not-allowed",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: collapsed ? "center" : "space-between",
+                justifyContent: exp ? "space-between" : "center",
                 gap: 10,
                 color: "var(--text3)",
                 fontSize: 13,
@@ -225,9 +240,9 @@ export function Sidebar() {
             >
               <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <Icon size={16} />
-                {!collapsed && label}
+                {exp && label}
               </span>
-              {!collapsed && soon && (
+              {exp && soon && (
                 <span
                   style={{
                     fontSize: 10,
@@ -248,15 +263,14 @@ export function Sidebar() {
       {/* Footer — refresh cache */}
       <div
         style={{
-          padding: collapsed ? "10px 8px" : "10px 16px",
-          borderTop: "1px solid var(--border)",
+          padding: exp ? "10px 16px" : "10px 8px",
         }}
       >
         <Tooltip
           label={
-            collapsed
-              ? "Refrescar catálogo"
-              : "Actualiza los datos de artículos, colores y talles desde Odoo. Útil si agregaste productos nuevos o modificaste atributos."
+            exp
+              ? "Actualiza los datos de artículos, colores y talles desde Odoo. Útil si agregaste productos nuevos o modificaste atributos."
+              : "Refrescar catálogo"
           }
           position="right"
           withArrow
@@ -271,11 +285,11 @@ export function Sidebar() {
               background: "none",
               border: "none",
               borderRadius: 6,
-              padding: collapsed ? "8px" : "8px 12px",
+              padding: exp ? "8px 12px" : "8px",
               cursor: isRefreshing ? "default" : "pointer",
               display: "flex",
               alignItems: "center",
-              justifyContent: collapsed ? "center" : "flex-start",
+              justifyContent: exp ? "flex-start" : "center",
               gap: 8,
               color: "var(--text3)",
               fontSize: 12,
@@ -289,7 +303,7 @@ export function Sidebar() {
                 animation: isRefreshing ? "spin 1s linear infinite" : "none",
               }}
             />
-            {!collapsed && (isRefreshing ? "Refrescando..." : "Refrescar")}
+            {exp && (isRefreshing ? "Refrescando..." : "Refrescar")}
           </button>
         </Tooltip>
       </div>
