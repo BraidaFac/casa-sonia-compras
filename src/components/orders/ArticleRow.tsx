@@ -41,6 +41,8 @@ import { useAllAttributes } from "@/hooks/useAllAttributes";
 import { useProductTypes } from "@/hooks/useProductTypes";
 import { ColorProveedorCell } from "@/components/orders/ColorProveedorCell";
 import { ColorBaseCell } from "@/components/orders/ColorBaseCell";
+import { BarcodeTab } from "@/components/orders/BarcodeTab";
+import { generateReferencia } from "@/lib/barcodes";
 import type {
   Article,
   ArticleRow as ArticleRowType,
@@ -405,6 +407,7 @@ export function ArticleRow({
             article.sizes.map((s) => [s.name, ""]),
           ),
           warehouseQuantities: {},
+          barcodes: {},
         },
       ],
     });
@@ -1233,16 +1236,33 @@ export function ArticleRow({
           </div>
 
           {/* Código Referencia */}
-          <TextInput
-            label="Cód. Referencia"
-            placeholder="Ej: HO15100CS"
-            size="xs"
-            w={140}
-            value={article.referencia}
-            onChange={(e) =>
-              onChange({ ...article, referencia: e.currentTarget.value })
-            }
-          />
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 4 }}>
+            <TextInput
+              label="Cód. Referencia"
+              placeholder="Ej: HO15100CS"
+              size="xs"
+              w={140}
+              value={article.referencia}
+              onChange={(e) =>
+                onChange({ ...article, referencia: e.currentTarget.value })
+              }
+            />
+            {!article.referencia && !readOnly && (
+              <Tooltip label="Auto-generar código de referencia" withArrow>
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  mb={1}
+                  aria-label="Auto-generar código de referencia"
+                  onClick={() =>
+                    onChange({ ...article, referencia: generateReferencia() })
+                  }
+                >
+                  <Sparkles size={14} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </div>
 
           {/* Categoría */}
           <Combobox
@@ -1482,6 +1502,7 @@ export function ArticleRow({
             <Tabs.Tab value="quantities">Cantidades</Tabs.Tab>
             <Tabs.Tab value="attributes">Atributos</Tabs.Tab>
             <Tabs.Tab value="description">Datos Web</Tabs.Tab>
+            <Tabs.Tab value="barcodes">Códigos de Barra</Tabs.Tab>
           </Tabs.List>
 
           {/* Tab panel content — pointer-events disabled in readOnly to allow tab switching but block edits */}
@@ -2642,6 +2663,15 @@ export function ArticleRow({
                 </Stack>
               </div>
             </Stack>
+          </Tabs.Panel>
+
+          {/* Códigos de Barra tab */}
+          <Tabs.Panel value="barcodes">
+            <BarcodeTab
+              article={article}
+              onChange={onChange}
+              readOnly={readOnly}
+            />
           </Tabs.Panel>
           </div>{/* end readOnly panel wrapper */}
         </Tabs>

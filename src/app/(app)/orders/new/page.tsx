@@ -27,31 +27,25 @@ function readDraft(): {
   date: Date | null;
   globalBrand: AttributeValue | null;
   selectedWarehouses: Warehouse[];
+  compradoras: { id: number; name: string }[];
   show: boolean;
 } {
+  const empty = {
+    supplier: null,
+    date: null,
+    globalBrand: null,
+    selectedWarehouses: [] as Warehouse[],
+    compradoras: [] as { id: number; name: string }[],
+    show: false,
+  };
   try {
     const raw = localStorage.getItem(ORDER_DRAFT_KEY);
-    if (!raw)
-      return {
-        supplier: null,
-        date: null,
-        globalBrand: null,
-        selectedWarehouses: [],
-        show: false,
-      };
+    if (!raw) return empty;
     const draft = JSON.parse(raw);
-    const articles: unknown[] = Array.isArray(draft.articles)
-      ? draft.articles
-      : [];
-    if (!draft.supplier || articles.length < 2) {
+    const articles: unknown[] = Array.isArray(draft.articles) ? draft.articles : [];
+    if (!draft.supplier || articles.length < 1) {
       localStorage.removeItem(ORDER_DRAFT_KEY);
-      return {
-        supplier: null,
-        date: null,
-        globalBrand: null,
-        selectedWarehouses: [],
-        show: false,
-      };
+      return empty;
     }
     return {
       supplier: draft.supplier ?? null,
@@ -60,35 +54,27 @@ function readDraft(): {
       selectedWarehouses: Array.isArray(draft.selectedWarehouses)
         ? (draft.selectedWarehouses as Warehouse[])
         : [],
+      compradoras: Array.isArray(draft.compradoras)
+        ? (draft.compradoras as { id: number; name: string }[])
+        : [],
       show: true,
     };
   } catch {
-    return {
-      supplier: null,
-      date: null,
-      globalBrand: null,
-      selectedWarehouses: [],
-      show: false,
-    };
+    return empty;
   }
 }
 
 export default function NewOrderPage() {
   const router = useRouter();
-  // Single localStorage read — avoids removeItem race between 3 separate lazy initializers
-  const [_draft] = useState(readDraft);
-  const [supplier, setSupplier] = useState<Supplier | null>(_draft.supplier);
-  const [date, setDate] = useState<Date | null>(_draft.date ?? new Date());
-  const [globalBrand, setGlobalBrand] = useState<AttributeValue | null>(
-    _draft.globalBrand,
-  );
+  // All state starts with SSR-safe defaults; draft is loaded client-side in useEffect
+  const [supplier, setSupplier] = useState<Supplier | null>(null);
+  const [date, setDate] = useState<Date | null>(new Date());
+  const [globalBrand, setGlobalBrand] = useState<AttributeValue | null>(null);
   const [compradoras, setCompradoras] = useState<{ id: number; name: string }[]>([]);
-  const [draftBanner, setDraftBanner] = useState<boolean>(_draft.show);
+  const [draftBanner, setDraftBanner] = useState<boolean>(false);
   const [gridKey, setGridKey] = useState(0);
   const [articles, setArticles] = useState<Article[]>([]);
-  const [selectedWarehouses, setSelectedWarehouses] = useState<Warehouse[]>(
-    _draft.selectedWarehouses,
-  );
+  const [selectedWarehouses, setSelectedWarehouses] = useState<Warehouse[]>([]);
   const [printColumns, setPrintColumns] = useState<PrintColumn[]>([]);
   const [printValues, setPrintValues] = useState<PrintValues>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -108,6 +94,21 @@ export default function NewOrderPage() {
   const skipFirstSaveRef = useRef(true);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Load draft from localStorage after hydration (client-only, avoids SSR mismatch)
+  useEffect(() => {
+    const draft = readDraft();
+    if (draft.show) {
+      setSupplier(draft.supplier);
+      if (draft.date) setDate(draft.date);
+      setGlobalBrand(draft.globalBrand);
+      setSelectedWarehouses(draft.selectedWarehouses);
+      if (draft.compradoras.length > 0) setCompradoras(draft.compradoras);
+      setDraftBanner(true);
+    }
+    // Skip the first autosave tick since we just read from storage
+    skipFirstSaveRef.current = true;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-save supplier + date into draft — only if draft already exists OR conditions are met
   useEffect(() => {
     if (skipFirstSaveRef.current) {
@@ -118,10 +119,10 @@ export default function NewOrderPage() {
     autosaveTimerRef.current = setTimeout(() => {
       try {
         const raw = localStorage.getItem(ORDER_DRAFT_KEY);
-        // Only create a new draft entry if supplier set + ≥2 articles already in draft
+        // Only create a new draft entry if supplier set + ≥1 article already in draft
         if (!raw) {
           const draftArticles = Array.isArray(articles) ? articles : [];
-          if (!supplier || draftArticles.length < 2) return;
+          if (!supplier || draftArticles.length < 1) return;
         }
         const current = raw ? JSON.parse(raw) : {};
         localStorage.setItem(
@@ -130,11 +131,13 @@ export default function NewOrderPage() {
             ...current,
             supplier,
             date: date?.toISOString() ?? null,
+            compradoras,
+            selectedWarehouses,
           }),
         );
       } catch {}
     }, 5000);
-  }, [supplier, date, articles]);
+  }, [supplier, date, compradoras, selectedWarehouses, articles]);
 
   const handleTotalsChange = useCallback((units: number, amount: number) => {
     setTotals({ units, amount });
@@ -148,6 +151,9 @@ export default function NewOrderPage() {
     localStorage.removeItem(ORDER_DRAFT_KEY);
     setSupplier(null);
     setDate(new Date());
+    setGlobalBrand(null);
+    setCompradoras([]);
+    setSelectedWarehouses([]);
     setDraftBanner(false);
     setGridKey((k) => k + 1);
   }

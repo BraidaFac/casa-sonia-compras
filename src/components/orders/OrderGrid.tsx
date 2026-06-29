@@ -69,6 +69,7 @@ function createEmptyArticle(
         color: null,
         quantities: {},
         warehouseQuantities: {},
+        barcodes: {},
       },
     ],
     sizes: [],
@@ -278,6 +279,7 @@ export function OrderGrid({
         id: crypto.randomUUID(),
         quantities: {},
         warehouseQuantities: {},
+        barcodes: {},
       })),
       sizes: original.sizes.map((size) => ({ ...size })),
       attributes: original.attributes.map((attr) => ({
@@ -396,13 +398,13 @@ export function OrderGrid({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasDirtyData]);
 
-  // Auto-save draft to localStorage (create mode only, debounced 5s, only when ≥2 articles)
+  // Auto-save draft to localStorage (create mode only, debounced 5s, only when supplier set + ≥1 article)
   useEffect(() => {
     if (isEditMode) return;
     if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
     draftSaveTimerRef.current = setTimeout(() => {
-      // Only write draft if there are at least 2 articles
-      if (articles.length < 2) return;
+      // Only write draft if header data (supplier) is set and there is at least 1 article
+      if (!supplier || articles.length < 1) return;
       try {
         const raw = localStorage.getItem(ORDER_DRAFT_KEY);
         const current = raw ? JSON.parse(raw) : {};

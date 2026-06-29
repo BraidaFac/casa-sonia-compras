@@ -294,6 +294,38 @@ export async function createOrderInOdoo(params: {
         article.sizeAttributeId!,
       );
 
+      // Escribir barcodes en product.product (mismo bloque que resolución de variantes)
+      for (const row of article.rows as ArticleRow[]) {
+        if (!row.color) continue;
+        for (const size of article.sizes) {
+          const barcode = row.barcodes?.[size.name];
+          if (!barcode) continue;
+
+          const resolvedColor = resolvedColors.find(
+            (c) => c.name === row.color!.name,
+          );
+          const resolvedSize = resolvedSizes.find(
+            (s) => s.name === size.name,
+          );
+          if (!resolvedSize) continue;
+
+          const key = resolvedColor
+            ? `${resolvedColor.id}:${resolvedSize.id}`
+            : `:${resolvedSize.id}`;
+          const variantId = variantMap.get(key);
+          if (!variantId) continue;
+
+          try {
+            await odoo.write("product.product", [variantId], { barcode });
+          } catch (err) {
+            console.warn(
+              `[odooOrderCreation] barcode write failed for variant ${variantId}:`,
+              err,
+            );
+          }
+        }
+      }
+
       articleVariantMaps.set(article.id, {
         variantMap,
         resolvedColors,

@@ -60,6 +60,8 @@ export interface ArticleRow {
   warehouseQuantities: Record<string, string>;
   // edit mode: size name → purchase.order.line ID (populated when loading existing OC)
   odooLineIds?: Record<string, number>;
+  // size name → barcode value
+  barcodes?: Record<string, string>;
 }
 
 // Imagen de producto — convertida a base64 en el browser
