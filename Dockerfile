@@ -31,11 +31,9 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 
-# Prisma CLI + engines needed for migrate deploy at runtime
-# Note: generated client is in prisma/generated/client (custom output), already copied above
-COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# Prisma CLI for migrate deploy — npm install resolves all transitive deps (effect, etc.)
+# postinstall downloads the correct linux-musl engine binary for this alpine image
+RUN npm install --no-save prisma@7
 
 # Entrypoint: run migrations then start app
 COPY docker-entrypoint.sh ./
