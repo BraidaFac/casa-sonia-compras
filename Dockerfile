@@ -32,10 +32,10 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 
 # Prisma CLI + engines needed for migrate deploy at runtime
+# Note: generated client is in prisma/generated/client (custom output), already copied above
 COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 # Entrypoint: run migrations then start app
 COPY docker-entrypoint.sh ./
