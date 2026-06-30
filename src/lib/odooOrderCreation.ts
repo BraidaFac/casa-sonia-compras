@@ -425,7 +425,7 @@ export async function createOrderInOdoo(params: {
         ? { x_studio_sucursal: [[6, 0, warehouseIds]] }
         : {}),
       ...(compradoraIds?.length
-        ? { x_studio_compradores: [[6, 0, compradoraIds]] }
+        ? { x_studio_compradores2_1: [[6, 0, compradoraIds]] }
         : {}),
     });
     const purchaseOrderId = createdPurchaseOrderId;
