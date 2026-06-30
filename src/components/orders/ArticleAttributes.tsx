@@ -47,7 +47,7 @@ import { REQUIRED_ATTR_FAMILIES } from "@/lib/required-attrs";
 // Flat list para uso interno
 const REQUIRED_ATTR_NAMES = REQUIRED_ATTR_FAMILIES.flatMap((f) => f.names);
 // Atributos que se pre-cargan pero se pueden eliminar (opcionales)
-export const OPTIONAL_PRELOADED_NAMES = ["cuello", "corte"];
+export const OPTIONAL_PRELOADED_NAMES = ["composicion", "composición", "cuello", "corte"];
 const ALL_PRELOADED_NAMES = [...REQUIRED_ATTR_NAMES, ...OPTIONAL_PRELOADED_NAMES];
 
 function isRequiredAttr(name: string): boolean {
@@ -433,8 +433,9 @@ export function ArticleAttributes({
           {editableAttributes.map((attr) => {
             const actualIdx = article.attributes.indexOf(attr);
             const required = attr.attributeId > 0 && isRequiredAttr(attr.attributeName);
+            const isOptionalPreloaded = attr.attributeId > 0 && OPTIONAL_PRELOADED_NAMES.some((n) => attr.attributeName.toLowerCase().includes(n));
             const locked = attr.locked === true || required;
-            const canRemove = !locked;
+            const canRemove = !required && (!attr.locked || isOptionalPreloaded);
 
             // Determine if this attr is in the missing list (highlight red)
             const isMissingHighlight = required && attr.values.length === 0 && missingRequiredKeys.length > 0 &&

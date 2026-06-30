@@ -130,7 +130,7 @@ export interface OdooProductLite {
 
 export interface OdooProduct extends OdooProductLite {
   maxCoeficiente: number;
-  colors: AttributeValue[];
+  colors: ColorValue[];
   sizes: SizeValue[];
   sizeAttributeId: number | null;
   extraAttributes: ProductAttribute[];

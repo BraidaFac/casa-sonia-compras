@@ -12,6 +12,7 @@ import {
   Loader,
   Modal,
   NumberInput,
+  Popover,
   Stack,
   Text,
   TextInput,
@@ -53,6 +54,7 @@ import type {
   OdooProduct,
   OdooProductLite,
   PrintColumn,
+  ProductAttribute,
   ProductCategory,
   ProductImage,
 } from "@/types";
@@ -272,19 +274,20 @@ export function ArticleRow({
   async function handleSelectProduct(lite: OdooProductLite) {
     setIsFetchingDetail(true);
     nameCombobox.closeDropdown();
-    let detail: Pick<
-      OdooProduct,
-      | "colors"
-      | "sizes"
-      | "sizeAttributeId"
-      | "extraAttributes"
-      | "maxCoeficiente"
-    > = {
+    let detail: {
+      colors: ColorValue[];
+      sizes: SizeValue[];
+      sizeAttributeId: number | null;
+      extraAttributes: ProductAttribute[];
+      maxCoeficiente: number;
+      barcodeMap: Record<number, Record<string, string>>;
+    } = {
       colors: [],
       sizes: [],
       sizeAttributeId: null,
       extraAttributes: [],
       maxCoeficiente: 0,
+      barcodeMap: {},
     };
     try {
       const res = await fetch(`/api/products/${lite.id}/detail`);
@@ -300,15 +303,16 @@ export function ArticleRow({
       p.colors.length > 0
         ? p.colors.map((color) => ({
             id: crypto.randomUUID(),
-            color: allColors.find((c) => c.id === color.id) || {
+            color: {
               id: color.id,
               name: color.name,
-              colorBase: "",
-              hexColor: "",
+              colorBase: color.colorBase || allColors.find((c) => c.id === color.id)?.colorBase || "",
+              hexColor: color.hexColor || allColors.find((c) => c.id === color.id)?.hexColor || "",
               isNew: false,
             },
             quantities: Object.fromEntries(p.sizes.map((s) => [s.name, ""])),
             warehouseQuantities: {},
+            barcodes: detail.barcodeMap[color.id as number] || {},
           }))
         : [
             {
@@ -316,6 +320,7 @@ export function ArticleRow({
               color: null,
               quantities: Object.fromEntries(p.sizes.map((s) => [s.name, ""])),
               warehouseQuantities: {},
+              barcodes: {},
             },
           ];
 
@@ -617,6 +622,12 @@ export function ArticleRow({
         maximumFractionDigits: 2,
       })
     : null;
+
+  // Coefficient popover state
+  const [coefPopoverOpen, setCoefPopoverOpen] = useState(false);
+  const [localCoef, setLocalCoef] = useState<number | string>(coef);
+  const localCoefNum = typeof localCoef === "number" ? localCoef : parseFloat(String(localCoef)) || 0;
+  const precioConLocalCoef = costo > 0 && localCoefNum > 0 ? costo * localCoefNum : null;
 
   async function handleGenerateDescription() {
     const brandAttr = article.attributes.find((attr) =>
@@ -1460,23 +1471,82 @@ export function ArticleRow({
               decimalSeparator=","
               w={140}
             />
-            {precioSugeridoNum && (
-              <Tooltip label={`Aplicar sugerido $${precioSugerido}`} withArrow>
-                <ActionIcon
-                  variant="subtle"
-                  color="amber"
-                  size="md"
-                  style={{ marginBottom: 0 }}
-                  onClick={() =>
-                    onChange({
-                      ...article,
-                      salePrice: String(precioSugeridoNum.toFixed(2)),
-                    })
-                  }
-                >
-                  <ArrowDownToLine size={13} />
-                </ActionIcon>
-              </Tooltip>
+            {costo > 0 && (
+              <Popover
+                opened={coefPopoverOpen}
+                onChange={(o) => {
+                  if (o) setLocalCoef(coef);
+                  setCoefPopoverOpen(o);
+                }}
+                position="bottom-end"
+                withArrow
+                shadow="md"
+                width={220}
+              >
+                <Popover.Target>
+                  <Tooltip label="Ajustar coeficiente y aplicar precio" withArrow disabled={coefPopoverOpen}>
+                    <ActionIcon
+                      variant="subtle"
+                      color="amber"
+                      size="md"
+                      style={{ marginBottom: 0 }}
+                      onClick={() => {
+                        setLocalCoef(coef);
+                        setCoefPopoverOpen((v) => !v);
+                      }}
+                    >
+                      <ArrowDownToLine size={13} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Popover.Target>
+                <Popover.Dropdown>
+                  <Stack gap={8}>
+                    <Text size="xs" fw={600} c="amber">
+                      Coeficiente de precio
+                    </Text>
+                    <NumberInput
+                      label="Coeficiente"
+                      size="xs"
+                      min={0.01}
+                      step={0.1}
+                      decimalScale={2}
+                      value={localCoef}
+                      onChange={setLocalCoef}
+                      decimalSeparator=","
+                      hideControls={false}
+                    />
+                    {precioConLocalCoef && (
+                      <Text size="xs" c="dimmed">
+                        Precio:{" "}
+                        <strong>
+                          $
+                          {precioConLocalCoef.toLocaleString("es-AR", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </strong>
+                        {" "}(× {localCoefNum})
+                      </Text>
+                    )}
+                    <Button
+                      size="xs"
+                      color="amber"
+                      disabled={!precioConLocalCoef}
+                      onClick={() => {
+                        if (precioConLocalCoef) {
+                          onChange({
+                            ...article,
+                            salePrice: String(precioConLocalCoef.toFixed(2)),
+                          });
+                          setCoefPopoverOpen(false);
+                        }
+                      }}
+                    >
+                      Aplicar
+                    </Button>
+                  </Stack>
+                </Popover.Dropdown>
+              </Popover>
             )}
           </div>
 

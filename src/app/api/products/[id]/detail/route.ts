@@ -29,13 +29,27 @@ export async function GET(
 
     const valueMap: Record<
       number,
-      { id: number; name: string; attributeId: number; equivalencia: string }
+      {
+        id: number;
+        name: string;
+        attributeId: number;
+        equivalencia: string;
+        hexColor: string;
+        colorBase: string;
+      }
     > = {};
     if (allValueIds.length > 0) {
       const values = await odoo.read(
         "product.attribute.value",
         [...new Set(allValueIds)],
-        ["id", "name", "attribute_id", "x_studio_equivalencias"],
+        [
+          "id",
+          "name",
+          "attribute_id",
+          "x_studio_equivalencias",
+          "html_color",
+          "x_studio_color_base",
+        ],
       );
       for (const v of values) {
         const attrId = Array.isArray(v.attribute_id)
@@ -46,11 +60,19 @@ export async function GET(
           name: v.name,
           attributeId: attrId,
           equivalencia: v.x_studio_equivalencias || "",
+          hexColor: v.html_color || "",
+          colorBase: v.x_studio_color_base || "",
         };
       }
     }
 
-    const colors: { id: number; name: string }[] = [];
+    const colors: {
+      id: number;
+      name: string;
+      colorBase: string;
+      hexColor: string;
+      isNew: boolean;
+    }[] = [];
     const sizes: { id: number; name: string; equivalencia: string }[] = [];
     let sizeAttributeId: number | null = null;
     const extraAttributes: ProductAttribute[] = [];
@@ -70,11 +92,28 @@ export async function GET(
             name: String(vid),
             attributeId: 0,
             equivalencia: "",
+            hexColor: "",
+            colorBase: "",
           },
       );
 
       if (colorAttrId && attrId === colorAttrId) {
-        colors.push(...vals);
+        colors.push(
+          ...vals.map(
+            (v: {
+              id: number;
+              name: string;
+              colorBase: string;
+              hexColor: string;
+            }) => ({
+              id: v.id,
+              name: v.name,
+              colorBase: v.colorBase || "",
+              hexColor: v.hexColor || "",
+              isNew: false,
+            }),
+          ),
+        );
       } else if (sizeAttrIdSet.has(attrId)) {
         sizes.push(
           ...vals.map(
@@ -108,12 +147,70 @@ export async function GET(
       }
     }
 
+    // Fetch barcodes from product.product variants
+    // barcodeMap: colorPavId → { sizeName → barcode }
+    const barcodeMap: Record<number, Record<string, string>> = {};
+
+    if (colors.length > 0 && sizes.length > 0) {
+      const variants = await odoo.searchRead(
+        "product.product",
+        [["product_tmpl_id", "=", templateId]],
+        ["id", "barcode", "product_template_attribute_value_ids"],
+      );
+
+      const allPtavIds = [
+        ...new Set(
+          variants.flatMap(
+            (v: { product_template_attribute_value_ids: number[] }) =>
+              v.product_template_attribute_value_ids || [],
+          ),
+        ),
+      ];
+
+      const ptavMap: Record<number, { attrId: number; pavId: number }> = {};
+      if (allPtavIds.length > 0) {
+        const ptavs = await odoo.read(
+          "product.template.attribute.value",
+          allPtavIds as number[],
+          ["id", "attribute_id", "product_attribute_value_id"],
+        );
+        for (const ptav of ptavs) {
+          const attrId = Array.isArray(ptav.attribute_id)
+            ? ptav.attribute_id[0]
+            : ptav.attribute_id;
+          const pavId = Array.isArray(ptav.product_attribute_value_id)
+            ? ptav.product_attribute_value_id[0]
+            : ptav.product_attribute_value_id;
+          ptavMap[ptav.id] = { attrId, pavId };
+        }
+      }
+
+      for (const variant of variants) {
+        if (!variant.barcode) continue;
+        let colorPavId: number | null = null;
+        let sizePavId: number | null = null;
+        for (const ptavId of variant.product_template_attribute_value_ids ||
+          []) {
+          const ptav = ptavMap[ptavId];
+          if (!ptav) continue;
+          if (colorAttrId && ptav.attrId === colorAttrId) colorPavId = ptav.pavId;
+          if (sizeAttrIdSet.has(ptav.attrId)) sizePavId = ptav.pavId;
+        }
+        if (colorPavId == null || sizePavId == null) continue;
+        const sizeName = valueMap[sizePavId]?.name;
+        if (!sizeName) continue;
+        if (!barcodeMap[colorPavId]) barcodeMap[colorPavId] = {};
+        barcodeMap[colorPavId][sizeName] = variant.barcode as string;
+      }
+    }
+
     return NextResponse.json({
       colors,
       sizes,
       sizeAttributeId,
       extraAttributes,
       maxCoeficiente,
+      barcodeMap,
     });
   } catch (error) {
     return NextResponse.json(

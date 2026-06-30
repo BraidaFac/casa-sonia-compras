@@ -6,9 +6,9 @@ export interface RequiredAttrFamily {
 
 export const REQUIRED_ATTR_FAMILIES: RequiredAttrFamily[] = [
   {
-    key: "composicion",
-    label: "Composición",
-    names: ["composicion", "composición"],
+    key: "material principal",
+    label: "Material Principal",
+    names: ["material principal"],
   },
   { key: "genero", label: "Género", names: ["genero", "género"] },
   { key: "temporada", label: "Temporada", names: ["temporada"] },
@@ -22,6 +22,7 @@ export const REQUIRED_ATTR_FAMILIES: RequiredAttrFamily[] = [
     label: "Tipo de Producto",
     names: ["tipo de producto"],
   },
+  { key: "marca", label: "Marca", names: ["marca"] },
 ];
 
 /** Returns the families missing from a given article's attributes. */

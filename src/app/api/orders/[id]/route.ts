@@ -180,10 +180,10 @@ export async function GET(
       ];
 
       // e. Read product.product variants
-      const variants: (OdooVariantRecord & { image_variant_1920: string | false })[] = await odoo.read(
+      const variants: (OdooVariantRecord & { image_variant_1920: string | false; barcode: string | false })[] = await odoo.read(
         "product.product",
         variantIds,
-        ["id", "product_template_attribute_value_ids", "image_variant_1920"],
+        ["id", "product_template_attribute_value_ids", "image_variant_1920", "barcode"],
       );
 
       // f. Batch read all PTAV records
@@ -307,6 +307,20 @@ export async function GET(
         .map((sid) => sizePavMap.get(sid))
         .filter(Boolean) as SizeValue[];
 
+      // l2. Build barcodesByColorPav: colorPavId → { sizeName → barcode }
+      const barcodesByColorPav = new Map<number, Record<string, string>>();
+      for (const variant of variants) {
+        if (!variant.barcode) continue;
+        const cs = variantColorSize.get(variant.id as number);
+        if (!cs?.colorPavId || !cs.sizePavId) continue;
+        const sizeName = sizePavMap.get(cs.sizePavId)?.name;
+        if (!sizeName) continue;
+        if (!barcodesByColorPav.has(cs.colorPavId)) {
+          barcodesByColorPav.set(cs.colorPavId, {});
+        }
+        barcodesByColorPav.get(cs.colorPavId)![sizeName] = variant.barcode as string;
+      }
+
       // n. Group lines by colorPavId → ArticleRow[]
       // Use insertion order to preserve original row ordering
       const rowsByColorPav = new Map<
@@ -338,7 +352,7 @@ export async function GET(
       }
 
       const rows: ArticleRow[] = [];
-      for (const [, rowData] of rowsByColorPav) {
+      for (const [colorPavId, rowData] of rowsByColorPav) {
         const quantities: Record<string, string> = {};
         const rowPrices: Record<string, string> = {};
         const odooLineIds: Record<string, number> = {};
@@ -357,6 +371,7 @@ export async function GET(
           prices: priceGranular ? rowPrices : undefined,
           warehouseQuantities: {},
           odooLineIds,
+          barcodes: colorPavId != null ? (barcodesByColorPav.get(colorPavId) ?? {}) : {},
         });
       }
 
@@ -463,6 +478,7 @@ export async function GET(
         deletedOdooImageIds: [],
         clearedPrimaryColorNames: [],
         maxCoeficiente: 0,
+        originalSizeIds: sizes.map((s) => s.id),
       });
     }
 
