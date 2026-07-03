@@ -1,18 +1,18 @@
 "use client";
+import React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Tooltip } from "@mantine/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Store, Package, Plus, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { ClipboardList, Store, Package, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/orders", label: "Órdenes", icon: ClipboardList },
   { href: "/odoo-orders", label: "Historial Odoo", icon: Store },
+  { href: "/inventario", label: "Inventario", icon: Package },
 ] as const;
 
-const FUTURE_ITEMS = [
-  { href: "/inventory", label: "Inventario", icon: Package, soon: true },
-] as const;
+const FUTURE_ITEMS: { href: string; label: string; icon: React.ElementType; soon: boolean }[] = [];
 
 const COLLAPSED_KEY = "sidebar_collapsed";
 
@@ -131,34 +131,6 @@ export function Sidebar() {
         >
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
-      </div>
-
-      {/* Nueva Orden button */}
-      <div style={{ padding: exp ? "12px 16px" : "12px 8px", borderBottom: "1px solid var(--border)" }}>
-        <Tooltip label="Nueva Orden" disabled={!collapsed} position="right" withArrow>
-          <button
-            onClick={() => router.push("/orders/new")}
-            style={{
-              width: "100%",
-              background: "var(--mantine-color-amber-6)",
-              color: "#000",
-              border: "none",
-              borderRadius: 6,
-              padding: exp ? "8px 12px" : "8px",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: exp ? "flex-start" : "center",
-              gap: 8,
-              fontWeight: 600,
-              fontSize: 13,
-              fontFamily: "var(--font-sans)",
-            }}
-          >
-            <Plus size={16} />
-            {exp && "Nueva Orden"}
-          </button>
-        </Tooltip>
       </div>
 
       {/* Nav items */}

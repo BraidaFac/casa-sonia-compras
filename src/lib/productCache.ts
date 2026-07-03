@@ -5,6 +5,7 @@ const TTL_MS = 4.5 * 60 * 60 * 1000; // 4.5 hours
 interface AttrMetadata {
   colorAttrId: number | null;
   typeAttrId: number | null;
+  brandAttrId: number | null;
   sizeAttrIds: number[];
   typeCoefMap: Record<number, number>;
   exp: number;
@@ -24,7 +25,7 @@ export async function getAttrMetadata() {
 
   const attributes = await odoo.searchRead(
     "product.attribute",
-    ["|", ["name", "ilike", "Color"], ["name", "ilike", "Tipo de Producto"]],
+    ["|", "|", ["name", "ilike", "Color"], ["name", "ilike", "Tipo de Producto"], ["name", "ilike", "Marca"]],
     ["id", "name"],
   );
   const colorAttr = attributes.find((a: { name: string }) =>
@@ -32,6 +33,9 @@ export async function getAttrMetadata() {
   );
   const typeAttr = attributes.find((a: { name: string }) =>
     a.name.toLowerCase().includes("tipo de producto"),
+  );
+  const brandAttr = attributes.find((a: { name: string }) =>
+    a.name.toLowerCase().includes("marca"),
   );
 
   const sizeAttrRaw = await odoo.searchRead(
@@ -58,6 +62,7 @@ export async function getAttrMetadata() {
   _cache = {
     colorAttrId: colorAttr?.id ?? null,
     typeAttrId: typeAttr?.id ?? null,
+    brandAttrId: brandAttr?.id ?? null,
     sizeAttrIds,
     typeCoefMap,
     exp: Date.now() + TTL_MS,
@@ -66,6 +71,7 @@ export async function getAttrMetadata() {
   return {
     colorAttrId: _cache.colorAttrId,
     typeAttrId: _cache.typeAttrId,
+    brandAttrId: _cache.brandAttrId,
     sizeAttrIdSet: new Set(sizeAttrIds),
     typeCoefMap: _cache.typeCoefMap,
   };

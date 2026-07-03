@@ -42,7 +42,11 @@ export class OdooValidationError extends Error {
   validationErrors: ValidationError[];
   statusCode: number;
 
-  constructor(message: string, validationErrors: ValidationError[], statusCode = 422) {
+  constructor(
+    message: string,
+    validationErrors: ValidationError[],
+    statusCode = 422,
+  ) {
     super(message);
     this.name = "OdooValidationError";
     this.validationErrors = validationErrors;
@@ -51,9 +55,7 @@ export class OdooValidationError extends Error {
 }
 
 function toTitleCase(str: string): string {
-  return str
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return str.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 export async function createOrderInOdoo(params: {
@@ -122,7 +124,13 @@ export async function createOrderInOdoo(params: {
     if (!article.sizeAttributeId) {
       throw new OdooValidationError(
         `El artículo "${article.name}" no tiene tipo de talle seleccionado. Seleccioná los talles desde el modal antes de confirmar.`,
-        [{ articleName: article.name, type: "size", value: "Sin atributo de talle" }],
+        [
+          {
+            articleName: article.name,
+            type: "size",
+            value: "Sin atributo de talle",
+          },
+        ],
         422,
       );
     }
@@ -147,7 +155,10 @@ export async function createOrderInOdoo(params: {
     }
 
     // Resolve colors: create new ones in Odoo, use existing IDs for existing ones
-    const colorIdMap = await resolveOrCreateColors(article.rows, colorAttributeId);
+    const colorIdMap = await resolveOrCreateColors(
+      article.rows,
+      colorAttributeId,
+    );
 
     const resolvedColors: ResolvedAttributeValue[] = [];
     for (const [name, id] of colorIdMap.entries()) {
@@ -216,7 +227,14 @@ export async function createOrderInOdoo(params: {
     for (const article of needsLookup) {
       const id = resolvedMap.get(article.id);
       if (id) {
-        console.log("[odooOrderCreation] pre-resolved existingProductId for:", article.name, "ref:", article.referencia, "→", id);
+        console.log(
+          "[odooOrderCreation] pre-resolved existingProductId for:",
+          article.name,
+          "ref:",
+          article.referencia,
+          "→",
+          id,
+        );
         article.existingProductId = id;
       }
     }
@@ -227,7 +245,12 @@ export async function createOrderInOdoo(params: {
 
   try {
     for (const { article, resolvedColors, resolvedSizes } of resolvedArticles) {
-      console.log("[odooOrderCreation] processing article:", article.name, "existingProductId:", article.existingProductId);
+      console.log(
+        "[odooOrderCreation] processing article:",
+        article.name,
+        "existingProductId:",
+        article.existingProductId,
+      );
       const templateId = await getOrCreateProduct(
         article,
         resolvedColors,
@@ -235,7 +258,10 @@ export async function createOrderInOdoo(params: {
         colorAttributeId,
         article.sizeAttributeId!,
       );
-      console.log("[odooOrderCreation] getOrCreateProduct OK, templateId:", templateId);
+      console.log(
+        "[odooOrderCreation] getOrCreateProduct OK, templateId:",
+        templateId,
+      );
 
       if (!article.existingProductId) {
         createdProductIds.push(templateId);
@@ -284,7 +310,10 @@ export async function createOrderInOdoo(params: {
       if (pricelistItemId) createdPricelistItemIds.push(pricelistItemId);
 
       const variants = await getVariants(templateId);
-      console.log("[odooOrderCreation] getVariants OK, count:", variants.length);
+      console.log(
+        "[odooOrderCreation] getVariants OK, count:",
+        variants.length,
+      );
 
       const variantMap = await mapVariantToColorSize(
         variants,
@@ -304,9 +333,7 @@ export async function createOrderInOdoo(params: {
           const resolvedColor = resolvedColors.find(
             (c) => c.name === row.color!.name,
           );
-          const resolvedSize = resolvedSizes.find(
-            (s) => s.name === size.name,
-          );
+          const resolvedSize = resolvedSizes.find((s) => s.name === size.name);
           if (!resolvedSize) continue;
 
           const key = resolvedColor
@@ -386,7 +413,10 @@ export async function createOrderInOdoo(params: {
     }
 
     // Create purchase.order (without user_id to avoid Odoo constraint issues on creation)
-    console.log("[odooOrderCreation] creating purchase.order with compradoraIds:", compradoraIds);
+    console.log(
+      "[odooOrderCreation] creating purchase.order with compradoraIds:",
+      compradoraIds,
+    );
     createdPurchaseOrderId = await odoo.create("purchase.order", {
       partner_id: supplierId,
       date_order: date,
@@ -415,12 +445,19 @@ export async function createOrderInOdoo(params: {
       console.error("[odooOrderCreation] button_confirm failed:", confirmErr);
       // button_confirm may confirm the order before throwing — cancel first
       try {
-        await odoo.call("purchase.order", "button_cancel", { ids: purchaseOrderId });
-      } catch { /* ignore — might still be in draft */ }
+        await odoo.call("purchase.order", "button_cancel", {
+          ids: purchaseOrderId,
+        });
+      } catch {
+        /* ignore — might still be in draft */
+      }
       try {
         await odoo.unlink("purchase.order", [purchaseOrderId]);
       } catch {
-        console.error("Rollback of purchase.order failed for id:", purchaseOrderId);
+        console.error(
+          "Rollback of purchase.order failed for id:",
+          purchaseOrderId,
+        );
       }
       throw confirmErr;
     }
@@ -489,18 +526,28 @@ export async function createOrderInOdoo(params: {
       imageSyncData,
     };
   } catch (error) {
-    console.error("[odooOrderCreation] outer catch — triggering rollback. Original error:", error);
+    console.error(
+      "[odooOrderCreation] outer catch — triggering rollback. Original error:",
+      error,
+    );
     // Cancel and delete purchase order if it was created (may be confirmed if button_confirm
     // confirmed the state before throwing). Must do this before unlinking products
     // so the order no longer references them.
     if (createdPurchaseOrderId !== undefined) {
       try {
-        await odoo.call("purchase.order", "button_cancel", { ids: createdPurchaseOrderId });
-      } catch { /* ignore — might be draft or already deleted by inner catch */ }
+        await odoo.call("purchase.order", "button_cancel", {
+          ids: createdPurchaseOrderId,
+        });
+      } catch {
+        /* ignore — might be draft or already deleted by inner catch */
+      }
       try {
         await odoo.unlink("purchase.order", [createdPurchaseOrderId]);
       } catch {
-        console.error("Rollback of purchase.order failed for id:", createdPurchaseOrderId);
+        console.error(
+          "Rollback of purchase.order failed for id:",
+          createdPurchaseOrderId,
+        );
       }
     }
 
@@ -529,9 +576,14 @@ export async function createOrderInOdoo(params: {
       for (const templateId of createdProductIds) {
         try {
           // Disable POS availability first — active POS sessions block deletion
-          await odoo.write("product.template", [templateId], { available_in_pos: false });
+          await odoo.write("product.template", [templateId], {
+            available_in_pos: false,
+          });
         } catch {
-          console.error("Rollback: could not disable available_in_pos for template:", templateId);
+          console.error(
+            "Rollback: could not disable available_in_pos for template:",
+            templateId,
+          );
         }
         try {
           await odoo.unlink("product.template", [templateId]);

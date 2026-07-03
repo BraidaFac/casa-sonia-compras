@@ -206,3 +206,53 @@ export interface LocalOrderSummary {
   createdAt: string;
   updatedAt: string;
 }
+
+// ─── Inventory types ──────────────────────────────────────────────────────────
+
+export type InventoryStatus = "BORRADOR" | "CONFIRMADO";
+
+export interface InventoryArticle {
+  varianteId: number;
+  productoId: number;
+  barcode: string;
+  name: string;
+  qty: number;
+  salePrice: number;
+  cost: number;
+  lastPurchaseDate: string | null;
+  size: string | null;
+  brand: string | null;
+  categoryId: number;
+  categoryName: string;
+  categoryParentId: number | null;
+  categoryParentName: string | null;
+  qtyOnHand: number;
+}
+
+export interface LocalInventory {
+  id: number;
+  status: InventoryStatus;
+  warehouseId: number;
+  warehouseName: string;
+  countDate: string | null;
+  accountingDate: string | null;
+  articles: InventoryArticle[];
+  odooRef: string | null;
+  errorDetail: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LocalInventorySummary {
+  id: number;
+  status: InventoryStatus;
+  warehouseId: number;
+  warehouseName: string;
+  countDate: string | null;
+  accountingDate: string | null;
+  articleCount: number;
+  odooRef: string | null;
+  errorDetail: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

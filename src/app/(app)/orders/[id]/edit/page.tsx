@@ -296,6 +296,7 @@ export default function EditOrderPage({
         articles={articles}
         totalUnits={totals.units}
         totalAmount={totals.amount}
+        onBack={() => router.push("/orders")}
       />
       <div
         style={{ maxWidth: 1200, margin: "0 auto" }}

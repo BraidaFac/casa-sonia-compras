@@ -16,7 +16,7 @@ import { notifications } from "@mantine/notifications";
 import { DatePickerInput } from "@mantine/dates";
 import "dayjs/locale/es";
 import {
-  Plus,
+  CirclePlus,
   Send,
   Copy,
   Trash2,
@@ -24,7 +24,6 @@ import {
   AlertTriangle,
   Eye,
 } from "lucide-react";
-import { OrdersTable } from "@/components/orders/OrdersTable";
 import { ConfirmModal } from "@/components/orders/ConfirmModal";
 import { ErrorDetailModal } from "@/components/orders/ErrorDetailModal";
 import { ValidationErrorModal } from "@/components/orders/ValidationErrorModal";
@@ -32,7 +31,6 @@ import { SupplierSearch } from "@/components/orders/SupplierSearch";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import type { LocalOrderSummary, LocalOrder, OrderStatus, Supplier } from "@/types";
 import { validateForConfirm } from "@/lib/orderValidation";
-import type { ColDef, ICellRendererParams } from "ag-grid-community";
 
 const PAGE_SIZE = 30;
 
@@ -151,142 +149,6 @@ export default function OrdersPage() {
     }
   }
 
-  const columnDefs: ColDef<LocalOrderSummary>[] = [
-    {
-      headerName: "Creada",
-      field: "createdAt",
-      width: 120,
-      valueFormatter: (p) => formatDate(p.value as string),
-    },
-    {
-      headerName: "Proveedor",
-      field: "supplierName",
-      flex: 1,
-      minWidth: 160,
-    },
-    {
-      headerName: "Estado",
-      field: "status",
-      width: 130,
-      cellRenderer: (p: ICellRendererParams<LocalOrderSummary>) => {
-        const cfg = STATUS_CONFIG[p.value as OrderStatus] ?? {
-          label: p.value,
-          color: "gray",
-        };
-        return (
-          <Badge color={cfg.color} variant="light" size="sm">
-            {cfg.label}
-          </Badge>
-        );
-      },
-    },
-    {
-      headerName: "Artículos",
-      field: "articleCount",
-      width: 100,
-      type: "numericColumn",
-    },
-    {
-      headerName: "Fecha OC",
-      field: "date",
-      width: 120,
-      valueFormatter: (p) =>
-        p.value ? (p.value as string).split("-").reverse().join("/") : "-",
-    },
-    {
-      headerName: "N° Odoo",
-      field: "odooOrderName",
-      width: 130,
-      valueFormatter: (p) => (p.value as string | null) ?? "-",
-    },
-    {
-      headerName: "Acciones",
-      width: 180,
-      sortable: false,
-      cellRenderer: (p: ICellRendererParams<LocalOrderSummary>) => {
-        const row = p.data!;
-        return (
-          <Group gap={4} wrap="nowrap" align="center" h="100%">
-            {row.status === "ERROR" && (
-              <Tooltip label="Ver error" withArrow>
-                <ActionIcon
-                  size="sm"
-                  variant="subtle"
-                  color="red"
-                  onClick={() =>
-                    setErrorModal({ open: true, detail: row.errorDetail })
-                  }
-                >
-                  <AlertTriangle size={14} />
-                </ActionIcon>
-              </Tooltip>
-            )}
-            {(row.status === "DRAFT" || row.status === "ERROR") && (
-              <Tooltip label="Editar" withArrow>
-                <ActionIcon
-                  size="sm"
-                  variant="subtle"
-                  color="amber"
-                  onClick={() => router.push(`/orders/${row.id}/edit`)}
-                >
-                  <Edit2 size={14} />
-                </ActionIcon>
-              </Tooltip>
-            )}
-            {row.status === "DRAFT" && (
-              <Tooltip label="Confirmar" withArrow>
-                <ActionIcon
-                  size="sm"
-                  variant="filled"
-                  color="amber"
-                  loading={confirming === row.id}
-                  onClick={() => handleConfirm(row.id)}
-                >
-                  <Send size={14} />
-                </ActionIcon>
-              </Tooltip>
-            )}
-            {row.status === "CONFIRMED" && (
-              <Tooltip label="Ver" withArrow>
-                <ActionIcon
-                  size="sm"
-                  variant="subtle"
-                  color="gray"
-                  onClick={() => router.push(`/orders/${row.id}/edit`)}
-                >
-                  <Eye size={14} />
-                </ActionIcon>
-              </Tooltip>
-            )}
-            <Tooltip label="Duplicar" withArrow>
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                color="gray"
-                loading={duplicating === row.id}
-                onClick={() => handleDuplicate(row.id)}
-              >
-                <Copy size={14} />
-              </ActionIcon>
-            </Tooltip>
-            {(row.status === "DRAFT" || row.status === "ERROR") && (
-              <Tooltip label="Eliminar" withArrow>
-                <ActionIcon
-                  size="sm"
-                  variant="subtle"
-                  color="red"
-                  onClick={() => setDeleteConfirm(row.id)}
-                >
-                  <Trash2 size={14} />
-                </ActionIcon>
-              </Tooltip>
-            )}
-          </Group>
-        );
-      },
-    },
-  ];
-
   return (
     <div className="page-pad">
       {/* Header */}
@@ -302,14 +164,17 @@ export default function OrdersPage() {
         >
           Órdenes
         </h1>
-        <Button
-          leftSection={<Plus size={14} />}
-          color="amber"
-          size="sm"
-          onClick={() => router.push("/orders/new")}
-        >
-          Nueva Orden
-        </Button>
+        <Tooltip label="Nueva Orden" withArrow position="left">
+          <ActionIcon
+            color="amber"
+            variant="filled"
+            size="lg"
+            onClick={() => router.push("/orders/new")}
+            aria-label="Nueva Orden"
+          >
+            <CirclePlus size={20} />
+          </ActionIcon>
+        </Tooltip>
       </Group>
 
       {/* Filters */}
@@ -369,41 +234,133 @@ export default function OrdersPage() {
       </Group>
 
       {loading ? (
+        <div style={{ display: "flex", gap: 8, padding: 48, justifyContent: "center", color: "var(--text2)" }}>
+          <LoadingSpinner size={20} /> Cargando...
+        </div>
+      ) : orders.length === 0 ? (
         <div
           style={{
-            display: "flex",
-            gap: 8,
-            padding: 48,
-            justifyContent: "center",
-            color: "var(--text2)",
+            textAlign: "center",
+            padding: "64px 24px",
+            color: "var(--text3)",
+            border: "1px dashed var(--border)",
+            borderRadius: 8,
           }}
         >
-          <LoadingSpinner size={20} /> Cargando...
+          <Text size="sm">No hay órdenes</Text>
         </div>
       ) : (
         <>
-          <OrdersTable rowData={orders} columnDefs={columnDefs} height={520} />
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: "var(--font-sans)" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                  {["Creada", "Proveedor", "Estado", "Artículos", "Fecha OC", "N° Odoo", "Acciones"].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: "10px 12px",
+                        textAlign: "left",
+                        color: "var(--text3)",
+                        fontWeight: 500,
+                        fontSize: 11,
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((row) => {
+                  const cfg = STATUS_CONFIG[row.status as OrderStatus] ?? { label: row.status, color: "gray" };
+                  return (
+                    <tr
+                      key={row.id}
+                      style={{ borderBottom: "1px solid var(--border)", transition: "background 120ms" }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--surface2, rgba(255,255,255,0.03))"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                    >
+                      <td style={{ padding: "12px 12px", color: "var(--text3)", whiteSpace: "nowrap" }}>
+                        {formatDate(row.createdAt)}
+                      </td>
+                      <td style={{ padding: "12px 12px", color: "var(--text)" }}>
+                        {row.supplierName}
+                      </td>
+                      <td style={{ padding: "12px 12px" }}>
+                        <Badge color={cfg.color} variant="light" size="sm">{cfg.label}</Badge>
+                      </td>
+                      <td style={{ padding: "12px 12px", color: "var(--text2)" }}>
+                        {row.articleCount}
+                      </td>
+                      <td style={{ padding: "12px 12px", color: "var(--text3)", whiteSpace: "nowrap" }}>
+                        {row.date ? row.date.split("-").reverse().join("/") : "-"}
+                      </td>
+                      <td style={{ padding: "12px 12px", color: "var(--text3)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                        {row.odooOrderName ?? "-"}
+                      </td>
+                      <td style={{ padding: "12px 12px" }}>
+                        <Group gap={4} wrap="nowrap">
+                          {row.status === "ERROR" && (
+                            <Tooltip label="Ver error" withArrow>
+                              <ActionIcon size="sm" variant="subtle" color="red" onClick={() => setErrorModal({ open: true, detail: row.errorDetail })}>
+                                <AlertTriangle size={14} />
+                              </ActionIcon>
+                            </Tooltip>
+                          )}
+                          {(row.status === "DRAFT" || row.status === "ERROR") && (
+                            <Tooltip label="Editar" withArrow>
+                              <ActionIcon size="sm" variant="subtle" color="amber" onClick={() => router.push(`/orders/${row.id}/edit`)}>
+                                <Edit2 size={14} />
+                              </ActionIcon>
+                            </Tooltip>
+                          )}
+                          {row.status === "DRAFT" && (
+                            <Tooltip label="Confirmar" withArrow>
+                              <ActionIcon size="sm" variant="filled" color="amber" loading={confirming === row.id} onClick={() => handleConfirm(row.id)}>
+                                <Send size={14} />
+                              </ActionIcon>
+                            </Tooltip>
+                          )}
+                          {row.status === "CONFIRMED" && (
+                            <Tooltip label="Ver" withArrow>
+                              <ActionIcon size="sm" variant="subtle" color="gray" onClick={() => router.push(`/orders/${row.id}/edit`)}>
+                                <Eye size={14} />
+                              </ActionIcon>
+                            </Tooltip>
+                          )}
+                          <Tooltip label="Duplicar" withArrow>
+                            <ActionIcon size="sm" variant="subtle" color="gray" loading={duplicating === row.id} onClick={() => handleDuplicate(row.id)}>
+                              <Copy size={14} />
+                            </ActionIcon>
+                          </Tooltip>
+                          {(row.status === "DRAFT" || row.status === "ERROR") && (
+                            <Tooltip label="Eliminar" withArrow>
+                              <ActionIcon size="sm" variant="subtle" color="red" onClick={() => setDeleteConfirm(row.id)}>
+                                <Trash2 size={14} />
+                              </ActionIcon>
+                            </Tooltip>
+                          )}
+                        </Group>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
           <Group justify="space-between" mt="md">
             <Text size="xs" c="dimmed">
               {total} orden{total !== 1 ? "es" : ""}
             </Text>
             <Group gap="xs">
-              <Button
-                variant="subtle"
-                color="gray"
-                size="xs"
-                disabled={offset === 0}
-                onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-              >
+              <Button variant="subtle" color="gray" size="xs" disabled={offset === 0} onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}>
                 ← Anterior
               </Button>
-              <Button
-                variant="subtle"
-                color="gray"
-                size="xs"
-                disabled={offset + PAGE_SIZE >= total}
-                onClick={() => setOffset((o) => o + PAGE_SIZE)}
-              >
+              <Button variant="subtle" color="gray" size="xs" disabled={offset + PAGE_SIZE >= total} onClick={() => setOffset((o) => o + PAGE_SIZE)}>
                 Siguiente →
               </Button>
             </Group>

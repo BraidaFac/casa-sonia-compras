@@ -343,6 +343,7 @@ export default function NewOrderPage() {
         articles={articles}
         totalUnits={totals.units}
         totalAmount={totals.amount}
+        onBack={() => router.push("/orders")}
       />
 
       <div

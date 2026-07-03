@@ -1,6 +1,7 @@
 "use client";
 import { Badge, Group, Text } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
+import { ArrowLeft } from "lucide-react";
 import type { Article, Supplier } from "@/types";
 
 function getBrandFromArticles(articles: Article[]): string | null {
@@ -19,6 +20,7 @@ interface Props {
   articles: Article[];
   totalUnits: number;
   totalAmount: number;
+  onBack?: () => void;
 }
 
 const SEP = (
@@ -38,6 +40,7 @@ export function OrderStickyBar({
   articles,
   totalUnits,
   totalAmount,
+  onBack,
 }: Props) {
   const brand = getBrandFromArticles(articles);
   const isMobile = useMediaQuery("(max-width: 639px)");
@@ -58,6 +61,28 @@ export function OrderStickyBar({
         overflow: "hidden",
       }}
     >
+      {onBack && (
+        <button
+          onClick={onBack}
+          aria-label="Volver"
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: "var(--text3)",
+            display: "flex",
+            alignItems: "center",
+            padding: "4px 6px 4px 0",
+            flexShrink: 0,
+            transition: "color 120ms ease",
+          }}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--text)")}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--text3)")}
+        >
+          <ArrowLeft size={16} />
+        </button>
+      )}
+
       <Text
         size="xs"
         c="dimmed"

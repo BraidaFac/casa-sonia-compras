@@ -3,11 +3,9 @@ import { useState, useEffect, useCallback } from "react";
 import { Badge, Button, Group, Select, Text } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import "dayjs/locale/es";
-import { OrdersTable } from "@/components/orders/OrdersTable";
 import { SupplierSearch } from "@/components/orders/SupplierSearch";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import type { Supplier } from "@/types";
-import type { ColDef } from "ag-grid-community";
 
 const PAGE_SIZE = 30;
 
@@ -63,40 +61,21 @@ export default function OdooOrdersPage() {
     fetchOrders();
   }, [fetchOrders]);
 
-  const columnDefs: ColDef<OCSummary>[] = [
-    { headerName: "N° Orden", field: "name", width: 130 },
-    {
-      headerName: "Proveedor",
-      flex: 1,
-      minWidth: 160,
-      valueGetter: (p) => Array.isArray(p.data?.partner_id) ? p.data.partner_id[1] : "",
-    },
-    {
-      headerName: "Estado",
-      field: "state",
-      width: 130,
-      cellRenderer: (p: { value: string }) => {
-        const cfg = STATE_LABELS[p.value] ?? { label: p.value, color: "gray" };
-        return <Badge color={cfg.color} variant="light" size="sm">{cfg.label}</Badge>;
-      },
-    },
-    { headerName: "Fecha", field: "date_order", width: 120, valueFormatter: (p) => formatDate(p.value) },
-    {
-      headerName: "Total",
-      field: "amount_total",
-      width: 140,
-      type: "numericColumn",
-      valueFormatter: (p) => `$${(p.value as number).toLocaleString("es-AR", { minimumFractionDigits: 2 })}`,
-    },
-  ];
-
   return (
     <div style={{ padding: "24px 24px 80px" }}>
-      <h1 style={{ margin: "0 0 20px", fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, color: "var(--text)" }}>
-        Historial Odoo
-      </h1>
-      <Text size="sm" c="dimmed" mb="lg">Vista de solo lectura de órdenes en Odoo.</Text>
+      {/* Header */}
+      <Group justify="space-between" align="center" mb="xl">
+        <div>
+          <h1 style={{ margin: 0, fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, color: "var(--text)" }}>
+            Historial Odoo
+          </h1>
+          <Text size="xs" c="dimmed" mt={2}>
+            Vista de solo lectura de órdenes en Odoo.
+          </Text>
+        </div>
+      </Group>
 
+      {/* Filters */}
       <Group mb="lg" gap="md" align="flex-end" wrap="wrap">
         <div>
           <Text size="xs" c="dimmed" fw={500} mb={4}>Proveedor</Text>
@@ -110,23 +89,108 @@ export default function OdooOrdersPage() {
             { value: "sent", label: "Enviada" },
             { value: "purchase", label: "Confirmada" },
           ]}
-          value={stateFilter} onChange={setStateFilter} clearable w={160} size="sm"
+          value={stateFilter}
+          onChange={setStateFilter}
+          clearable
+          w={160}
+          size="sm"
         />
-        <DatePickerInput label={<Text size="xs" c="dimmed" fw={500}>Desde</Text>}
-          value={dateFrom} onChange={(v) => setDateFrom(v as Date | null)}
-          valueFormat="DD/MM/YYYY" locale="es" clearable w={150} size="sm" />
-        <DatePickerInput label={<Text size="xs" c="dimmed" fw={500}>Hasta</Text>}
-          value={dateTo} onChange={(v) => setDateTo(v as Date | null)}
-          valueFormat="DD/MM/YYYY" locale="es" clearable w={150} size="sm" />
+        <DatePickerInput
+          label={<Text size="xs" c="dimmed" fw={500}>Desde</Text>}
+          value={dateFrom}
+          onChange={(v) => setDateFrom(v as Date | null)}
+          valueFormat="DD/MM/YYYY"
+          locale="es"
+          clearable
+          w={150}
+          size="sm"
+        />
+        <DatePickerInput
+          label={<Text size="xs" c="dimmed" fw={500}>Hasta</Text>}
+          value={dateTo}
+          onChange={(v) => setDateTo(v as Date | null)}
+          valueFormat="DD/MM/YYYY"
+          locale="es"
+          clearable
+          w={150}
+          size="sm"
+        />
       </Group>
 
       {loading ? (
         <div style={{ display: "flex", gap: 8, padding: 48, justifyContent: "center", color: "var(--text2)" }}>
           <LoadingSpinner size={20} /> Cargando desde Odoo...
         </div>
+      ) : orders.length === 0 ? (
+        <div
+          style={{
+            textAlign: "center",
+            padding: "64px 24px",
+            color: "var(--text3)",
+            border: "1px dashed var(--border)",
+            borderRadius: 8,
+          }}
+        >
+          <Text size="sm">No hay órdenes</Text>
+        </div>
       ) : (
         <>
-          <OrdersTable rowData={orders} columnDefs={columnDefs} height={520} />
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: "var(--font-sans)" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                  {["N° Orden", "Proveedor", "Estado", "Fecha", "Total"].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: "10px 12px",
+                        textAlign: "left",
+                        color: "var(--text3)",
+                        fontWeight: 500,
+                        fontSize: 11,
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((row) => {
+                  const cfg = STATE_LABELS[row.state] ?? { label: row.state, color: "gray" };
+                  const proveedorName = Array.isArray(row.partner_id) ? row.partner_id[1] : "";
+                  return (
+                    <tr
+                      key={row.id}
+                      style={{ borderBottom: "1px solid var(--border)", transition: "background 120ms" }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--surface2, rgba(255,255,255,0.03))"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                    >
+                      <td style={{ padding: "12px 12px", color: "var(--text3)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                        {row.name}
+                      </td>
+                      <td style={{ padding: "12px 12px", color: "var(--text)" }}>
+                        {proveedorName}
+                      </td>
+                      <td style={{ padding: "12px 12px" }}>
+                        <Badge color={cfg.color} variant="light" size="sm">{cfg.label}</Badge>
+                      </td>
+                      <td style={{ padding: "12px 12px", color: "var(--text3)", whiteSpace: "nowrap" }}>
+                        {formatDate(row.date_order)}
+                      </td>
+                      <td style={{ padding: "12px 12px", color: "var(--text2)", fontFamily: "var(--font-mono)", textAlign: "right" }}>
+                        ${row.amount_total.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
           <Group justify="space-between" mt="md">
             <Text size="xs" c="dimmed">{total} orden{total !== 1 ? "es" : ""}</Text>
             <Group gap="xs">
