@@ -44,7 +44,7 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   // Confirmed inventories: return the stored snapshot taken at confirmation time
   if (inv.status === "CONFIRMADO" && inv.confirmationSummary) {
-    return NextResponse.json(inv.confirmationSummary as SummaryDataResponse);
+    return NextResponse.json(inv.confirmationSummary as unknown as SummaryDataResponse);
   }
 
   const articles = (inv.articles as unknown as InventoryArticle[]) ?? [];
