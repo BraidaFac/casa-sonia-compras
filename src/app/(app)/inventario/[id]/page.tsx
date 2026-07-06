@@ -84,6 +84,8 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
 
   // On-demand barcode cache: prevents duplicate Odoo fetches for the same barcode
   const articleCache = useRef<Map<string, InventoryArticle>>(new Map());
+  // Track which productoIds have already been prefetched to avoid duplicate requests
+  const prefetchedTemplates = useRef<Set<number>>(new Set());
 
   // Refocus hidden input only when no real input is focused
   useEffect(() => {
@@ -150,7 +152,7 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
     // Fetch from API
     setScanning(true);
     try {
-      const res = await fetch(`/api/inventario/barcode?code=${encodeURIComponent(trimmed)}`);
+      const res = await fetch(`/api/inventario/barcode?code=${encodeURIComponent(trimmed)}&warehouseId=${inventory.warehouseId}`);
       if (!res.ok) {
         setScanError(`Producto no encontrado: ${trimmed}`);
         return;
@@ -160,6 +162,23 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
       const updated = [...articles, article];
       setArticles(updated);
       await persistArticles(updated);
+
+      // Background prefetch: cache all sibling variants of this template
+      if (article.productoId && !prefetchedTemplates.current.has(article.productoId)) {
+        prefetchedTemplates.current.add(article.productoId);
+        void fetch(
+          `/api/inventario/variants?productoId=${article.productoId}&warehouseId=${inventory.warehouseId}`,
+        )
+          .then((r) => (r.ok ? r.json() : null))
+          .then((siblings: InventoryArticle[] | null) => {
+            if (!siblings) return;
+            for (const sibling of siblings) {
+              if (sibling.barcode && !articleCache.current.has(sibling.barcode)) {
+                articleCache.current.set(sibling.barcode, sibling);
+              }
+            }
+          });
+      }
     } finally {
       setScanning(false);
     }
@@ -454,6 +473,7 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
                     { label: "Precio Venta", w: 130 },
                     { label: "Costo", w: 120 },
                     { label: "Últ. Compra", w: 120 },
+                    { label: "En Mano", w: 80 },
                     { label: "Cantidad", w: 140 },
                     { label: "", w: 64 },
                   ].map(({ label, w }) => (
@@ -520,6 +540,15 @@ function ManualBarcodeModal({
   onSubmit: () => void;
   onClose: () => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (opened) {
+      const t = setTimeout(() => inputRef.current?.focus(), 80);
+      return () => clearTimeout(t);
+    }
+  }, [opened]);
+
   return (
     <Modal
       opened={opened}
@@ -555,7 +584,7 @@ function ManualBarcodeModal({
       </Text>
 
       <TextInput
-        autoFocus
+        ref={inputRef}
         placeholder="7790001234567"
         value={value}
         onChange={(e) => onChange(e.currentTarget.value)}
@@ -751,6 +780,23 @@ function ArticleRow({ article, readonly, isSaving, onSave, onQtyChange, onRemove
             }}
           />
         )}
+      </td>
+
+      {/* En Mano */}
+      <td style={{ padding: "10px 12px", textAlign: "right" }}>
+        <span
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 13,
+            fontWeight: 600,
+            color:
+              local.qty === local.qtyOnHand
+                ? "var(--mantine-color-green-5)"
+                : "var(--mantine-color-red-5)",
+          }}
+        >
+          {article.qtyOnHand}
+        </span>
       </td>
 
       {/* Cantidad con botones +/- */}

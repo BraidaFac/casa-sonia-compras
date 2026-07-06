@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code")?.trim();
+  const warehouseId = searchParams.get("warehouseId");
 
   if (!code) {
     return NextResponse.json({ error: "code es requerido" }, { status: 400 });
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
       "id", "name", "barcode",
       "list_price", "standard_price",
       "product_tmpl_id", "product_template_attribute_value_ids",
-      "categ_id", "qty_available",
+      "categ_id",
     ],
   ) as {
     id: number;
@@ -34,7 +35,6 @@ export async function GET(request: NextRequest) {
     product_tmpl_id: [number, string] | false;
     product_template_attribute_value_ids: number[];
     categ_id: [number, string] | false;
-    qty_available: number;
   }[];
 
   if (products.length === 0) {
@@ -50,6 +50,29 @@ export async function GET(request: NextRequest) {
   function extractLocalName(completeName: string): string {
     const parts = completeName.split(" / ");
     return parts[parts.length - 1] ?? completeName;
+  }
+
+  // Resolve warehouse-specific qty on hand via stock.quant
+  let qtyOnHand = 0;
+  if (warehouseId) {
+    const locations = await odoo.searchRead(
+      "stock.location",
+      [
+        ["warehouse_id", "=", parseInt(warehouseId)],
+        ["usage", "=", "internal"],
+        ["active", "=", true],
+      ],
+      ["id"],
+    ) as { id: number }[];
+    const locationIds = locations.map((l) => l.id);
+    if (locationIds.length > 0) {
+      const quants = await odoo.searchRead(
+        "stock.quant",
+        [["product_id", "=", p.id], ["location_id", "in", locationIds]],
+        ["quantity"],
+      ) as { quantity: number }[];
+      qtyOnHand = quants.reduce((s, q) => s + (q.quantity ?? 0), 0);
+    }
   }
 
   // Parallel: attr metadata + last purchase date + category parent
@@ -139,7 +162,7 @@ export async function GET(request: NextRequest) {
     categoryName: categ?.name ?? extractLocalName(categNameRaw),
     categoryParentId,
     categoryParentName,
-    qtyOnHand: p.qty_available ?? 0,
+    qtyOnHand,
   };
 
   return NextResponse.json(article);

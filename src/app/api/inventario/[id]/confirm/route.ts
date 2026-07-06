@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { odoo } from "@/lib/odoo";
+import { buildConfirmationSummary } from "@/lib/inventoryConfirmationSummary";
 import type { InventoryArticle } from "@/types";
 
 type Params = { params: Promise<{ id: string }> };
@@ -66,6 +67,9 @@ export async function POST(request: NextRequest, { params }: Params) {
     const locationId = locations[0].id;
     const loadedProductIds = new Set(includedArticles.map((a) => a.varianteId));
 
+    // ── Capture stock snapshot BEFORE applying any changes to Odoo ────────────
+    const confirmationSummary = await buildConfirmationSummary(articles, inv.warehouseId);
+
     // ── Apply counted articles ────────────────────────────────────────────────
     for (const article of includedArticles) {
       const quants = await odoo.searchRead(
@@ -79,8 +83,8 @@ export async function POST(request: NextRequest, { params }: Params) {
 
       const quantFields: Record<string, unknown> = {
         inventory_quantity: article.qty,
+        inventory_quantity_set: true,
       };
-      if (inv.countDate) quantFields.inventory_date = inv.countDate;
 
       if (quants.length > 0) {
         await odoo.write("stock.quant", [quants[0].id], quantFields);
@@ -116,15 +120,20 @@ export async function POST(request: NextRequest, { params }: Params) {
         ) as { id: number }[];
 
         if (quants.length > 0) {
-          await odoo.write("stock.quant", [quants[0].id], { inventory_quantity: 0 });
+          const zeroFields: Record<string, unknown> = {
+            inventory_quantity: 0,
+            inventory_quantity_set: true,
+          };
+          await odoo.write("stock.quant", [quants[0].id], zeroFields);
+          await odoo.call("stock.quant", "action_apply_inventory", { ids: [quants[0].id] });
         }
       }
     }
 
-    // ── Mark confirmed ────────────────────────────────────────────────────────
+    // ── Mark confirmed + persist snapshot ────────────────────────────────────
     await prisma.inventory.update({
       where: { id: parseInt(id) },
-      data: { status: "CONFIRMADO", errorDetail: null },
+      data: { status: "CONFIRMADO", errorDetail: null, confirmationSummary: JSON.parse(JSON.stringify(confirmationSummary)) },
     });
 
     // ── Optionally spawn new draft for excluded categories ────────────────────
@@ -144,7 +153,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     return NextResponse.json({ ok: true, newDraftId });
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = (error instanceof Error ? error.message : String(error)).slice(0, 2000);
     await prisma.inventory.update({
       where: { id: parseInt(id) },
       data: { errorDetail: detail },

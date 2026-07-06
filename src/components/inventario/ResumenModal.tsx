@@ -57,7 +57,7 @@ export function ResumenModal({
         fetch(`/api/inventario/${inventory.id}/summary-data`).then((r) =>
           r.json(),
         ),
-      enabled: opened && isBorrador,
+      enabled: opened,
       staleTime: 0,
       gcTime: 0,
     });
@@ -584,11 +584,18 @@ function ProductTable({
     }),
   );
 
-  // Counted/partial first, then uncounted; alpha within each bucket
+  // Counted/partial first, then uncounted; within uncounted: positive diff → negative diff → zero diff (by abs impact desc), then alpha
+  const diffBucket = (diff: number) => diff > 0 ? 0 : diff < 0 ? 1 : 2;
   groups.sort((a, b) => {
     const aCounted = a.countedCount > 0 ? 0 : 1;
     const bCounted = b.countedCount > 0 ? 0 : 1;
     if (aCounted !== bCounted) return aCounted - bCounted;
+    if (aCounted === 1) {
+      const aBucket = diffBucket(a.aggDiff);
+      const bBucket = diffBucket(b.aggDiff);
+      if (aBucket !== bBucket) return aBucket - bBucket;
+      if (Math.abs(a.aggDiff) !== Math.abs(b.aggDiff)) return Math.abs(b.aggDiff) - Math.abs(a.aggDiff);
+    }
     return a.templateName.localeCompare(b.templateName, "es");
   });
 
@@ -889,14 +896,14 @@ function VariantRow({
           textAlign: "right",
         }}
       >
-        {!isCounted ? "" : diff === 0 ? "0" : diff > 0 ? `+${diff}` : String(diff)}
+        {diff === 0 ? (isCounted ? "0" : "") : diff > 0 ? `+${diff}` : String(diff)}
       </span>
 
       <span
         style={{
           fontSize: 11,
           fontFamily: "var(--font-mono)",
-          color: "var(--text3)",
+          color: diffColor,
           textAlign: "right",
         }}
       >
