@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { notifications } from "@mantine/notifications";
 import {
   Modal,
   Table,
@@ -151,7 +152,10 @@ export function ConfirmModal({ orderId, supplier, date, articles, selectedWareho
           orientation: pdfOrientation,
         }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        notifications.show({ color: "red", title: "Error al generar PDF", message: "No se pudo generar el PDF del proveedor." });
+        return;
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -182,7 +186,10 @@ export function ConfirmModal({ orderId, supplier, date, articles, selectedWareho
           orientation: pdfOrientation,
         }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        notifications.show({ color: "red", title: "Error al generar PDF", message: "No se pudo generar el PDF interno." });
+        return;
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

@@ -13,6 +13,9 @@ import {
   Badge,
   Alert,
   Modal,
+  Combobox,
+  useCombobox,
+  ScrollArea,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import "dayjs/locale/es";
@@ -25,6 +28,14 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import type { InventoryArticle, LocalInventory } from "@/types";
 
 type Params = Promise<{ id: string }>;
+
+interface VariantSearchResult {
+  varianteId: number;
+  name: string;
+  barcode: string | null;
+  defaultCode: string | null;
+  qtyOnHand: number;
+}
 
 function formatCurrency(n: number) {
   return n.toLocaleString("es-AR", {
@@ -69,7 +80,6 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
 
   const [articles, setArticles] = useState<InventoryArticle[]>(inventory.articles);
   const [scanBuffer, setScanBuffer] = useState("");
-  const [manualInput, setManualInput] = useState("");
   const [showManual, setShowManual] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -128,22 +138,21 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
     if (!trimmed) return;
     setScanError(null);
 
-    // Already in list → increment qty
+    // Already in list → increment qty and move to top
     const existing = articles.find((a) => a.barcode === trimmed);
     if (existing) {
-      const updated = articles.map((a) =>
-        a.barcode === trimmed ? { ...a, qty: a.qty + 1 } : a,
-      );
+      const incremented = { ...existing, qty: existing.qty + 1 };
+      const updated = [incremented, ...articles.filter((a) => a.barcode !== trimmed)];
       setArticles(updated);
       await persistArticles(updated);
       return;
     }
 
-    // Cache hit → add immediately
+    // Cache hit → prepend
     const cached = articleCache.current.get(trimmed);
     if (cached) {
       const article: InventoryArticle = { ...cached, qty: 1 };
-      const updated = [...articles, article];
+      const updated = [article, ...articles];
       setArticles(updated);
       await persistArticles(updated);
       return;
@@ -159,7 +168,7 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
       }
       const article = (await res.json()) as InventoryArticle;
       articleCache.current.set(trimmed, article);
-      const updated = [...articles, article];
+      const updated = [article, ...articles];
       setArticles(updated);
       await persistArticles(updated);
 
@@ -194,12 +203,54 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
     }
   }
 
-  async function handleManualSubmit() {
-    const code = manualInput.trim();
-    if (!code) return;
-    setManualInput("");
+  async function handleAddVariant(varianteId: number) {
     setShowManual(false);
-    await lookupBarcode(code);
+    setScanError(null);
+
+    const existing = articles.find((a) => a.varianteId === varianteId);
+    if (existing) {
+      const incremented = { ...existing, qty: existing.qty + 1 };
+      const updated = [incremented, ...articles.filter((a) => a.varianteId !== varianteId)];
+      setArticles(updated);
+      await persistArticles(updated);
+      return;
+    }
+
+    setScanning(true);
+    try {
+      const res = await fetch(
+        `/api/inventario/barcode?varianteId=${varianteId}&warehouseId=${inventory.warehouseId}`,
+      );
+      if (!res.ok) {
+        setScanError("Producto no encontrado");
+        return;
+      }
+      const article = (await res.json()) as InventoryArticle;
+      if (article.barcode) {
+        articleCache.current.set(article.barcode, article);
+      }
+      const updated = [article, ...articles];
+      setArticles(updated);
+      await persistArticles(updated);
+
+      if (article.productoId && !prefetchedTemplates.current.has(article.productoId)) {
+        prefetchedTemplates.current.add(article.productoId);
+        void fetch(
+          `/api/inventario/variants?productoId=${article.productoId}&warehouseId=${inventory.warehouseId}`,
+        )
+          .then((r) => (r.ok ? r.json() : null))
+          .then((siblings: InventoryArticle[] | null) => {
+            if (!siblings) return;
+            for (const sibling of siblings) {
+              if (sibling.barcode && !articleCache.current.has(sibling.barcode)) {
+                articleCache.current.set(sibling.barcode, sibling);
+              }
+            }
+          });
+      }
+    } finally {
+      setScanning(false);
+    }
   }
 
   async function saveArticle(updated: InventoryArticle, original: InventoryArticle) {
@@ -397,16 +448,14 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
         />
       )}
 
-      {/* Manual barcode modal */}
-      <ManualBarcodeModal
+      {/* Manual search modal */}
+      <VariantSearchModal
         opened={showManual}
-        value={manualInput}
-        onChange={setManualInput}
-        onSubmit={() => void handleManualSubmit()}
-        onClose={() => {
-          setShowManual(false);
-          setManualInput("");
-        }}
+        warehouseId={inventory.warehouseId}
+        existingVarianteIds={new Set(articles.map((a) => a.varianteId))}
+        onSelectVariant={(varianteId) => void handleAddVariant(varianteId)}
+        onSubmitBarcode={(code) => { setShowManual(false); void lookupBarcode(code); }}
+        onClose={() => setShowManual(false)}
       />
 
       {/* Sticky bottom action bar */}
@@ -525,34 +574,102 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
   );
 }
 
-// ── ManualBarcodeModal ────────────────────────────────────────────────────────
+// ── VariantSearchModal ────────────────────────────────────────────────────────
 
-function ManualBarcodeModal({
+function VariantSearchModal({
   opened,
-  value,
-  onChange,
-  onSubmit,
+  warehouseId,
+  existingVarianteIds,
+  onSelectVariant,
+  onSubmitBarcode,
   onClose,
 }: {
   opened: boolean;
-  value: string;
-  onChange: (v: string) => void;
-  onSubmit: () => void;
+  warehouseId: number;
+  existingVarianteIds: Set<number>;
+  onSelectVariant: (varianteId: number) => void;
+  onSubmitBarcode: (code: string) => void;
   onClose: () => void;
 }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<VariantSearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const combobox = useCombobox({
+    onDropdownClose: () => combobox.resetSelectedOption(),
+  });
+
+  // Reset on modal open
   useEffect(() => {
-    if (opened) {
-      const t = setTimeout(() => inputRef.current?.focus(), 80);
-      return () => clearTimeout(t);
+    if (!opened) return;
+    setQuery(""); // eslint-disable-line react-hooks/set-state-in-effect
+    setResults([]); // eslint-disable-line react-hooks/set-state-in-effect
+    combobox.closeDropdown();
+    const t = setTimeout(() => inputRef.current?.focus(), 80);
+    return () => clearTimeout(t);
+  }, [opened]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Debounce + fetch
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!query.trim() || query.trim().length < 2) {
+      setResults([]); // eslint-disable-line react-hooks/set-state-in-effect
+      combobox.closeDropdown();
+      return;
     }
-  }, [opened]);
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(
+          `/api/inventario/variant-search?q=${encodeURIComponent(query.trim())}&warehouseId=${warehouseId}`,
+        );
+        if (res.ok) {
+          const data = (await res.json()) as VariantSearchResult[];
+          setResults(data);
+          if (data.length > 0) combobox.openDropdown();
+          else combobox.closeDropdown();
+        }
+      } finally {
+        setLoading(false);
+      }
+    }, 400);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [query, warehouseId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleSelect(varianteId: number) {
+    combobox.closeDropdown();
+    setQuery("");
+    setResults([]);
+    onSelectVariant(varianteId);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    // Barcode gun: Enter when dropdown closed (fast scan before debounce fires)
+    if (e.key === "Enter" && query.trim() && !combobox.dropdownOpened) {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      const code = query.trim();
+      setQuery("");
+      setResults([]);
+      onSubmitBarcode(code);
+    }
+    // Tab: move selection down (same as ArrowDown)
+    if (e.key === "Tab" && combobox.dropdownOpened) {
+      e.preventDefault();
+      combobox.selectNextOption();
+    }
+  }
+
+  const noResults = !loading && query.trim().length >= 2 && results.length === 0;
 
   return (
     <Modal
       opened={opened}
       onClose={onClose}
+      zIndex={300}
       title={
         <Group gap={10} align="center">
           <div
@@ -571,48 +688,95 @@ function ManualBarcodeModal({
             <ScanBarcode size={16} color="var(--mantine-color-amber-4)" />
           </div>
           <Text fw={700} size="md" style={{ fontFamily: "var(--font-display)" }}>
-            Ingresar Código
+            Buscar Artículo
           </Text>
         </Group>
       }
-      centered
-      size="sm"
+      size="md"
       overlayProps={{ blur: 2, backgroundOpacity: 0.45 }}
+      styles={{ inner: { alignItems: "flex-start", paddingTop: 60 } }}
     >
-      <Text size="xs" c="dimmed" mb="md">
-        Ingresá el código de barras o usá la pistola con el campo activo.
+      <Text size="xs" c="dimmed" mb="sm">
+        Buscá por descripción, referencia o talle. Combiná palabras: <em>remera 36</em>. Enter sin resultados = pistola.
       </Text>
 
-      <TextInput
-        ref={inputRef}
-        placeholder="7790001234567"
-        value={value}
-        onChange={(e) => onChange(e.currentTarget.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && value.trim()) onSubmit();
-        }}
-        size="lg"
-        styles={{
-          input: {
-            fontFamily: "var(--font-mono)",
-            fontSize: 15,
-            letterSpacing: "0.06em",
-          },
-        }}
-        mb="lg"
-      />
+      <Combobox
+        store={combobox}
+        onOptionSubmit={(val) => handleSelect(parseInt(val))}
+        zIndex={500}
+      >
+        <Combobox.Target>
+          <TextInput
+            ref={inputRef}
+            placeholder="Ej: remera azul, XL, 7790001234567…"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.currentTarget.value);
+              combobox.updateSelectedOptionIndex();
+            }}
+            onKeyDown={handleKeyDown}
+            rightSection={loading ? <Loader size={14} color="amber" /> : null}
+            autoComplete="off"
+          />
+        </Combobox.Target>
 
-      <Group justify="flex-end" gap="xs" pt="sm" style={{ borderTop: "1px solid var(--border)" }}>
+        <Combobox.Dropdown hidden={results.length === 0}>
+          <Combobox.Options>
+            <ScrollArea.Autosize mah={320} type="scroll">
+              {results.map((r) => {
+                const alreadyInList = existingVarianteIds.has(r.varianteId);
+                const meta = [r.defaultCode, r.barcode].filter(Boolean).join(" · ");
+                return (
+                  <Combobox.Option key={r.varianteId} value={String(r.varianteId)}>
+                    <Group justify="space-between" wrap="nowrap" gap="xs">
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <Text
+                          size="sm"
+                          fw={500}
+                          style={{ lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                        >
+                          {r.name}
+                        </Text>
+                        {meta && (
+                          <Text
+                            size="xs"
+                            c="dimmed"
+                            style={{ fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                          >
+                            {meta}
+                          </Text>
+                        )}
+                      </div>
+                      <Group gap={4} style={{ flexShrink: 0 }}>
+                        {r.qtyOnHand > 0 && (
+                          <Badge size="xs" variant="light" color="blue" radius="sm">
+                            Stock: {r.qtyOnHand}
+                          </Badge>
+                        )}
+                        {alreadyInList && (
+                          <Badge size="xs" variant="light" color="amber" radius="sm">
+                            En lista
+                          </Badge>
+                        )}
+                      </Group>
+                    </Group>
+                  </Combobox.Option>
+                );
+              })}
+            </ScrollArea.Autosize>
+          </Combobox.Options>
+        </Combobox.Dropdown>
+      </Combobox>
+
+      {noResults && (
+        <Text size="xs" c="dimmed" mt="xs" style={{ paddingLeft: 2 }}>
+          Sin resultados para &quot;{query.trim()}&quot;
+        </Text>
+      )}
+
+      <Group justify="flex-end" pt="sm" mt="md" style={{ borderTop: "1px solid var(--mantine-color-dark-5)" }}>
         <Button size="sm" variant="subtle" color="gray" onClick={onClose}>
           Cancelar
-        </Button>
-        <Button
-          size="sm"
-          color="amber"
-          disabled={!value.trim()}
-          onClick={onSubmit}
-        >
-          Agregar Artículo
         </Button>
       </Group>
     </Modal>

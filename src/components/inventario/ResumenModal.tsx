@@ -11,7 +11,9 @@ import {
   Radio,
   Stack,
   Loader,
+  Switch,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { Check, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { InventoryStatusBadge } from "@/components/inventario/InventoryStatusBadge";
@@ -47,6 +49,7 @@ export function ResumenModal({
   const [splitAction, setSplitAction] = useState<"discard" | "new_draft">(
     "discard",
   );
+  const [zeroUncounted, setZeroUncounted] = useState(true);
 
   const isBorrador = inventory.status === "BORRADOR";
 
@@ -106,13 +109,26 @@ export function ResumenModal({
       const res = await fetch(`/api/inventario/${inventory.id}/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ excludedCategoryIds, spawnNewDraft }),
+        body: JSON.stringify({
+          excludedCategoryIds,
+          spawnNewDraft,
+          zeroUncounted,
+        }),
       });
       if (!res.ok) {
         const err = await res.json();
-        console.error("Confirm error:", err);
+        notifications.show({
+          color: "red",
+          title: "Error al confirmar",
+          message: err?.error ?? "No se pudo confirmar el inventario.",
+        });
         return;
       }
+      notifications.show({
+        color: "green",
+        title: "Inventario confirmado",
+        message: "El inventario fue sincronizado con Odoo.",
+      });
       afterAction();
     } finally {
       setLoading(false);
@@ -133,7 +149,7 @@ export function ResumenModal({
         opened={opened}
         onClose={handleClose}
         title={
-          <Group gap={10} align="center">
+          <Group gap={10} align="center" wrap="nowrap">
             <Text
               fw={700}
               size="md"
@@ -142,6 +158,22 @@ export function ResumenModal({
               Resumen #{inventory.id}
             </Text>
             <InventoryStatusBadge status={inventory.status} />
+            {isBorrador && (
+              <Switch
+                size="xs"
+                label="Llevar a cero no contados"
+                checked={zeroUncounted}
+                onChange={(e) => setZeroUncounted(e.currentTarget.checked)}
+                color="amber"
+                styles={{
+                  label: {
+                    fontSize: 11,
+                    color: "var(--text3)",
+                    cursor: "pointer",
+                  },
+                }}
+              />
+            )}
           </Group>
         }
         centered
@@ -200,6 +232,7 @@ export function ResumenModal({
                 articles={articles}
                 checkedIds={checkedCategoryIds}
                 setCheckedIds={setCheckedIds}
+                zeroUncounted={zeroUncounted}
               />
             </div>
           )}
@@ -325,11 +358,13 @@ function CategoryCheckboxList({
   articles,
   checkedIds,
   setCheckedIds,
+  zeroUncounted,
 }: {
   categories: SummaryCategory[];
   articles: InventoryArticle[];
   checkedIds: Set<number>;
   setCheckedIds: (v: Set<number>) => void;
+  zeroUncounted: boolean;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -345,6 +380,7 @@ function CategoryCheckboxList({
             else next.delete(cat.categoryId);
             setCheckedIds(next);
           }}
+          zeroUncounted={zeroUncounted}
         />
       ))}
     </div>
@@ -414,11 +450,13 @@ function LeafCategoryRow({
   articles,
   checked,
   onToggle,
+  zeroUncounted,
 }: {
   cat: SummaryCategory;
   articles: InventoryArticle[];
   checked: boolean;
   onToggle: (v: boolean) => void;
+  zeroUncounted: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -426,7 +464,10 @@ function LeafCategoryRow({
   const countedMap = new Map(catArticles.map((a) => [a.varianteId, a.qty]));
   const { aggDiff, aggCostDiff } = cat.products.reduce(
     (acc, p) => {
-      const diff = (countedMap.get(p.varianteId) ?? 0) - p.qtyOnHand;
+      const isCounted = countedMap.has(p.varianteId);
+      const diff = isCounted
+        ? countedMap.get(p.varianteId)! - p.qtyOnHand
+        : zeroUncounted ? -p.qtyOnHand : 0;
       return {
         aggDiff: acc.aggDiff + diff,
         aggCostDiff: acc.aggCostDiff + diff * p.cost,
@@ -486,7 +527,7 @@ function LeafCategoryRow({
             {cat.categoryName}
           </Text>
           <Text size="xs" c="dimmed" style={{ marginRight: 8 }}>
-            {countedCount} de {cat.products.length} artículos
+            {countedCount} de {cat.products.length} variantes
           </Text>
         </button>
         <div
@@ -505,7 +546,7 @@ function LeafCategoryRow({
             />
           )}
           <StatPill
-            label="Δ uds"
+            label="VAR."
             value={`${aggDiff > 0 ? "+" : ""}${aggDiff}`}
             sign={aggDiff}
           />
@@ -519,7 +560,7 @@ function LeafCategoryRow({
         </div>
       </div>
 
-      {expanded && <ProductTable cat={cat} countedMap={countedMap} />}
+      {expanded && <ProductTable cat={cat} countedMap={countedMap} zeroUncounted={zeroUncounted} />}
     </div>
   );
 }
@@ -552,15 +593,23 @@ interface ProductGroupData {
 function ProductTable({
   cat,
   countedMap,
+  zeroUncounted,
 }: {
   cat: SummaryCategory;
   countedMap: Map<number, number>;
+  zeroUncounted: boolean;
 }) {
   // Group variants by productoId (template)
-  const groupMap = new Map<number, { templateName: string; variants: SummaryProduct[] }>();
+  const groupMap = new Map<
+    number,
+    { templateName: string; variants: SummaryProduct[] }
+  >();
   for (const p of cat.products) {
     if (!groupMap.has(p.productoId)) {
-      groupMap.set(p.productoId, { templateName: extractTemplateName(p.name), variants: [] });
+      groupMap.set(p.productoId, {
+        templateName: extractTemplateName(p.name),
+        variants: [],
+      });
     }
     groupMap.get(p.productoId)!.variants.push(p);
   }
@@ -571,21 +620,30 @@ function ProductTable({
       templateName,
       variants,
       countedCount: variants.filter((v) => countedMap.has(v.varianteId)).length,
-      aggCounted: variants.reduce((s, v) => s + (countedMap.get(v.varianteId) ?? 0), 0),
-      aggOnHand: variants.reduce((s, v) => s + v.qtyOnHand, 0),
-      aggDiff: variants.reduce(
-        (s, v) => s + (countedMap.get(v.varianteId) ?? 0) - v.qtyOnHand,
+      aggCounted: variants.reduce(
+        (s, v) => s + (countedMap.get(v.varianteId) ?? 0),
         0,
       ),
+      aggOnHand: variants.reduce((s, v) => s + v.qtyOnHand, 0),
+      aggDiff: variants.reduce((s, v) => {
+        const isCounted = countedMap.has(v.varianteId);
+        const diff = isCounted
+          ? countedMap.get(v.varianteId)! - v.qtyOnHand
+          : zeroUncounted ? -v.qtyOnHand : 0;
+        return s + diff;
+      }, 0),
       aggCostDiff: variants.reduce((s, v) => {
-        const diff = (countedMap.get(v.varianteId) ?? 0) - v.qtyOnHand;
+        const isCounted = countedMap.has(v.varianteId);
+        const diff = isCounted
+          ? countedMap.get(v.varianteId)! - v.qtyOnHand
+          : zeroUncounted ? -v.qtyOnHand : 0;
         return s + diff * v.cost;
       }, 0),
     }),
   );
 
   // Counted/partial first, then uncounted; within uncounted: positive diff → negative diff → zero diff (by abs impact desc), then alpha
-  const diffBucket = (diff: number) => diff > 0 ? 0 : diff < 0 ? 1 : 2;
+  const diffBucket = (diff: number) => (diff > 0 ? 0 : diff < 0 ? 1 : 2);
   groups.sort((a, b) => {
     const aCounted = a.countedCount > 0 ? 0 : 1;
     const bCounted = b.countedCount > 0 ? 0 : 1;
@@ -594,7 +652,8 @@ function ProductTable({
       const aBucket = diffBucket(a.aggDiff);
       const bBucket = diffBucket(b.aggDiff);
       if (aBucket !== bBucket) return aBucket - bBucket;
-      if (Math.abs(a.aggDiff) !== Math.abs(b.aggDiff)) return Math.abs(b.aggDiff) - Math.abs(a.aggDiff);
+      if (Math.abs(a.aggDiff) !== Math.abs(b.aggDiff))
+        return Math.abs(b.aggDiff) - Math.abs(a.aggDiff);
     }
     return a.templateName.localeCompare(b.templateName, "es");
   });
@@ -641,7 +700,7 @@ function ProductTable({
       {/* Counted / partial groups */}
       <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
         {countedGroups.map((g) => (
-          <ProductGroup key={g.productoId} group={g} countedMap={countedMap} />
+          <ProductGroup key={g.productoId} group={g} countedMap={countedMap} zeroUncounted={zeroUncounted} />
         ))}
       </div>
 
@@ -673,7 +732,12 @@ function ProductTable({
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             {uncountedGroups.map((g) => (
-              <ProductGroup key={g.productoId} group={g} countedMap={countedMap} />
+              <ProductGroup
+                key={g.productoId}
+                group={g}
+                countedMap={countedMap}
+                zeroUncounted={zeroUncounted}
+              />
             ))}
           </div>
         </>
@@ -687,9 +751,11 @@ function ProductTable({
 function ProductGroup({
   group,
   countedMap,
+  zeroUncounted,
 }: {
   group: ProductGroupData;
   countedMap: Map<number, number>;
+  zeroUncounted: boolean;
 }) {
   const [expanded, setExpanded] = useState(group.countedCount > 0);
   const isMulti = group.variants.length > 1;
@@ -700,6 +766,7 @@ function ProductGroup({
         variant={group.variants[0]}
         label={group.templateName}
         countedMap={countedMap}
+        zeroUncounted={zeroUncounted}
       />
     );
   }
@@ -716,23 +783,34 @@ function ProductGroup({
           alignItems: "center",
           gap: 7,
           width: "100%",
-          background: group.countedCount > 0
-            ? "color-mix(in srgb, var(--mantine-color-amber-6) 7%, transparent)"
-            : "color-mix(in srgb, var(--mantine-color-dark-5) 40%, transparent)",
+          background:
+            group.countedCount > 0
+              ? "color-mix(in srgb, var(--mantine-color-amber-6) 7%, transparent)"
+              : "color-mix(in srgb, var(--mantine-color-dark-5) 40%, transparent)",
           border: "1px solid",
-          borderColor: group.countedCount > 0
-            ? "color-mix(in srgb, var(--mantine-color-amber-6) 20%, transparent)"
-            : "var(--mantine-color-dark-4)",
+          borderColor:
+            group.countedCount > 0
+              ? "color-mix(in srgb, var(--mantine-color-amber-6) 20%, transparent)"
+              : "var(--mantine-color-dark-4)",
           borderRadius: 5,
           padding: "5px 8px",
           cursor: "pointer",
           textAlign: "left",
         }}
       >
-        {expanded
-          ? <ChevronDown size={11} color="var(--mantine-color-amber-5)" style={{ flexShrink: 0 }} />
-          : <ChevronRight size={11} color="var(--mantine-color-amber-5)" style={{ flexShrink: 0 }} />
-        }
+        {expanded ? (
+          <ChevronDown
+            size={11}
+            color="var(--mantine-color-amber-5)"
+            style={{ flexShrink: 0 }}
+          />
+        ) : (
+          <ChevronRight
+            size={11}
+            color="var(--mantine-color-amber-5)"
+            style={{ flexShrink: 0 }}
+          />
+        )}
 
         <span
           style={{
@@ -766,12 +844,32 @@ function ProductGroup({
         </span>
 
         {group.countedCount > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-            <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--mantine-color-amber-4)", fontWeight: 700 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexShrink: 0,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 11,
+                fontFamily: "var(--font-mono)",
+                color: "var(--mantine-color-amber-4)",
+                fontWeight: 700,
+              }}
+            >
               {group.aggCounted}
             </span>
             <span style={{ fontSize: 10, color: "var(--text3)" }}>·</span>
-            <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text3)" }}>
+            <span
+              style={{
+                fontSize: 11,
+                fontFamily: "var(--font-mono)",
+                color: "var(--text3)",
+              }}
+            >
               {group.aggOnHand}
             </span>
             <StatPill
@@ -799,6 +897,7 @@ function ProductGroup({
               variant={v}
               label={extractVariantLabel(v.name) || v.name}
               countedMap={countedMap}
+              zeroUncounted={zeroUncounted}
             />
           ))}
         </div>
@@ -813,14 +912,18 @@ function VariantRow({
   variant,
   label,
   countedMap,
+  zeroUncounted,
 }: {
   variant: SummaryProduct;
   label: string;
   countedMap: Map<number, number>;
+  zeroUncounted: boolean;
 }) {
   const counted = countedMap.get(variant.varianteId) ?? 0;
   const isCounted = countedMap.has(variant.varianteId);
-  const diff = counted - variant.qtyOnHand;
+  const diff = isCounted
+    ? counted - variant.qtyOnHand
+    : zeroUncounted ? -variant.qtyOnHand : 0;
   const diffColor =
     diff === 0
       ? "var(--text3)"
@@ -896,7 +999,13 @@ function VariantRow({
           textAlign: "right",
         }}
       >
-        {diff === 0 ? (isCounted ? "0" : "") : diff > 0 ? `+${diff}` : String(diff)}
+        {diff === 0
+          ? isCounted
+            ? "0"
+            : ""
+          : diff > 0
+            ? `+${diff}`
+            : String(diff)}
       </span>
 
       <span

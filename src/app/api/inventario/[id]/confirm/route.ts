@@ -37,10 +37,12 @@ export async function POST(request: NextRequest, { params }: Params) {
   const body = (await request.json().catch(() => ({}))) as {
     excludedCategoryIds?: number[];
     spawnNewDraft?: boolean;
+    zeroUncounted?: boolean;
   };
 
   const excludedSet = new Set<number>(body.excludedCategoryIds ?? []);
   const spawnNewDraft = body.spawnNewDraft ?? false;
+  const zeroUncounted = body.zeroUncounted ?? true;
 
   const includedArticles = articles.filter((a) => !excludedSet.has(a.categoryId));
   const excludedArticles = articles.filter((a) => excludedSet.has(a.categoryId));
@@ -71,61 +73,97 @@ export async function POST(request: NextRequest, { params }: Params) {
     const confirmationSummary = await buildConfirmationSummary(articles, inv.warehouseId);
 
     // ── Apply counted articles ────────────────────────────────────────────────
-    for (const article of includedArticles) {
-      const quants = await odoo.searchRead(
+    if (includedArticles.length > 0) {
+      // 1. Batch-fetch all quants for included articles in a single call
+      const includedVarianteIds = includedArticles.map((a) => a.varianteId);
+      const existingQuants = await odoo.searchRead(
         "stock.quant",
         [
-          ["product_id", "=", article.varianteId],
+          ["product_id", "in", includedVarianteIds],
           ["location_id", "=", locationId],
         ],
-        ["id"],
-      ) as { id: number }[];
+        ["id", "product_id"],
+      ) as { id: number; product_id: [number, string] | number }[];
 
-      const quantFields: Record<string, unknown> = {
-        inventory_quantity: article.qty,
-        inventory_quantity_set: true,
-      };
+      const quantByProductId = new Map<number, number>();
+      for (const q of existingQuants) {
+        const pid = Array.isArray(q.product_id) ? q.product_id[0] : q.product_id;
+        quantByProductId.set(pid, q.id);
+      }
 
-      if (quants.length > 0) {
-        await odoo.write("stock.quant", [quants[0].id], quantFields);
-        await odoo.call("stock.quant", "action_apply_inventory", { ids: [quants[0].id] });
-      } else {
-        const quantId = await odoo.create("stock.quant", {
-          product_id: article.varianteId,
-          location_id: locationId,
-          ...quantFields,
+      // 2. Separate articles into update vs create
+      const toUpdate: Array<{ quantId: number; qty: number }> = [];
+      const toCreate: Array<{ varianteId: number; qty: number }> = [];
+      for (const article of includedArticles) {
+        if (quantByProductId.has(article.varianteId)) {
+          toUpdate.push({ quantId: quantByProductId.get(article.varianteId)!, qty: article.qty });
+        } else {
+          toCreate.push({ varianteId: article.varianteId, qty: article.qty });
+        }
+      }
+
+      // 3. Write existing quants in parallel, then apply in one batch call
+      if (toUpdate.length > 0) {
+        await Promise.all(
+          toUpdate.map(({ quantId, qty }) =>
+            odoo.write("stock.quant", [quantId], {
+              inventory_quantity: qty,
+              inventory_quantity_set: true,
+            }),
+          ),
+        );
+        await odoo.call("stock.quant", "action_apply_inventory", {
+          ids: toUpdate.map((u) => u.quantId),
         });
-        await odoo.call("stock.quant", "action_apply_inventory", { ids: [quantId] });
+      }
+
+      // 4. Create missing quants in parallel, then apply in one batch call
+      if (toCreate.length > 0) {
+        const createdIds = await Promise.all(
+          toCreate.map(({ varianteId, qty }) =>
+            odoo.create("stock.quant", {
+              product_id: varianteId,
+              location_id: locationId,
+              inventory_quantity: qty,
+              inventory_quantity_set: true,
+            }),
+          ),
+        );
+        await odoo.call("stock.quant", "action_apply_inventory", { ids: createdIds });
       }
     }
 
     // ── Zero out uncounted products in included categories ────────────────────
-    if (includedCategoryIds.length > 0) {
+    if (zeroUncounted && includedCategoryIds.length > 0) {
       const allIncludedProducts = await odoo.searchRead(
         "product.product",
         [["categ_id", "in", includedCategoryIds]],
         ["id"],
       ) as { id: number }[];
 
-      const notLoaded = allIncludedProducts.filter((p) => !loadedProductIds.has(p.id));
+      const notLoadedIds = allIncludedProducts
+        .filter((p) => !loadedProductIds.has(p.id))
+        .map((p) => p.id);
 
-      for (const product of notLoaded) {
-        const quants = await odoo.searchRead(
+      if (notLoadedIds.length > 0) {
+        // Single batch fetch for all uncounted quants
+        const uncountedQuants = await odoo.searchRead(
           "stock.quant",
           [
-            ["product_id", "=", product.id],
+            ["product_id", "in", notLoadedIds],
             ["location_id", "=", locationId],
           ],
           ["id"],
         ) as { id: number }[];
 
-        if (quants.length > 0) {
-          const zeroFields: Record<string, unknown> = {
+        if (uncountedQuants.length > 0) {
+          const uncountedQuantIds = uncountedQuants.map((q) => q.id);
+          // Single write + single apply for all uncounted quants
+          await odoo.write("stock.quant", uncountedQuantIds, {
             inventory_quantity: 0,
             inventory_quantity_set: true,
-          };
-          await odoo.write("stock.quant", [quants[0].id], zeroFields);
-          await odoo.call("stock.quant", "action_apply_inventory", { ids: [quants[0].id] });
+          });
+          await odoo.call("stock.quant", "action_apply_inventory", { ids: uncountedQuantIds });
         }
       }
     }

@@ -11,15 +11,19 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code")?.trim();
+  const varianteIdStr = searchParams.get("varianteId");
+  const varianteId = varianteIdStr ? parseInt(varianteIdStr) : null;
   const warehouseId = searchParams.get("warehouseId");
 
-  if (!code) {
-    return NextResponse.json({ error: "code es requerido" }, { status: 400 });
+  if (!code && !varianteId) {
+    return NextResponse.json({ error: "code o varianteId es requerido" }, { status: 400 });
   }
+
+  const domain = varianteId ? [["id", "=", varianteId]] : [["barcode", "=", code]];
 
   const products = await odoo.searchRead(
     "product.product",
-    [["barcode", "=", code]],
+    domain,
     [
       "id", "name", "barcode",
       "list_price", "standard_price",
@@ -150,7 +154,7 @@ export async function GET(request: NextRequest) {
   const article: InventoryArticle = {
     varianteId: p.id,
     productoId: templateId ?? 0,
-    barcode: code,
+    barcode: (p.barcode as string | false) || code || "",
     name: p.name,
     qty: 1,
     salePrice: p.list_price ?? 0,
