@@ -19,7 +19,19 @@ import {
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import "dayjs/locale/es";
-import { Plus, Trash2, ScanBarcode, ArrowLeft, ArrowRight, Check, X, Minus, AlertCircle } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  ScanBarcode,
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  X,
+  Minus,
+  AlertCircle,
+  CheckCircle2,
+  Zap,
+} from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useInventory } from "@/hooks/useInventory";
 import { InventoryStatusBadge } from "@/components/inventario/InventoryStatusBadge";
@@ -28,6 +40,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import type { InventoryArticle, LocalInventory } from "@/types";
 
 type Params = Promise<{ id: string }>;
+type SearchParamsType = Promise<{ categories?: string }>;
 
 interface VariantSearchResult {
   varianteId: number;
@@ -49,13 +62,35 @@ function formatDate(s: string | null) {
   return s.slice(0, 10).split("-").reverse().join("/");
 }
 
-export default function InventarioCargarPage({ params }: { params: Params }) {
+export default function InventarioCargarPage({
+  params,
+  searchParams,
+}: {
+  params: Params;
+  searchParams: SearchParamsType;
+}) {
   const { id } = use(params);
+  const { categories } = use(searchParams);
+  const warmupCategories = categories
+    ? categories
+        .split(",")
+        .map(Number)
+        .filter((n) => !isNaN(n) && n > 0)
+    : [];
+
   const { data: inventory, isLoading } = useInventory(parseInt(id));
 
   if (isLoading) {
     return (
-      <div style={{ display: "flex", gap: 8, padding: 48, justifyContent: "center", color: "var(--text2)" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          padding: 48,
+          justifyContent: "center",
+          color: "var(--text2)",
+        }}
+      >
         <LoadingSpinner size={20} /> Cargando inventario...
       </div>
     );
@@ -68,34 +103,199 @@ export default function InventarioCargarPage({ params }: { params: Params }) {
     );
   }
 
-  return <InventarioCargarContent inventory={inventory} />;
+  return (
+    <InventarioCargarContent
+      inventory={inventory}
+      warmupCategories={warmupCategories}
+    />
+  );
+}
+
+// ── Warmup banner ─────────────────────────────────────────────────────────────
+
+type WarmupStatus = "loading" | "done" | "error";
+
+function WarmupBanner({
+  status,
+  count,
+}: {
+  status: WarmupStatus;
+  count: number;
+}) {
+  if (status === "loading") {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          margin: "8px 24px 0",
+          padding: "8px 12px",
+          background:
+            "color-mix(in srgb, var(--mantine-color-amber-9) 20%, transparent)",
+          border:
+            "1px solid color-mix(in srgb, var(--mantine-color-amber-6) 30%, transparent)",
+          borderRadius: 6,
+          fontSize: 12,
+          color: "var(--mantine-color-amber-3)",
+        }}
+      >
+        <Loader size={12} color="amber" />
+        <Zap size={12} />
+        Preparando caché de artículos — el scanner se habilitará al terminar...
+      </div>
+    );
+  }
+
+  if (status === "done") {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          margin: "8px 24px 0",
+          padding: "8px 12px",
+          background:
+            "color-mix(in srgb, var(--mantine-color-green-9) 20%, transparent)",
+          border:
+            "1px solid color-mix(in srgb, var(--mantine-color-green-6) 30%, transparent)",
+          borderRadius: 6,
+          fontSize: 12,
+          color: "var(--mantine-color-green-3)",
+        }}
+      >
+        <CheckCircle2 size={12} />
+        <Zap size={12} />
+        Caché lista — {count} producto{count !== 1 ? "s" : ""} precargado
+        {count !== 1 ? "s" : ""}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        margin: "8px 24px 0",
+        padding: "8px 12px",
+        background:
+          "color-mix(in srgb, var(--mantine-color-red-9) 20%, transparent)",
+        border:
+          "1px solid color-mix(in srgb, var(--mantine-color-red-6) 30%, transparent)",
+        borderRadius: 6,
+        fontSize: 12,
+        color: "var(--mantine-color-red-3)",
+      }}
+    >
+      <AlertCircle size={12} />
+      Error al precargar caché — el scanner seguirá funcionando con fallback a
+      Odoo
+    </div>
+  );
 }
 
 // ── Main content ──────────────────────────────────────────────────────────────
 
-function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
+function InventarioCargarContent({
+  inventory,
+  warmupCategories,
+}: {
+  inventory: LocalInventory;
+  warmupCategories: number[];
+}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const invId = inventory.id;
 
-  const [articles, setArticles] = useState<InventoryArticle[]>(inventory.articles);
+  const [articles, setArticles] = useState<InventoryArticle[]>(
+    inventory.articles,
+  );
   const [scanBuffer, setScanBuffer] = useState("");
   const [showManual, setShowManual] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [savingIds, setSavingIds] = useState<Set<number>>(new Set());
   const [resumenOpen, setResumenOpen] = useState(false);
-  const hiddenInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-save feedback
-  const [persistCount, setPersistCount] = useState(0); // number of in-flight persists
+  const [persistCount, setPersistCount] = useState(0);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // On-demand barcode cache: prevents duplicate Odoo fetches for the same barcode
+  // Warmup state
+  const [warmupStatus, setWarmupStatus] = useState<WarmupStatus | null>(null);
+  const [warmupCount, setWarmupCount] = useState(0);
+  const warmupDoneRef = useRef(false);
+  const warmupBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  // On-demand barcode cache: barcode → InventoryArticle
   const articleCache = useRef<Map<string, InventoryArticle>>(new Map());
-  // Track which productoIds have already been prefetched to avoid duplicate requests
+  // Guard: which productoIds have had their siblings prefetched
   const prefetchedTemplates = useRef<Set<number>>(new Set());
+
+  // ── Scan queue — prevents lost scans and stale-closure issues ───────────────
+  // articlesRef mirrors articles state; updated synchronously before setArticles
+  // so queue items always read the latest list without relying on React closures.
+  const articlesRef = useRef<InventoryArticle[]>(inventory.articles);
+  const scanQueue = useRef<string[]>([]);
+  const isProcessingQueue = useRef(false);
+
+  const hiddenInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Warmup: populate articleCache from selected categories ──────────────────
+  useEffect(() => {
+    if (warmupDoneRef.current || warmupCategories.length === 0) return;
+    warmupDoneRef.current = true;
+
+    setWarmupStatus("loading");
+
+    fetch(
+      `/api/inventario/category-warmup?categoryIds=${warmupCategories.join(",")}&warehouseId=${inventory.warehouseId}`,
+    )
+      .then((r) =>
+        r.ok ? r.json() : Promise.reject(new Error("warmup fetch failed")),
+      )
+      .then((items: InventoryArticle[]) => {
+        let loaded = 0;
+        for (const item of items) {
+          if (item.barcode && !articleCache.current.has(item.barcode)) {
+            articleCache.current.set(item.barcode, item);
+            loaded++;
+          }
+          // Mark template as prefetched — no need to re-fetch siblings
+          if (item.productoId) {
+            prefetchedTemplates.current.add(item.productoId);
+          }
+        }
+        setWarmupCount(loaded);
+        setWarmupStatus("done");
+
+        // Hide banner after 4s
+        warmupBannerTimerRef.current = setTimeout(
+          () => setWarmupStatus(null),
+          4000,
+        );
+      })
+      .catch(() => {
+        setWarmupStatus("error");
+        // Hide error banner after 6s
+        warmupBannerTimerRef.current = setTimeout(
+          () => setWarmupStatus(null),
+          6000,
+        );
+      });
+
+    return () => {
+      if (warmupBannerTimerRef.current)
+        clearTimeout(warmupBannerTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Refocus hidden input only when no real input is focused
   useEffect(() => {
@@ -116,88 +316,146 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
     return () => document.removeEventListener("click", refocus);
   }, [showManual]);
 
-  const persistArticles = useCallback(async (updated: InventoryArticle[]) => {
-    setPersistCount((n) => n + 1);
-    try {
-      await fetch(`/api/inventario/${invId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ articles: updated }),
-      });
-      queryClient.invalidateQueries({ queryKey: ["inventory", invId] });
-      setSavedAt(new Date());
-      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-      savedTimerRef.current = setTimeout(() => setSavedAt(null), 2500);
-    } finally {
-      setPersistCount((n) => n - 1);
-    }
-  }, [invId, queryClient]);
+  const persistArticles = useCallback(
+    async (updated: InventoryArticle[]) => {
+      setPersistCount((n) => n + 1);
+      try {
+        await fetch(`/api/inventario/${invId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ articles: updated }),
+        });
+        queryClient.invalidateQueries({ queryKey: ["inventory", invId] });
+        setSavedAt(new Date());
+        if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+        savedTimerRef.current = setTimeout(() => setSavedAt(null), 2500);
+      } finally {
+        setPersistCount((n) => n - 1);
+      }
+    },
+    [invId, queryClient],
+  );
 
-  async function lookupBarcode(code: string) {
-    const trimmed = code.trim();
-    if (!trimmed) return;
-    setScanError(null);
+  // ── Core scan processor ────────────────────────────────────────────────────
+  // Uses articlesRef (not articles closure) to always work on fresh state.
+  const processOneScan = useCallback(
+    async (code: string) => {
+      const trimmed = code.trim();
+      if (!trimmed) return;
+      setScanError(null);
 
-    // Already in list → increment qty and move to top
-    const existing = articles.find((a) => a.barcode === trimmed);
-    if (existing) {
-      const incremented = { ...existing, qty: existing.qty + 1 };
-      const updated = [incremented, ...articles.filter((a) => a.barcode !== trimmed)];
-      setArticles(updated);
-      await persistArticles(updated);
-      return;
-    }
+      const current = articlesRef.current;
 
-    // Cache hit → prepend
-    const cached = articleCache.current.get(trimmed);
-    if (cached) {
-      const article: InventoryArticle = { ...cached, qty: 1 };
-      const updated = [article, ...articles];
-      setArticles(updated);
-      await persistArticles(updated);
-      return;
-    }
+      // Helper: add-or-increment by varianteId, always move to top
+      function addOrIncrement(list: InventoryArticle[], article: InventoryArticle): InventoryArticle[] {
+        const dupe = list.find((a) => a.varianteId === article.varianteId);
+        if (dupe) {
+          return [{ ...dupe, qty: dupe.qty + 1 }, ...list.filter((a) => a.varianteId !== dupe.varianteId)];
+        }
+        return [{ ...article, qty: article.qty }, ...list];
+      }
 
-    // Fetch from API
-    setScanning(true);
-    try {
-      const res = await fetch(`/api/inventario/barcode?code=${encodeURIComponent(trimmed)}&warehouseId=${inventory.warehouseId}`);
-      if (!res.ok) {
-        setScanError(`Producto no encontrado: ${trimmed}`);
+      // Already in list by barcode → increment qty and move to top
+      const existing = current.find((a) => a.barcode === trimmed);
+      if (existing) {
+        const updated = [
+          { ...existing, qty: existing.qty + 1 },
+          ...current.filter((a) => a.varianteId !== existing.varianteId),
+        ];
+        articlesRef.current = updated;
+        setArticles(updated);
+        await persistArticles(updated);
         return;
       }
-      const article = (await res.json()) as InventoryArticle;
-      articleCache.current.set(trimmed, article);
-      const updated = [article, ...articles];
-      setArticles(updated);
-      await persistArticles(updated);
 
-      // Background prefetch: cache all sibling variants of this template
-      if (article.productoId && !prefetchedTemplates.current.has(article.productoId)) {
-        prefetchedTemplates.current.add(article.productoId);
-        void fetch(
-          `/api/inventario/variants?productoId=${article.productoId}&warehouseId=${inventory.warehouseId}`,
-        )
-          .then((r) => (r.ok ? r.json() : null))
-          .then((siblings: InventoryArticle[] | null) => {
-            if (!siblings) return;
-            for (const sibling of siblings) {
-              if (sibling.barcode && !articleCache.current.has(sibling.barcode)) {
-                articleCache.current.set(sibling.barcode, sibling);
+      // Cache hit → add-or-increment (same varianteId may already be in list via different barcode)
+      const cached = articleCache.current.get(trimmed);
+      if (cached) {
+        const updated = addOrIncrement(current, { ...cached, qty: 1 });
+        articlesRef.current = updated;
+        setArticles(updated);
+        await persistArticles(updated);
+        return;
+      }
+
+      // Fetch from API (cache miss)
+      setScanning(true);
+      try {
+        const res = await fetch(
+          `/api/inventario/barcode?code=${encodeURIComponent(trimmed)}&warehouseId=${inventory.warehouseId}`,
+        );
+        if (!res.ok) {
+          setScanError(`Producto no encontrado: ${trimmed}`);
+          return;
+        }
+        const article = (await res.json()) as InventoryArticle;
+        articleCache.current.set(trimmed, article);
+
+        // Read articlesRef again — another queue item may have modified it during the fetch
+        const fresh = articlesRef.current;
+        const updated = addOrIncrement(fresh, { ...article, qty: 1 });
+        articlesRef.current = updated;
+        setArticles(updated);
+        await persistArticles(updated);
+
+        // Background prefetch siblings of this template
+        if (
+          article.productoId &&
+          !prefetchedTemplates.current.has(article.productoId)
+        ) {
+          prefetchedTemplates.current.add(article.productoId);
+          void fetch(
+            `/api/inventario/variants?productoId=${article.productoId}&warehouseId=${inventory.warehouseId}`,
+          )
+            .then((r) => (r.ok ? r.json() : null))
+            .then((siblings: InventoryArticle[] | null) => {
+              if (!siblings) return;
+              for (const sibling of siblings) {
+                if (
+                  sibling.barcode &&
+                  !articleCache.current.has(sibling.barcode)
+                ) {
+                  articleCache.current.set(sibling.barcode, sibling);
+                }
               }
-            }
-          });
+            });
+        }
+      } finally {
+        setScanning(false);
+      }
+    },
+    [inventory.warehouseId, persistArticles],
+  );
+
+  // ── Queue drain — sequential, never loses a scan ───────────────────────────
+  const drainQueue = useCallback(async () => {
+    if (isProcessingQueue.current) return;
+    isProcessingQueue.current = true;
+    try {
+      while (scanQueue.current.length > 0) {
+        const code = scanQueue.current.shift()!;
+        await processOneScan(code);
       }
     } finally {
-      setScanning(false);
+      isProcessingQueue.current = false;
     }
+  }, [processOneScan]);
+
+  function enqueueScan(code: string) {
+    if (warmupStatus === "loading") return;
+    scanQueue.current.push(code);
+    void drainQueue();
   }
 
   function handleHiddenKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (warmupStatus === "loading") {
+      setScanBuffer("");
+      return;
+    }
     if (e.key === "Enter") {
       const code = scanBuffer.trim();
       setScanBuffer("");
-      if (code) void lookupBarcode(code);
+      if (code) enqueueScan(code);
     } else if (e.key.length === 1) {
       setScanBuffer((prev) => prev + e.key);
     }
@@ -207,10 +465,15 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
     setShowManual(false);
     setScanError(null);
 
-    const existing = articles.find((a) => a.varianteId === varianteId);
+    const current = articlesRef.current;
+    const existing = current.find((a) => a.varianteId === varianteId);
     if (existing) {
       const incremented = { ...existing, qty: existing.qty + 1 };
-      const updated = [incremented, ...articles.filter((a) => a.varianteId !== varianteId)];
+      const updated = [
+        incremented,
+        ...current.filter((a) => a.varianteId !== varianteId),
+      ];
+      articlesRef.current = updated;
       setArticles(updated);
       await persistArticles(updated);
       return;
@@ -229,11 +492,16 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
       if (article.barcode) {
         articleCache.current.set(article.barcode, article);
       }
-      const updated = [article, ...articles];
+      const fresh = articlesRef.current;
+      const updated = [article, ...fresh];
+      articlesRef.current = updated;
       setArticles(updated);
       await persistArticles(updated);
 
-      if (article.productoId && !prefetchedTemplates.current.has(article.productoId)) {
+      if (
+        article.productoId &&
+        !prefetchedTemplates.current.has(article.productoId)
+      ) {
         prefetchedTemplates.current.add(article.productoId);
         void fetch(
           `/api/inventario/variants?productoId=${article.productoId}&warehouseId=${inventory.warehouseId}`,
@@ -242,7 +510,10 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
           .then((siblings: InventoryArticle[] | null) => {
             if (!siblings) return;
             for (const sibling of siblings) {
-              if (sibling.barcode && !articleCache.current.has(sibling.barcode)) {
+              if (
+                sibling.barcode &&
+                !articleCache.current.has(sibling.barcode)
+              ) {
                 articleCache.current.set(sibling.barcode, sibling);
               }
             }
@@ -253,14 +524,22 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
     }
   }
 
-  async function saveArticle(updated: InventoryArticle, original: InventoryArticle) {
-    const next = articles.map((a) => (a.varianteId === updated.varianteId ? updated : a));
+  async function saveArticle(
+    updated: InventoryArticle,
+    original: InventoryArticle,
+  ) {
+    const next = articlesRef.current.map((a) =>
+      a.varianteId === updated.varianteId ? updated : a,
+    );
+    articlesRef.current = next;
     setArticles(next);
     setSavingIds((prev) => new Set(prev).add(updated.varianteId));
     try {
       await persistArticles(next);
-      // Sync price/cost changes to Odoo product
-      if (updated.salePrice !== original.salePrice || updated.cost !== original.cost) {
+      if (
+        updated.salePrice !== original.salePrice ||
+        updated.cost !== original.cost
+      ) {
         await fetch("/api/inventario/product-update", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -281,13 +560,19 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
   }
 
   function removeArticle(varianteId: number) {
-    const updated = articles.filter((a) => a.varianteId !== varianteId);
+    const updated = articlesRef.current.filter(
+      (a) => a.varianteId !== varianteId,
+    );
+    articlesRef.current = updated;
     setArticles(updated);
     void persistArticles(updated);
   }
 
   async function handleQtyChange(varianteId: number, qty: number) {
-    const next = articles.map((a) => (a.varianteId === varianteId ? { ...a, qty } : a));
+    const next = articlesRef.current.map((a) =>
+      a.varianteId === varianteId ? { ...a, qty } : a,
+    );
+    articlesRef.current = next;
     setArticles(next);
     await persistArticles(next);
   }
@@ -312,7 +597,14 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
           gap: 12,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            minWidth: 0,
+          }}
+        >
           <button
             onClick={() => router.push("/inventario")}
             aria-label="Volver a inventarios"
@@ -327,22 +619,36 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
               flexShrink: 0,
               transition: "color 120ms ease",
             }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--text)")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--text3)")}
+            onMouseEnter={(e) =>
+              ((e.currentTarget as HTMLElement).style.color = "var(--text)")
+            }
+            onMouseLeave={(e) =>
+              ((e.currentTarget as HTMLElement).style.color = "var(--text3)")
+            }
           >
             <ArrowLeft size={16} />
           </button>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-display)" }}>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 700,
+                color: "var(--text)",
+                fontFamily: "var(--font-display)",
+              }}
+            >
               {inventory.warehouseName}
             </div>
             <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 1 }}>
               {inventory.countDate && (
-                <span>Conteo: {inventory.countDate.split("-").reverse().join("/")}</span>
+                <span>
+                  Conteo: {inventory.countDate.split("-").reverse().join("/")}
+                </span>
               )}
               {inventory.accountingDate && (
                 <span style={{ marginLeft: 8 }}>
-                  · Contable: {inventory.accountingDate.split("-").reverse().join("/")}
+                  · Contable:{" "}
+                  {inventory.accountingDate.split("-").reverse().join("/")}
                 </span>
               )}
             </div>
@@ -373,7 +679,9 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
                       animation: "pulse 1s ease-in-out infinite",
                     }}
                   />
-                  <span style={{ fontSize: 11, color: "var(--text3)" }}>Guardando...</span>
+                  <span style={{ fontSize: 11, color: "var(--text3)" }}>
+                    Guardando...
+                  </span>
                 </>
               ) : savedAt ? (
                 <>
@@ -385,22 +693,37 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
                       background: "var(--mantine-color-green-5)",
                     }}
                   />
-                  <span style={{ fontSize: 11, color: "var(--text3)" }}>Guardado</span>
+                  <span style={{ fontSize: 11, color: "var(--text3)" }}>
+                    Guardado
+                  </span>
                 </>
               ) : null}
             </div>
 
             {scanning && <Loader size={14} color="amber" />}
-            <Badge color="green" variant="dot" size="sm" style={{ cursor: "default" }}>
+            <Badge
+              color="green"
+              variant="dot"
+              size="sm"
+              style={{ cursor: "default" }}
+            >
               Scanner activo
             </Badge>
-            <Tooltip label="Ingresar código manualmente" withArrow>
+            <Tooltip
+              label={
+                warmupStatus === "loading"
+                  ? "Esperá a que termine la carga de caché"
+                  : "Ingresar código manualmente"
+              }
+              withArrow
+            >
               <Button
                 size="xs"
                 variant="subtle"
                 color="gray"
                 leftSection={<Plus size={13} />}
                 onClick={() => setShowManual(true)}
+                disabled={warmupStatus === "loading"}
               >
                 Manual
               </Button>
@@ -420,6 +743,11 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
           </Button>
         )}
       </div>
+
+      {/* Warmup banner */}
+      {warmupStatus !== null && (
+        <WarmupBanner status={warmupStatus} count={warmupCount} />
+      )}
 
       {/* Scan error banner */}
       {scanError && (
@@ -442,7 +770,13 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
           value={scanBuffer}
           onKeyDown={handleHiddenKeyDown}
           onChange={() => {}}
-          style={{ position: "absolute", opacity: 0, width: 1, height: 1, pointerEvents: "none" }}
+          style={{
+            position: "absolute",
+            opacity: 0,
+            width: 1,
+            height: 1,
+            pointerEvents: "none",
+          }}
           aria-hidden="true"
           tabIndex={-1}
         />
@@ -454,7 +788,10 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
         warehouseId={inventory.warehouseId}
         existingVarianteIds={new Set(articles.map((a) => a.varianteId))}
         onSelectVariant={(varianteId) => void handleAddVariant(varianteId)}
-        onSubmitBarcode={(code) => { setShowManual(false); void lookupBarcode(code); }}
+        onSubmitBarcode={(code) => {
+          setShowManual(false);
+          enqueueScan(code);
+        }}
         onClose={() => setShowManual(false)}
       />
 
@@ -500,7 +837,14 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
       {/* Articles table */}
       <div style={{ padding: "0 24px" }}>
         {articles.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "64px 24px", color: "var(--text3)", fontSize: 13 }}>
+          <div
+            style={{
+              textAlign: "center",
+              padding: "64px 24px",
+              color: "var(--text3)",
+              fontSize: 13,
+            }}
+          >
             <ScanBarcode size={32} style={{ opacity: 0.3, marginBottom: 12 }} />
             <div>Escaneá un código de barras para comenzar</div>
             <div style={{ fontSize: 11, marginTop: 4, opacity: 0.6 }}>
@@ -510,7 +854,12 @@ function InventarioCargarContent({ inventory }: { inventory: LocalInventory }) {
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table
-              style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: "var(--font-sans)" }}
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: 13,
+                fontFamily: "var(--font-sans)",
+              }}
             >
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
@@ -601,7 +950,6 @@ function VariantSearchModal({
     onDropdownClose: () => combobox.resetSelectedOption(),
   });
 
-  // Reset on modal open
   useEffect(() => {
     if (!opened) return;
     setQuery(""); // eslint-disable-line react-hooks/set-state-in-effect
@@ -611,7 +959,6 @@ function VariantSearchModal({
     return () => clearTimeout(t);
   }, [opened]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Debounce + fetch
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!query.trim() || query.trim().length < 2) {
@@ -648,7 +995,6 @@ function VariantSearchModal({
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    // Barcode gun: Enter when dropdown closed (fast scan before debounce fires)
     if (e.key === "Enter" && query.trim() && !combobox.dropdownOpened) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       const code = query.trim();
@@ -656,14 +1002,14 @@ function VariantSearchModal({
       setResults([]);
       onSubmitBarcode(code);
     }
-    // Tab: move selection down (same as ArrowDown)
     if (e.key === "Tab" && combobox.dropdownOpened) {
       e.preventDefault();
       combobox.selectNextOption();
     }
   }
 
-  const noResults = !loading && query.trim().length >= 2 && results.length === 0;
+  const noResults =
+    !loading && query.trim().length >= 2 && results.length === 0;
 
   return (
     <Modal
@@ -677,8 +1023,10 @@ function VariantSearchModal({
               width: 32,
               height: 32,
               borderRadius: 8,
-              background: "color-mix(in srgb, var(--mantine-color-amber-6) 12%, transparent)",
-              border: "1px solid color-mix(in srgb, var(--mantine-color-amber-6) 25%, transparent)",
+              background:
+                "color-mix(in srgb, var(--mantine-color-amber-6) 12%, transparent)",
+              border:
+                "1px solid color-mix(in srgb, var(--mantine-color-amber-6) 25%, transparent)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -687,7 +1035,11 @@ function VariantSearchModal({
           >
             <ScanBarcode size={16} color="var(--mantine-color-amber-4)" />
           </div>
-          <Text fw={700} size="md" style={{ fontFamily: "var(--font-display)" }}>
+          <Text
+            fw={700}
+            size="md"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
             Buscar Artículo
           </Text>
         </Group>
@@ -697,7 +1049,7 @@ function VariantSearchModal({
       styles={{ inner: { alignItems: "flex-start", paddingTop: 60 } }}
     >
       <Text size="xs" c="dimmed" mb="sm">
-        Buscá por descripción, referencia o talle. Combiná palabras: <em>remera 36</em>. Enter sin resultados = pistola.
+        Buscá por descripción, referencia o talle.
       </Text>
 
       <Combobox
@@ -725,15 +1077,25 @@ function VariantSearchModal({
             <ScrollArea.Autosize mah={320} type="scroll">
               {results.map((r) => {
                 const alreadyInList = existingVarianteIds.has(r.varianteId);
-                const meta = [r.defaultCode, r.barcode].filter(Boolean).join(" · ");
+                const meta = [r.defaultCode, r.barcode]
+                  .filter(Boolean)
+                  .join(" · ");
                 return (
-                  <Combobox.Option key={r.varianteId} value={String(r.varianteId)}>
+                  <Combobox.Option
+                    key={r.varianteId}
+                    value={String(r.varianteId)}
+                  >
                     <Group justify="space-between" wrap="nowrap" gap="xs">
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <Text
                           size="sm"
                           fw={500}
-                          style={{ lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                          style={{
+                            lineHeight: 1.35,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
                         >
                           {r.name}
                         </Text>
@@ -741,7 +1103,12 @@ function VariantSearchModal({
                           <Text
                             size="xs"
                             c="dimmed"
-                            style={{ fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                            style={{
+                              fontFamily: "var(--font-mono)",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
                           >
                             {meta}
                           </Text>
@@ -749,12 +1116,22 @@ function VariantSearchModal({
                       </div>
                       <Group gap={4} style={{ flexShrink: 0 }}>
                         {r.qtyOnHand > 0 && (
-                          <Badge size="xs" variant="light" color="blue" radius="sm">
+                          <Badge
+                            size="xs"
+                            variant="light"
+                            color="blue"
+                            radius="sm"
+                          >
                             Stock: {r.qtyOnHand}
                           </Badge>
                         )}
                         {alreadyInList && (
-                          <Badge size="xs" variant="light" color="amber" radius="sm">
+                          <Badge
+                            size="xs"
+                            variant="light"
+                            color="amber"
+                            radius="sm"
+                          >
                             En lista
                           </Badge>
                         )}
@@ -774,7 +1151,12 @@ function VariantSearchModal({
         </Text>
       )}
 
-      <Group justify="flex-end" pt="sm" mt="md" style={{ borderTop: "1px solid var(--mantine-color-dark-5)" }}>
+      <Group
+        justify="flex-end"
+        pt="sm"
+        mt="md"
+        style={{ borderTop: "1px solid var(--mantine-color-dark-5)" }}
+      >
         <Button size="sm" variant="subtle" color="gray" onClick={onClose}>
           Cancelar
         </Button>
@@ -783,34 +1165,45 @@ function VariantSearchModal({
   );
 }
 
-// ── ArticleRow — owns local state, tracks dirty ───────────────────────────────
+// ── ArticleRow ────────────────────────────────────────────────────────────────
 
 interface ArticleRowProps {
   article: InventoryArticle;
   readonly: boolean;
   isSaving: boolean;
-  onSave: (updated: InventoryArticle, original: InventoryArticle) => Promise<void>;
+  onSave: (
+    updated: InventoryArticle,
+    original: InventoryArticle,
+  ) => Promise<void>;
   onQtyChange: (varianteId: number, qty: number) => Promise<void>;
   onRemove: (varianteId: number) => void;
 }
 
-function ArticleRow({ article, readonly, isSaving, onSave, onQtyChange, onRemove }: ArticleRowProps) {
+function ArticleRow({
+  article,
+  readonly,
+  isSaving,
+  onSave,
+  onQtyChange,
+  onRemove,
+}: ArticleRowProps) {
   const [local, setLocal] = useState<InventoryArticle>(article);
   const [editingPrice, setEditingPrice] = useState(false);
   const [editingCost, setEditingCost] = useState(false);
 
-  // Sync if parent article changes (e.g. after save)
   useEffect(() => {
     setLocal(article);
   }, [article]);
 
-  // Only prop changes require manual save — qty auto-saves
   const isDirty =
     local.salePrice !== article.salePrice ||
     local.cost !== article.cost ||
     local.lastPurchaseDate !== article.lastPurchaseDate;
 
-  function setField<K extends keyof InventoryArticle>(field: K, value: InventoryArticle[K]) {
+  function setField<K extends keyof InventoryArticle>(
+    field: K,
+    value: InventoryArticle[K],
+  ) {
     setLocal((prev) => ({ ...prev, [field]: value }));
   }
 
@@ -827,9 +1220,21 @@ function ArticleRow({ article, readonly, isSaving, onSave, onQtyChange, onRemove
   }
 
   return (
-    <tr style={{ borderBottom: "1px solid var(--border)", background: isDirty ? "rgba(251,191,36,0.04)" : undefined }}>
+    <tr
+      style={{
+        borderBottom: "1px solid var(--border)",
+        background: isDirty ? "rgba(251,191,36,0.04)" : undefined,
+      }}
+    >
       {/* Código */}
-      <td style={{ padding: "10px 12px", color: "var(--text2)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+      <td
+        style={{
+          padding: "10px 12px",
+          color: "var(--text2)",
+          fontFamily: "var(--font-mono)",
+          fontSize: 12,
+        }}
+      >
         {article.barcode}
       </td>
 
@@ -851,13 +1256,21 @@ function ArticleRow({ article, readonly, isSaving, onSave, onQtyChange, onRemove
       {/* Precio Venta */}
       <td style={{ padding: "4px 8px" }}>
         {readonly ? (
-          <span style={{ padding: "10px 4px", color: "var(--text2)", display: "block" }}>
+          <span
+            style={{
+              padding: "10px 4px",
+              color: "var(--text2)",
+              display: "block",
+            }}
+          >
             {formatCurrency(local.salePrice)}
           </span>
         ) : editingPrice ? (
           <NumberInput
             value={local.salePrice}
-            onChange={(v) => setField("salePrice", typeof v === "number" ? v : 0)}
+            onChange={(v) =>
+              setField("salePrice", typeof v === "number" ? v : 0)
+            }
             onBlur={() => setEditingPrice(false)}
             size="xs"
             w={110}
@@ -878,8 +1291,14 @@ function ArticleRow({ article, readonly, isSaving, onSave, onQtyChange, onRemove
               cursor: "text",
               fontSize: 13,
             }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.borderColor = "var(--border)")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = "transparent")}
+            onMouseEnter={(e) =>
+              ((e.currentTarget as HTMLElement).style.borderColor =
+                "var(--border)")
+            }
+            onMouseLeave={(e) =>
+              ((e.currentTarget as HTMLElement).style.borderColor =
+                "transparent")
+            }
           >
             {formatCurrency(local.salePrice)}
           </div>
@@ -889,7 +1308,13 @@ function ArticleRow({ article, readonly, isSaving, onSave, onQtyChange, onRemove
       {/* Costo */}
       <td style={{ padding: "4px 8px" }}>
         {readonly ? (
-          <span style={{ padding: "10px 4px", color: "var(--text2)", display: "block" }}>
+          <span
+            style={{
+              padding: "10px 4px",
+              color: "var(--text2)",
+              display: "block",
+            }}
+          >
             {formatCurrency(local.cost)}
           </span>
         ) : editingCost ? (
@@ -916,8 +1341,14 @@ function ArticleRow({ article, readonly, isSaving, onSave, onQtyChange, onRemove
               cursor: "text",
               fontSize: 13,
             }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.borderColor = "var(--border)")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = "transparent")}
+            onMouseEnter={(e) =>
+              ((e.currentTarget as HTMLElement).style.borderColor =
+                "var(--border)")
+            }
+            onMouseLeave={(e) =>
+              ((e.currentTarget as HTMLElement).style.borderColor =
+                "transparent")
+            }
           >
             {formatCurrency(local.cost)}
           </div>
@@ -927,21 +1358,35 @@ function ArticleRow({ article, readonly, isSaving, onSave, onQtyChange, onRemove
       {/* Últ. Compra */}
       <td style={{ padding: "4px 8px" }}>
         {readonly ? (
-          <span style={{ padding: "10px 4px", color: "var(--text3)", display: "block", fontSize: 13 }}>
+          <span
+            style={{
+              padding: "10px 4px",
+              color: "var(--text3)",
+              display: "block",
+              fontSize: 13,
+            }}
+          >
             {formatDate(local.lastPurchaseDate)}
           </span>
         ) : (
           <DatePickerInput
-            value={local.lastPurchaseDate ? new Date(local.lastPurchaseDate.slice(0, 10) + "T12:00:00") : null}
-            onChange={(v) => setField("lastPurchaseDate", v ? (v as unknown as Date).toISOString().slice(0, 10) : null)}
+            value={
+              local.lastPurchaseDate
+                ? new Date(local.lastPurchaseDate.slice(0, 10) + "T12:00:00")
+                : null
+            }
+            onChange={(v) =>
+              setField(
+                "lastPurchaseDate",
+                v ? (v as unknown as Date).toISOString().slice(0, 10) : null,
+              )
+            }
             valueFormat="DD/MM/YYYY"
             locale="es"
             clearable
             size="xs"
             w={130}
-            styles={{
-              input: { color: "var(--text3)", fontSize: 13 },
-            }}
+            styles={{ input: { color: "var(--text3)", fontSize: 13 } }}
           />
         )}
       </td>
@@ -963,7 +1408,7 @@ function ArticleRow({ article, readonly, isSaving, onSave, onQtyChange, onRemove
         </span>
       </td>
 
-      {/* Cantidad con botones +/- */}
+      {/* Cantidad */}
       <td style={{ padding: "4px 8px" }}>
         {readonly ? (
           <span
@@ -995,11 +1440,13 @@ function ArticleRow({ article, readonly, isSaving, onSave, onQtyChange, onRemove
             <NumberInput
               value={local.qty}
               onChange={(v) => {
-                const next = typeof v === "number" ? Math.max(0, Math.round(v)) : 0;
+                const next =
+                  typeof v === "number" ? Math.max(0, Math.round(v)) : 0;
                 setField("qty", next);
               }}
               onBlur={() => {
-                if (local.qty !== article.qty) void onQtyChange(article.varianteId, local.qty);
+                if (local.qty !== article.qty)
+                  void onQtyChange(article.varianteId, local.qty);
               }}
               onFocus={(e) => e.currentTarget.select()}
               onKeyDown={(e) => {

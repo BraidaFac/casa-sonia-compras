@@ -30,24 +30,33 @@ export async function GET(request: NextRequest) {
 
   const words = q.split(/\s+/).filter((w) => w.length > 0);
 
+  // AND-combine flat Odoo domain fragments: ["&", ...frag1, ...frag2, ...]
+  function andFragments(frags: unknown[][]): unknown[] {
+    if (frags.length === 1) return frags[0];
+    return ["&", ...frags[0], ...andFragments(frags.slice(1))];
+  }
+
+  // Fragment for a single token: size → attr value; other → name OR barcode OR default_code
+  function tokenFragment(w: string): unknown[] {
+    if (isSizeToken(w)) {
+      return [["product_template_attribute_value_ids.name", "ilike", w]];
+    }
+    return ["|", "|", ["name", "ilike", w], ["barcode", "ilike", w], ["default_code", "ilike", w]];
+  }
+
   let domain: unknown[];
   if (words.length === 1) {
     const w = words[0];
     if (isSizeToken(w)) {
-      // Single size token: search attribute values, fallback to name
+      // Single size token: attribute values OR product name
       domain = ["|", ["product_template_attribute_value_ids.name", "ilike", w], ["name", "ilike", w]];
     } else {
-      // Single non-size word: OR across name / barcode / default_code
-      domain = ["|", "|", ["name", "ilike", w], ["barcode", "ilike", w], ["default_code", "ilike", w]];
+      domain = tokenFragment(w);
     }
   } else {
-    // Multi-word: route each token to correct field
-    // size tokens → attribute values, everything else → product name (all ANDed)
-    domain = words.map((w) =>
-      isSizeToken(w)
-        ? ["product_template_attribute_value_ids.name", "ilike", w]
-        : ["name", "ilike", w],
-    );
+    // Multi-word: AND of per-token fragments
+    // size tokens → attribute value; others → name OR barcode OR default_code
+    domain = andFragments(words.map(tokenFragment));
   }
 
   const products = await odoo.searchRead(

@@ -19,18 +19,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "code o varianteId es requerido" }, { status: 400 });
   }
 
-  const domain = varianteId ? [["id", "=", varianteId]] : [["barcode", "=", code]];
+  const fields = [
+    "id", "name", "barcode",
+    "list_price", "standard_price",
+    "product_tmpl_id", "product_template_attribute_value_ids",
+    "categ_id",
+  ];
 
-  const products = await odoo.searchRead(
-    "product.product",
-    domain,
-    [
-      "id", "name", "barcode",
-      "list_price", "standard_price",
-      "product_tmpl_id", "product_template_attribute_value_ids",
-      "categ_id",
-    ],
-  ) as {
+  type OdooProduct = {
     id: number;
     name: string;
     barcode: string | false;
@@ -39,7 +35,23 @@ export async function GET(request: NextRequest) {
     product_tmpl_id: [number, string] | false;
     product_template_attribute_value_ids: number[];
     categ_id: [number, string] | false;
-  }[];
+  };
+
+  let products: OdooProduct[];
+
+  if (varianteId) {
+    products = await odoo.searchRead("product.product", [["id", "=", varianteId]], fields) as OdooProduct[];
+  } else {
+    // Exact barcode match first
+    products = await odoo.searchRead("product.product", [["barcode", "=", code]], fields) as OdooProduct[];
+
+    // Fallback: barcodes in Odoo may have irregular spacing (e.g. "4DRO1420         42").
+    // Replace any whitespace run in the typed code with % wildcard and retry with ilike.
+    if (products.length === 0 && code && /\s/.test(code)) {
+      const pattern = code.replace(/\s+/g, "%");
+      products = await odoo.searchRead("product.product", [["barcode", "ilike", pattern]], fields) as OdooProduct[];
+    }
+  }
 
   if (products.length === 0) {
     return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });

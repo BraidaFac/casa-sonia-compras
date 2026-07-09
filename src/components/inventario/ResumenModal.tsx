@@ -891,15 +891,29 @@ function ProductGroup({
             gap: 1,
           }}
         >
-          {group.variants.map((v) => (
-            <VariantRow
-              key={v.varianteId}
-              variant={v}
-              label={extractVariantLabel(v.name) || v.name}
-              countedMap={countedMap}
-              zeroUncounted={zeroUncounted}
-            />
-          ))}
+          {[...group.variants]
+            .sort((a, b) => {
+              const aCounted = countedMap.has(a.varianteId);
+              const bCounted = countedMap.has(b.varianteId);
+              // 1. Contadas primero
+              if (aCounted !== bCounted) return aCounted ? -1 : 1;
+              // 2. Entre no contadas: positivo → negativo → cero/sin stock
+              if (!aCounted) {
+                const aBucket = a.qtyOnHand > 0 ? 0 : a.qtyOnHand < 0 ? 1 : 2;
+                const bBucket = b.qtyOnHand > 0 ? 0 : b.qtyOnHand < 0 ? 1 : 2;
+                if (aBucket !== bBucket) return aBucket - bBucket;
+              }
+              return 0;
+            })
+            .map((v) => (
+              <VariantRow
+                key={v.varianteId}
+                variant={v}
+                label={extractVariantLabel(v.name) || v.name}
+                countedMap={countedMap}
+                zeroUncounted={zeroUncounted}
+              />
+            ))}
         </div>
       )}
     </div>

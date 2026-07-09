@@ -18,6 +18,7 @@ export async function getAttrMetadata() {
     return {
       colorAttrId: _cache.colorAttrId,
       typeAttrId: _cache.typeAttrId,
+      brandAttrId: _cache.brandAttrId,
       sizeAttrIdSet: new Set(_cache.sizeAttrIds),
       typeCoefMap: _cache.typeCoefMap,
     };
