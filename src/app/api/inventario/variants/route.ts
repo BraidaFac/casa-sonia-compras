@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
   }
 
   // ── 2. Parallel: attr metadata + category parent + warehouse locations ────
-  const [{ sizeAttrIdSet, brandAttrId }, categoryData, locations] = await Promise.all([
+  const [{ sizeAttrIdSet, brandAttrId, colorAttrId }, categoryData, locations] = await Promise.all([
     getAttrMetadata(),
     categId
       ? (odoo.read("product.category", [categId], ["id", "name", "parent_id"]) as Promise<
@@ -152,6 +152,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Resolve color from PTAVs
+    let color: string | null = null;
+    for (const ptavId of ptavIds) {
+      const ptav = ptavMap.get(ptavId);
+      if (!ptav) continue;
+      const attrId = Array.isArray(ptav.attribute_id) ? ptav.attribute_id[0] : ptav.attribute_id;
+      if (colorAttrId && attrId === colorAttrId) {
+        color = ptav.name;
+        break;
+      }
+    }
+
     return {
       varianteId: v.id,
       productoId: templateId,
@@ -163,6 +175,7 @@ export async function GET(request: NextRequest) {
       lastPurchaseDate: lastPurchaseDateMap.get(v.id) ?? null,
       size,
       brand,
+      color,
       categoryId: categId ?? 0,
       categoryName,
       categoryParentId,

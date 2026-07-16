@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Parallel: attr metadata + last purchase date + category parent
-  const [{ sizeAttrIdSet, brandAttrId }, purchaseOrders, categoryData] = await Promise.all([
+  const [{ sizeAttrIdSet, brandAttrId, colorAttrId }, purchaseOrders, categoryData] = await Promise.all([
     getAttrMetadata(),
     odoo.searchRead(
       "purchase.order",
@@ -140,6 +140,16 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Resolve color from variant PTAVs
+  let color: string | null = null;
+  for (const ptav of brandResolutionPtavs) {
+    const attrId = Array.isArray(ptav.attribute_id) ? ptav.attribute_id[0] : ptav.attribute_id;
+    if (colorAttrId && attrId === colorAttrId) {
+      color = ptav.name;
+      break;
+    }
+  }
+
   // Resolve brand from template attribute line (non-variant attribute)
   let brand: string | null = null;
   if (templateId && brandAttrId) {
@@ -174,6 +184,7 @@ export async function GET(request: NextRequest) {
     lastPurchaseDate,
     size,
     brand,
+    color,
     categoryId: categId ?? 0,
     categoryName: categ?.name ?? extractLocalName(categNameRaw),
     categoryParentId,

@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
   ];
 
   // ── 2. Attr metadata first (needed to conditionally fetch brand lines) ────────
-  const { sizeAttrIdSet, brandAttrId } = await getAttrMetadata();
+  const { sizeAttrIdSet, brandAttrId, colorAttrId } = await getAttrMetadata();
 
   // ── 3. Parallel: locations + PTAVs + categories + brand lines ────────────────
   const [locations, ptavRecords, categoryRecords, brandLines] = await Promise.all([
@@ -218,6 +218,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Resolve color from PTAVs
+    let color: string | null = null;
+    for (const ptavId of v.product_template_attribute_value_ids) {
+      const ptav = ptavMap.get(ptavId);
+      if (!ptav) continue;
+      const attrId = Array.isArray(ptav.attribute_id)
+        ? ptav.attribute_id[0]
+        : (ptav.attribute_id as number);
+      if (colorAttrId && attrId === colorAttrId) {
+        color = ptav.name;
+        break;
+      }
+    }
+
     return {
       varianteId: v.id,
       productoId: templateId,
@@ -229,6 +243,7 @@ export async function GET(request: NextRequest) {
       lastPurchaseDate: null, // skipped for warmup performance
       size,
       brand: brandByTemplate.get(templateId) ?? null,
+      color,
       categoryId: categId ?? 0,
       categoryName,
       categoryParentId,
