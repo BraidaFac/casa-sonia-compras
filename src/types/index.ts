@@ -222,6 +222,7 @@ export interface InventoryArticle {
   lastPurchaseDate: string | null;
   size: string | null;
   brand: string | null;
+  color: string | null;
   categoryId: number;
   categoryName: string;
   categoryParentId: number | null;
