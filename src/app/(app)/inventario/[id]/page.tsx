@@ -31,6 +31,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Zap,
+  History,
 } from "lucide-react";
 import { useInventory } from "@/hooks/useInventory";
 import { InventoryStatusBadge } from "@/components/inventario/InventoryStatusBadge";
@@ -224,11 +225,14 @@ function InventarioCargarContent({
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Last scanned highlight
+  // Last scanned highlight + scan history
   const [lastScannedId, setLastScannedId] = useState<number | null>(null);
+  const [scanHistory, setScanHistory] = useState<InventoryArticle[]>([]);
+  const [historialOpen, setHistorialOpen] = useState(false);
 
-  function flashScanned(varianteId: number) {
-    setLastScannedId(varianteId);
+  function recordScan(article: InventoryArticle) {
+    setLastScannedId(article.varianteId);
+    setScanHistory((prev) => [article, ...prev].slice(0, 10));
   }
 
   // Warmup state
@@ -374,7 +378,7 @@ function InventarioCargarContent({
         ];
         articlesRef.current = updated;
         setArticles(updated);
-        flashScanned(existing.varianteId);
+        recordScan({ ...existing, qty: existing.qty + 1 });
         await persistArticles(updated);
         return;
       }
@@ -385,7 +389,7 @@ function InventarioCargarContent({
         const updated = addOrIncrement(current, { ...cached, qty: 1 });
         articlesRef.current = updated;
         setArticles(updated);
-        flashScanned(updated[0].varianteId);
+        recordScan(updated[0]);
         await persistArticles(updated);
         return;
       }
@@ -408,7 +412,7 @@ function InventarioCargarContent({
         const updated = addOrIncrement(fresh, { ...article, qty: 1 });
         articlesRef.current = updated;
         setArticles(updated);
-        flashScanned(updated[0].varianteId);
+        recordScan(updated[0]);
         await persistArticles(updated);
 
         // Background prefetch siblings of this template
@@ -488,7 +492,7 @@ function InventarioCargarContent({
       ];
       articlesRef.current = updated;
       setArticles(updated);
-      flashScanned(varianteId);
+      recordScan(incremented);
       await persistArticles(updated);
       return;
     }
@@ -510,7 +514,7 @@ function InventarioCargarContent({
       const updated = [article, ...fresh];
       articlesRef.current = updated;
       setArticles(updated);
-      flashScanned(article.varianteId);
+      recordScan(article);
       await persistArticles(updated);
 
       if (
@@ -724,6 +728,16 @@ function InventarioCargarContent({
             >
               Scanner activo
             </Badge>
+            <Button
+              size="xs"
+              variant="subtle"
+              color="gray"
+              leftSection={<History size={13} />}
+              onClick={() => setHistorialOpen(true)}
+              disabled={scanHistory.length === 0}
+            >
+              Historial{scanHistory.length > 0 ? ` · ${scanHistory.length}` : ""}
+            </Button>
             <Tooltip
               label={
                 warmupStatus === "loading"
@@ -796,6 +810,13 @@ function InventarioCargarContent({
           tabIndex={-1}
         />
       )}
+
+      {/* Scan history modal */}
+      <ScanHistoryModal
+        opened={historialOpen}
+        onClose={() => setHistorialOpen(false)}
+        history={scanHistory}
+      />
 
       {/* Manual search modal */}
       <VariantSearchModal
@@ -883,6 +904,7 @@ function InventarioCargarContent({
                     { label: "Descripción", w: undefined },
                     { label: "Marca", w: 110 },
                     { label: "Talle", w: 70 },
+                    { label: "Color", w: 90 },
                     { label: "Precio Venta", w: 130 },
                     { label: "Costo", w: 120 },
                     { label: "Últ. Compra", w: 120 },
@@ -1278,6 +1300,11 @@ function ArticleRow({
         {article.size ?? "-"}
       </td>
 
+      {/* Color */}
+      <td style={{ padding: "10px 12px", color: "var(--text3)", fontSize: 12 }}>
+        {article.color ?? "-"}
+      </td>
+
       {/* Precio Venta */}
       <td style={{ padding: "4px 8px" }}>
         {readonly ? (
@@ -1558,5 +1585,169 @@ function ArticleRow({
         </div>
       </td>
     </tr>
+  );
+}
+
+// ── ScanHistoryModal ──────────────────────────────────────────────────────────
+
+function ScanHistoryModal({
+  opened,
+  onClose,
+  history,
+}: {
+  opened: boolean;
+  onClose: () => void;
+  history: InventoryArticle[];
+}) {
+  return (
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      zIndex={300}
+      size="lg"
+      title={
+        <Group gap={10} align="center">
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background:
+                "color-mix(in srgb, var(--mantine-color-amber-6) 12%, transparent)",
+              border:
+                "1px solid color-mix(in srgb, var(--mantine-color-amber-6) 25%, transparent)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <History size={16} color="var(--mantine-color-amber-4)" />
+          </div>
+          <Text fw={700} size="md" style={{ fontFamily: "var(--font-display)" }}>
+            Últimos escaneos
+          </Text>
+        </Group>
+      }
+      overlayProps={{ blur: 2, backgroundOpacity: 0.45 }}
+    >
+      {history.length === 0 ? (
+        <Text size="sm" c="dimmed" ta="center" py="xl">
+          Todavía no se escaneó ningún artículo.
+        </Text>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: 13,
+              fontFamily: "var(--font-sans)",
+            }}
+          >
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                {["#", "Código", "Descripción", "Marca", "Color", "Talle"].map(
+                  (label) => (
+                    <th
+                      key={label}
+                      style={{
+                        padding: "8px 10px",
+                        textAlign: "left",
+                        color: "var(--text3)",
+                        fontWeight: 500,
+                        fontSize: 11,
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {label}
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((a, i) => (
+                <tr
+                  key={i}
+                  style={{
+                    borderBottom: "1px solid var(--border)",
+                    background: i === 0 ? "rgba(251,191,36,0.18)" : undefined,
+                    boxShadow:
+                      i === 0
+                        ? "inset 4px 0 0 var(--mantine-color-amber-4)"
+                        : undefined,
+                  }}
+                >
+                  <td
+                    style={{
+                      padding: "8px 10px",
+                      color: "var(--text3)",
+                      fontSize: 11,
+                      fontFamily: "var(--font-mono)",
+                    }}
+                  >
+                    {i + 1}
+                  </td>
+                  <td
+                    style={{
+                      padding: "8px 10px",
+                      color: "var(--text2)",
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 12,
+                    }}
+                  >
+                    {a.barcode}
+                  </td>
+                  <td style={{ padding: "8px 10px", color: "var(--text2)" }}>
+                    {a.name}
+                  </td>
+                  <td
+                    style={{
+                      padding: "8px 10px",
+                      color: "var(--text3)",
+                      fontSize: 12,
+                    }}
+                  >
+                    {a.brand ?? "-"}
+                  </td>
+                  <td
+                    style={{
+                      padding: "8px 10px",
+                      color: "var(--text3)",
+                      fontSize: 12,
+                    }}
+                  >
+                    {a.color ?? "-"}
+                  </td>
+                  <td
+                    style={{
+                      padding: "8px 10px",
+                      color: "var(--text3)",
+                      fontSize: 12,
+                    }}
+                  >
+                    {a.size ?? "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Group
+        justify="flex-end"
+        pt="sm"
+        mt="md"
+        style={{ borderTop: "1px solid var(--mantine-color-dark-5)" }}
+      >
+        <Button size="sm" variant="subtle" color="gray" onClick={onClose}>
+          Cerrar
+        </Button>
+      </Group>
+    </Modal>
   );
 }
