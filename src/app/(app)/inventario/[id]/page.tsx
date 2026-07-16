@@ -32,7 +32,6 @@ import {
   CheckCircle2,
   Zap,
 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useInventory } from "@/hooks/useInventory";
 import { InventoryStatusBadge } from "@/components/inventario/InventoryStatusBadge";
 import { ResumenModal } from "@/components/inventario/ResumenModal";
@@ -207,7 +206,6 @@ function InventarioCargarContent({
   warmupCategories: number[];
 }) {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const invId = inventory.id;
 
   const [articles, setArticles] = useState<InventoryArticle[]>(
@@ -224,6 +222,14 @@ function InventarioCargarContent({
   const [persistCount, setPersistCount] = useState(0);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Last scanned highlight
+  const [lastScannedId, setLastScannedId] = useState<number | null>(null);
+
+  function flashScanned(varianteId: number) {
+    setLastScannedId(varianteId);
+  }
 
   // Warmup state
   const [warmupStatus, setWarmupStatus] = useState<WarmupStatus | null>(null);
@@ -316,24 +322,28 @@ function InventarioCargarContent({
     return () => document.removeEventListener("click", refocus);
   }, [showManual]);
 
+  // Debounced: batches rapid scans/changes into a single PATCH.
+  // No invalidateQueries — client state is authoritative (single user, in-memory).
   const persistArticles = useCallback(
-    async (updated: InventoryArticle[]) => {
-      setPersistCount((n) => n + 1);
-      try {
-        await fetch(`/api/inventario/${invId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ articles: updated }),
-        });
-        queryClient.invalidateQueries({ queryKey: ["inventory", invId] });
-        setSavedAt(new Date());
-        if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-        savedTimerRef.current = setTimeout(() => setSavedAt(null), 2500);
-      } finally {
-        setPersistCount((n) => n - 1);
-      }
+    (updated: InventoryArticle[]) => {
+      if (persistDebounceRef.current) clearTimeout(persistDebounceRef.current);
+      persistDebounceRef.current = setTimeout(async () => {
+        setPersistCount((n) => n + 1);
+        try {
+          await fetch(`/api/inventario/${invId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ articles: updated }),
+          });
+          setSavedAt(new Date());
+          if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+          savedTimerRef.current = setTimeout(() => setSavedAt(null), 2500);
+        } finally {
+          setPersistCount((n) => n - 1);
+        }
+      }, 2000);
     },
-    [invId, queryClient],
+    [invId],
   );
 
   // ── Core scan processor ────────────────────────────────────────────────────
@@ -364,6 +374,7 @@ function InventarioCargarContent({
         ];
         articlesRef.current = updated;
         setArticles(updated);
+        flashScanned(existing.varianteId);
         await persistArticles(updated);
         return;
       }
@@ -374,6 +385,7 @@ function InventarioCargarContent({
         const updated = addOrIncrement(current, { ...cached, qty: 1 });
         articlesRef.current = updated;
         setArticles(updated);
+        flashScanned(updated[0].varianteId);
         await persistArticles(updated);
         return;
       }
@@ -396,6 +408,7 @@ function InventarioCargarContent({
         const updated = addOrIncrement(fresh, { ...article, qty: 1 });
         articlesRef.current = updated;
         setArticles(updated);
+        flashScanned(updated[0].varianteId);
         await persistArticles(updated);
 
         // Background prefetch siblings of this template
@@ -475,6 +488,7 @@ function InventarioCargarContent({
       ];
       articlesRef.current = updated;
       setArticles(updated);
+      flashScanned(varianteId);
       await persistArticles(updated);
       return;
     }
@@ -496,6 +510,7 @@ function InventarioCargarContent({
       const updated = [article, ...fresh];
       articlesRef.current = updated;
       setArticles(updated);
+      flashScanned(article.varianteId);
       await persistArticles(updated);
 
       if (
@@ -901,6 +916,7 @@ function InventarioCargarContent({
                     article={a}
                     readonly={isReadonly}
                     isSaving={savingIds.has(a.varianteId)}
+                    isLastScanned={lastScannedId === a.varianteId}
                     onSave={saveArticle}
                     onQtyChange={handleQtyChange}
                     onRemove={removeArticle}
@@ -1171,6 +1187,7 @@ interface ArticleRowProps {
   article: InventoryArticle;
   readonly: boolean;
   isSaving: boolean;
+  isLastScanned: boolean;
   onSave: (
     updated: InventoryArticle,
     original: InventoryArticle,
@@ -1183,6 +1200,7 @@ function ArticleRow({
   article,
   readonly,
   isSaving,
+  isLastScanned,
   onSave,
   onQtyChange,
   onRemove,
@@ -1223,7 +1241,14 @@ function ArticleRow({
     <tr
       style={{
         borderBottom: "1px solid var(--border)",
-        background: isDirty ? "rgba(251,191,36,0.04)" : undefined,
+        background: isLastScanned
+          ? "rgba(251,191,36,0.18)"
+          : isDirty
+            ? "rgba(251,191,36,0.04)"
+            : undefined,
+        boxShadow: isLastScanned
+          ? "inset 4px 0 0 var(--mantine-color-amber-4), 0 0 16px rgba(251,191,36,0.25)"
+          : undefined,
       }}
     >
       {/* Código */}

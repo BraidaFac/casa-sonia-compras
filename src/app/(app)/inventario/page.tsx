@@ -274,7 +274,6 @@ export default function InventarioPage() {
           invId={resumenInvId}
           onClose={() => setResumenInvId(null)}
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["inventories"] });
             setResumenInvId(null);
           }}
         />

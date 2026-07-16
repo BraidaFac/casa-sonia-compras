@@ -5,6 +5,17 @@ import { odoo } from "@/lib/odoo";
 import { buildConfirmationSummary } from "@/lib/inventoryConfirmationSummary";
 import type { InventoryArticle } from "@/types";
 
+// Run async tasks in batches to avoid hammering Odoo's rate limiter
+async function runInBatches<T>(
+  items: T[],
+  fn: (item: T) => Promise<unknown>,
+  batchSize = 10,
+): Promise<void> {
+  for (let i = 0; i < items.length; i += batchSize) {
+    await Promise.all(items.slice(i, i + batchSize).map(fn));
+  }
+}
+
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(request: NextRequest, { params }: Params) {
@@ -102,33 +113,31 @@ export async function POST(request: NextRequest, { params }: Params) {
         }
       }
 
-      // 3. Write existing quants in parallel, then apply in one batch call
+      // 3. Write existing quants in batches (10 at a time) to avoid 429, then apply in one call
       if (toUpdate.length > 0) {
-        await Promise.all(
-          toUpdate.map(({ quantId, qty }) =>
-            odoo.write("stock.quant", [quantId], {
-              inventory_quantity: qty,
-              inventory_quantity_set: true,
-            }),
-          ),
+        await runInBatches(toUpdate, ({ quantId, qty }) =>
+          odoo.write("stock.quant", [quantId], {
+            inventory_quantity: qty,
+            inventory_quantity_set: true,
+          }),
         );
         await odoo.call("stock.quant", "action_apply_inventory", {
           ids: toUpdate.map((u) => u.quantId),
         });
       }
 
-      // 4. Create missing quants in parallel, then apply in one batch call
+      // 4. Create missing quants in batches (10 at a time) to avoid 429, then apply in one call
       if (toCreate.length > 0) {
-        const createdIds = await Promise.all(
-          toCreate.map(({ varianteId, qty }) =>
-            odoo.create("stock.quant", {
-              product_id: varianteId,
-              location_id: locationId,
-              inventory_quantity: qty,
-              inventory_quantity_set: true,
-            }),
-          ),
-        );
+        const createdIds: number[] = [];
+        await runInBatches(toCreate, async ({ varianteId, qty }) => {
+          const id = await odoo.create("stock.quant", {
+            product_id: varianteId,
+            location_id: locationId,
+            inventory_quantity: qty,
+            inventory_quantity_set: true,
+          });
+          createdIds.push(id);
+        });
         await odoo.call("stock.quant", "action_apply_inventory", { ids: createdIds });
       }
     }
