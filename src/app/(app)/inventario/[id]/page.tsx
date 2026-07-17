@@ -219,11 +219,13 @@ function InventarioCargarContent({
   const [savingIds, setSavingIds] = useState<Set<number>>(new Set());
   const [resumenOpen, setResumenOpen] = useState(false);
 
-  // Auto-save feedback
-  const [persistCount, setPersistCount] = useState(0);
+  // Manual save state
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSavingAll, setIsSavingAll] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [reminderVisible, setReminderVisible] = useState(false);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const persistDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reminderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Last scanned highlight + scan history
   const [lastScannedId, setLastScannedId] = useState<number | null>(null);
@@ -307,6 +309,22 @@ function InventarioCargarContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Show "Recuerde guardar" reminder after 5 min of unsaved changes
+  useEffect(() => {
+    if (isDirty) {
+      reminderTimerRef.current = setTimeout(
+        () => setReminderVisible(true),
+        5 * 60 * 1000,
+      );
+    } else {
+      if (reminderTimerRef.current) clearTimeout(reminderTimerRef.current);
+      setReminderVisible(false);
+    }
+    return () => {
+      if (reminderTimerRef.current) clearTimeout(reminderTimerRef.current);
+    };
+  }, [isDirty]);
+
   // Refocus hidden input only when no real input is focused
   useEffect(() => {
     function refocus() {
@@ -326,29 +344,22 @@ function InventarioCargarContent({
     return () => document.removeEventListener("click", refocus);
   }, [showManual]);
 
-  // Debounced: batches rapid scans/changes into a single PATCH.
-  // No invalidateQueries — client state is authoritative (single user, in-memory).
-  const persistArticles = useCallback(
-    (updated: InventoryArticle[]) => {
-      if (persistDebounceRef.current) clearTimeout(persistDebounceRef.current);
-      persistDebounceRef.current = setTimeout(async () => {
-        setPersistCount((n) => n + 1);
-        try {
-          await fetch(`/api/inventario/${invId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ articles: updated }),
-          });
-          setSavedAt(new Date());
-          if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-          savedTimerRef.current = setTimeout(() => setSavedAt(null), 2500);
-        } finally {
-          setPersistCount((n) => n - 1);
-        }
-      }, 2000);
-    },
-    [invId],
-  );
+  const handleManualSave = useCallback(async () => {
+    setIsSavingAll(true);
+    try {
+      await fetch(`/api/inventario/${invId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ articles: articlesRef.current }),
+      });
+      setIsDirty(false);
+      setSavedAt(new Date());
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setSavedAt(null), 2500);
+    } finally {
+      setIsSavingAll(false);
+    }
+  }, [invId]);
 
   // ── Core scan processor ────────────────────────────────────────────────────
   // Uses articlesRef (not articles closure) to always work on fresh state.
@@ -379,7 +390,7 @@ function InventarioCargarContent({
         articlesRef.current = updated;
         setArticles(updated);
         recordScan({ ...existing, qty: existing.qty + 1 });
-        await persistArticles(updated);
+        setIsDirty(true);
         return;
       }
 
@@ -390,7 +401,7 @@ function InventarioCargarContent({
         articlesRef.current = updated;
         setArticles(updated);
         recordScan(updated[0]);
-        await persistArticles(updated);
+        setIsDirty(true);
         return;
       }
 
@@ -413,7 +424,7 @@ function InventarioCargarContent({
         articlesRef.current = updated;
         setArticles(updated);
         recordScan(updated[0]);
-        await persistArticles(updated);
+        setIsDirty(true);
 
         // Background prefetch siblings of this template
         if (
@@ -441,7 +452,7 @@ function InventarioCargarContent({
         setScanning(false);
       }
     },
-    [inventory.warehouseId, persistArticles],
+    [inventory.warehouseId],
   );
 
   // ── Queue drain — sequential, never loses a scan ───────────────────────────
@@ -493,7 +504,7 @@ function InventarioCargarContent({
       articlesRef.current = updated;
       setArticles(updated);
       recordScan(incremented);
-      await persistArticles(updated);
+      setIsDirty(true);
       return;
     }
 
@@ -515,7 +526,7 @@ function InventarioCargarContent({
       articlesRef.current = updated;
       setArticles(updated);
       recordScan(article);
-      await persistArticles(updated);
+      setIsDirty(true);
 
       if (
         article.productoId &&
@@ -552,9 +563,9 @@ function InventarioCargarContent({
     );
     articlesRef.current = next;
     setArticles(next);
+    setIsDirty(true);
     setSavingIds((prev) => new Set(prev).add(updated.varianteId));
     try {
-      await persistArticles(next);
       if (
         updated.salePrice !== original.salePrice ||
         updated.cost !== original.cost
@@ -584,16 +595,16 @@ function InventarioCargarContent({
     );
     articlesRef.current = updated;
     setArticles(updated);
-    void persistArticles(updated);
+    setIsDirty(true);
   }
 
-  async function handleQtyChange(varianteId: number, qty: number) {
+  function handleQtyChange(varianteId: number, qty: number) {
     const next = articlesRef.current.map((a) =>
       a.varianteId === varianteId ? { ...a, qty } : a,
     );
     articlesRef.current = next;
     setArticles(next);
-    await persistArticles(next);
+    setIsDirty(true);
   }
 
   const isReadonly = inventory.status === "CONFIRMADO";
@@ -676,48 +687,48 @@ function InventarioCargarContent({
 
         {canEdit && (
           <Group gap={8}>
-            {/* Auto-save indicator */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                opacity: persistCount > 0 || savedAt ? 1 : 0,
-                transition: "opacity 400ms ease",
-                pointerEvents: "none",
-              }}
+            {/* Save reminder — shown after 5 min of unsaved changes */}
+            {reminderVisible && (
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "var(--mantine-color-yellow-6)",
+                  opacity: 0.75,
+                }}
+              >
+                Recuerde guardar
+              </span>
+            )}
+
+            {/* Save feedback */}
+            {savedAt && !isDirty && (
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <div
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: "var(--mantine-color-green-5)",
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ fontSize: 11, color: "var(--text3)" }}>
+                  Guardado
+                </span>
+              </div>
+            )}
+
+            {/* Manual save button */}
+            <Button
+              size="xs"
+              variant={isDirty ? "filled" : "subtle"}
+              color={isDirty ? "amber" : "gray"}
+              loading={isSavingAll}
+              disabled={!isDirty || isSavingAll}
+              onClick={() => void handleManualSave()}
             >
-              {persistCount > 0 ? (
-                <>
-                  <div
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: "var(--mantine-color-amber-4)",
-                      animation: "pulse 1s ease-in-out infinite",
-                    }}
-                  />
-                  <span style={{ fontSize: 11, color: "var(--text3)" }}>
-                    Guardando...
-                  </span>
-                </>
-              ) : savedAt ? (
-                <>
-                  <div
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: "var(--mantine-color-green-5)",
-                    }}
-                  />
-                  <span style={{ fontSize: 11, color: "var(--text3)" }}>
-                    Guardado
-                  </span>
-                </>
-              ) : null}
-            </div>
+              Guardar
+            </Button>
 
             {scanning && <Loader size={14} color="amber" />}
             <Badge
@@ -1214,7 +1225,7 @@ interface ArticleRowProps {
     updated: InventoryArticle,
     original: InventoryArticle,
   ) => Promise<void>;
-  onQtyChange: (varianteId: number, qty: number) => Promise<void>;
+  onQtyChange: (varianteId: number, qty: number) => void;
   onRemove: (varianteId: number) => void;
 }
 
