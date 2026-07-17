@@ -954,7 +954,7 @@ function InventarioCargarContent({
                     { label: "Costo", w: 120 },
                     { label: "Últ. Compra", w: 120 },
                     { label: "En Mano", w: 80 },
-                    { label: "Cantidad", w: 140 },
+                    { label: "Contado", w: 140 },
                     { label: "", w: 64 },
                   ].map(({ label, w }) => (
                     <th
