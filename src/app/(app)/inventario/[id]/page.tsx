@@ -11,7 +11,6 @@ import {
   TextInput,
   Loader,
   Badge,
-  Alert,
   Modal,
   Combobox,
   useCombobox,
@@ -215,7 +214,9 @@ function InventarioCargarContent({
   const [scanBuffer, setScanBuffer] = useState("");
   const [showManual, setShowManual] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanFeedback, setScanFeedback] = useState<{ type: "success" | "error"; message: string; key: number } | null>(null);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const feedbackKeyRef = useRef(0);
   const [savingIds, setSavingIds] = useState<Set<number>>(new Set());
   const [resumenOpen, setResumenOpen] = useState(false);
 
@@ -236,6 +237,33 @@ function InventarioCargarContent({
     setLastScannedId(article.varianteId);
     setScanHistory((prev) => [article, ...prev].slice(0, 10));
   }
+
+  const showFeedback = useCallback((type: "success" | "error", message: string) => {
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    feedbackKeyRef.current += 1;
+    setScanFeedback({ type, message, key: feedbackKeyRef.current });
+    if (type === "error") {
+      try {
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = "square";
+        osc.frequency.setValueAtTime(320, ctx.currentTime);
+        osc.frequency.setValueAtTime(200, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.28);
+        osc.onended = () => void ctx.close();
+      } catch {
+        // AudioContext not available
+      }
+    }
+    const duration = type === "success" ? 1400 : 2800;
+    feedbackTimerRef.current = setTimeout(() => setScanFeedback(null), duration);
+  }, []);
 
   // Warmup state
   const [warmupStatus, setWarmupStatus] = useState<WarmupStatus | null>(null);
@@ -367,7 +395,6 @@ function InventarioCargarContent({
     async (code: string) => {
       const trimmed = code.trim();
       if (!trimmed) return;
-      setScanError(null);
 
       const current = articlesRef.current;
 
@@ -390,6 +417,7 @@ function InventarioCargarContent({
         articlesRef.current = updated;
         setArticles(updated);
         recordScan({ ...existing, qty: existing.qty + 1 });
+        showFeedback("success", existing.name);
         setIsDirty(true);
         return;
       }
@@ -401,6 +429,7 @@ function InventarioCargarContent({
         articlesRef.current = updated;
         setArticles(updated);
         recordScan(updated[0]);
+        showFeedback("success", cached.name);
         setIsDirty(true);
         return;
       }
@@ -412,7 +441,7 @@ function InventarioCargarContent({
           `/api/inventario/barcode?code=${encodeURIComponent(trimmed)}&warehouseId=${inventory.warehouseId}`,
         );
         if (!res.ok) {
-          setScanError(`Producto no encontrado: ${trimmed}`);
+          showFeedback("error", `No encontrado · ${trimmed}`);
           return;
         }
         const article = (await res.json()) as InventoryArticle;
@@ -424,6 +453,7 @@ function InventarioCargarContent({
         articlesRef.current = updated;
         setArticles(updated);
         recordScan(updated[0]);
+        showFeedback("success", article.name);
         setIsDirty(true);
 
         // Background prefetch siblings of this template
@@ -452,7 +482,7 @@ function InventarioCargarContent({
         setScanning(false);
       }
     },
-    [inventory.warehouseId],
+    [inventory.warehouseId, showFeedback],
   );
 
   // ── Queue drain — sequential, never loses a scan ───────────────────────────
@@ -491,7 +521,6 @@ function InventarioCargarContent({
 
   async function handleAddVariant(varianteId: number) {
     setShowManual(false);
-    setScanError(null);
 
     const current = articlesRef.current;
     const existing = current.find((a) => a.varianteId === varianteId);
@@ -504,6 +533,7 @@ function InventarioCargarContent({
       articlesRef.current = updated;
       setArticles(updated);
       recordScan(incremented);
+      showFeedback("success", existing.name);
       setIsDirty(true);
       return;
     }
@@ -514,7 +544,7 @@ function InventarioCargarContent({
         `/api/inventario/barcode?varianteId=${varianteId}&warehouseId=${inventory.warehouseId}`,
       );
       if (!res.ok) {
-        setScanError("Producto no encontrado");
+        showFeedback("error", "Producto no encontrado");
         return;
       }
       const article = (await res.json()) as InventoryArticle;
@@ -526,6 +556,7 @@ function InventarioCargarContent({
       articlesRef.current = updated;
       setArticles(updated);
       recordScan(article);
+      showFeedback("success", article.name);
       setIsDirty(true);
 
       if (
@@ -782,25 +813,31 @@ function InventarioCargarContent({
             Ver Resumen
           </Button>
         )}
+
+        {/* Scan feedback pill — centered in header */}
+        {scanFeedback && (
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "calc(100% + 10px)",
+              transform: "translateX(-50%)",
+              pointerEvents: "none",
+              zIndex: 10,
+            }}
+          >
+            <ScanFeedbackPill
+              type={scanFeedback.type}
+              message={scanFeedback.message}
+              animKey={scanFeedback.key}
+            />
+          </div>
+        )}
       </div>
 
       {/* Warmup banner */}
       {warmupStatus !== null && (
         <WarmupBanner status={warmupStatus} count={warmupCount} />
-      )}
-
-      {/* Scan error banner */}
-      {scanError && (
-        <Alert
-          icon={<AlertCircle size={14} />}
-          color="red"
-          withCloseButton
-          onClose={() => setScanError(null)}
-          style={{ margin: "8px 24px 0" }}
-          styles={{ message: { fontSize: 13 } }}
-        >
-          {scanError}
-        </Alert>
       )}
 
       {/* Hidden barcode input */}
@@ -860,9 +897,6 @@ function InventarioCargarContent({
             gap: 12,
           }}
         >
-          <span style={{ fontSize: 12, color: "var(--text3)" }}>
-            Los cambios se guardan automáticamente al escanear
-          </span>
           <Tooltip
             label="Agregá al menos un artículo para confirmar"
             withArrow
@@ -969,6 +1003,78 @@ function InventarioCargarContent({
         articles={articles}
       />
     </div>
+  );
+}
+
+// ── ScanFeedbackPill ──────────────────────────────────────────────────────────
+
+function ScanFeedbackPill({
+  type,
+  message,
+  animKey,
+}: {
+  type: "success" | "error";
+  message: string;
+  animKey: number;
+}) {
+  const isSuccess = type === "success";
+  const duration = isSuccess ? 1.4 : 2.8;
+
+  return (
+    <>
+      <style>{`
+        @keyframes scanPillIn {
+          0%   { opacity: 0; scale: 0.92; }
+          12%  { opacity: 1; scale: 1;    }
+          78%  { opacity: 1; scale: 1;    }
+          100% { opacity: 0; scale: 0.96; }
+        }
+      `}</style>
+      <div
+        key={animKey}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 7,
+          padding: "6px 12px",
+          borderRadius: 100,
+          background: isSuccess
+            ? "color-mix(in srgb, var(--mantine-color-green-9) 92%, transparent)"
+            : "color-mix(in srgb, var(--mantine-color-red-9) 92%, transparent)",
+          border: `1px solid ${isSuccess
+            ? "color-mix(in srgb, var(--mantine-color-green-5) 35%, transparent)"
+            : "color-mix(in srgb, var(--mantine-color-red-5) 35%, transparent)"}`,
+          boxShadow: isSuccess
+            ? "0 2px 12px rgba(34,197,94,0.2)"
+            : "0 2px 12px rgba(239,68,68,0.25)",
+          fontSize: 12,
+          fontFamily: "var(--font-sans)",
+          fontWeight: 500,
+          color: isSuccess
+            ? "var(--mantine-color-green-3)"
+            : "var(--mantine-color-red-3)",
+          maxWidth: 280,
+          animation: `scanPillIn ${duration}s ease forwards`,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+        }}
+      >
+        {isSuccess ? (
+          <CheckCircle2 size={13} style={{ flexShrink: 0 }} />
+        ) : (
+          <AlertCircle size={13} style={{ flexShrink: 0 }} />
+        )}
+        <span
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {message}
+        </span>
+      </div>
+    </>
   );
 }
 
