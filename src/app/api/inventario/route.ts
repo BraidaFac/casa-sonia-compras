@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
         status: true,
         warehouseId: true,
         warehouseName: true,
+        name: true,
         countDate: true,
         accountingDate: true,
         articles: true,
@@ -45,6 +46,7 @@ export async function GET(request: NextRequest) {
     return {
       ...rest,
       articleCount: Array.isArray(articles) ? (articles as unknown[]).length : 0,
+      name: inv.name ?? null,
       countDate: inv.countDate ?? null,
       accountingDate: inv.accountingDate ?? null,
       createdAt: inv.createdAt.toISOString(),
@@ -63,11 +65,12 @@ export async function POST(request: NextRequest) {
   const body = (await request.json()) as {
     warehouseId: number;
     warehouseName: string;
+    name?: string | null;
     countDate?: string | null;
     accountingDate?: string | null;
   };
 
-  const { warehouseId, warehouseName, countDate, accountingDate } = body;
+  const { warehouseId, warehouseName, name, countDate, accountingDate } = body;
 
   if (!warehouseId || !warehouseName) {
     return NextResponse.json(
@@ -80,6 +83,7 @@ export async function POST(request: NextRequest) {
     data: {
       warehouseId,
       warehouseName,
+      name: name ?? null,
       countDate: countDate ?? null,
       accountingDate: accountingDate ?? null,
       articles: [] as unknown as object[],

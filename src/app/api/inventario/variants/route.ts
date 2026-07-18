@@ -28,11 +28,12 @@ export async function GET(request: NextRequest) {
       ["active", "=", true],
       ["barcode", "!=", false],
     ],
-    ["id", "name", "barcode", "list_price", "standard_price", "product_template_attribute_value_ids", "categ_id"],
+    ["id", "name", "barcode", "default_code", "list_price", "standard_price", "product_template_attribute_value_ids", "categ_id"],
   ) as {
     id: number;
     name: string;
     barcode: string | false;
+    default_code: string | false;
     list_price: number;
     standard_price: number;
     product_template_attribute_value_ids: number[];
@@ -168,6 +169,7 @@ export async function GET(request: NextRequest) {
       varianteId: v.id,
       productoId: templateId,
       barcode: v.barcode as string,
+      defaultCode: (v.default_code as string | false) || null,
       name: v.name,
       qty: 1,
       salePrice: v.list_price ?? 0,

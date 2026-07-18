@@ -30,6 +30,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     status: inv.status as InventoryStatus,
     warehouseId: inv.warehouseId,
     warehouseName: inv.warehouseName,
+    name: inv.name ?? null,
     countDate: inv.countDate ?? null,
     accountingDate: inv.accountingDate ?? null,
     articles,
@@ -49,6 +50,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const body = (await request.json()) as {
     status?: InventoryStatus;
     articles?: InventoryArticle[];
+    name?: string | null;
     countDate?: string | null;
     accountingDate?: string | null;
   };
@@ -56,6 +58,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const data: Record<string, unknown> = {};
   if (body.status !== undefined) data.status = body.status;
   if (body.articles !== undefined) data.articles = body.articles as unknown as object[];
+  if (body.name !== undefined) data.name = body.name;
   if (body.countDate !== undefined) data.countDate = body.countDate;
   if (body.accountingDate !== undefined) data.accountingDate = body.accountingDate;
 

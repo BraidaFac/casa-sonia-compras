@@ -366,9 +366,12 @@ function CategoryCheckboxList({
   setCheckedIds: (v: Set<number>) => void;
   zeroUncounted: boolean;
 }) {
+  const sorted = [...categories].sort((a, b) =>
+    a.categoryName.localeCompare(b.categoryName, "es"),
+  );
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {categories.map((cat) => (
+      {sorted.map((cat) => (
         <LeafCategoryRow
           key={cat.categoryId}
           cat={cat}
@@ -642,19 +645,14 @@ function ProductTable({
     }),
   );
 
-  // Counted/partial first, then uncounted; within uncounted: positive diff → negative diff → zero diff (by abs impact desc), then alpha
-  const diffBucket = (diff: number) => (diff > 0 ? 0 : diff < 0 ? 1 : 2);
+  // Sort by aggCostDiff: negative first (most negative), positive after (most positive), zero/neutral last (alpha)
+  const costBucket = (c: number) => (c < 0 ? 0 : c > 0 ? 1 : 2);
   groups.sort((a, b) => {
-    const aCounted = a.countedCount > 0 ? 0 : 1;
-    const bCounted = b.countedCount > 0 ? 0 : 1;
-    if (aCounted !== bCounted) return aCounted - bCounted;
-    if (aCounted === 1) {
-      const aBucket = diffBucket(a.aggDiff);
-      const bBucket = diffBucket(b.aggDiff);
-      if (aBucket !== bBucket) return aBucket - bBucket;
-      if (Math.abs(a.aggDiff) !== Math.abs(b.aggDiff))
-        return Math.abs(b.aggDiff) - Math.abs(a.aggDiff);
-    }
+    const aBucket = costBucket(a.aggCostDiff);
+    const bBucket = costBucket(b.aggCostDiff);
+    if (aBucket !== bBucket) return aBucket - bBucket;
+    if (aBucket === 0) return a.aggCostDiff - b.aggCostDiff;
+    if (aBucket === 1) return b.aggCostDiff - a.aggCostDiff;
     return a.templateName.localeCompare(b.templateName, "es");
   });
 
@@ -895,14 +893,28 @@ function ProductGroup({
             .sort((a, b) => {
               const aCounted = countedMap.has(a.varianteId);
               const bCounted = countedMap.has(b.varianteId);
-              // 1. Contadas primero
-              if (aCounted !== bCounted) return aCounted ? -1 : 1;
-              // 2. Entre no contadas: positivo → negativo → cero/sin stock
-              if (!aCounted) {
-                const aBucket = a.qtyOnHand > 0 ? 0 : a.qtyOnHand < 0 ? 1 : 2;
-                const bBucket = b.qtyOnHand > 0 ? 0 : b.qtyOnHand < 0 ? 1 : 2;
-                if (aBucket !== bBucket) return aBucket - bBucket;
-              }
+              // Truly uncounted (zeroUncounted=false, not in countedMap) → last
+              const aTrulyUncounted = !aCounted && !zeroUncounted;
+              const bTrulyUncounted = !bCounted && !zeroUncounted;
+              if (aTrulyUncounted !== bTrulyUncounted)
+                return aTrulyUncounted ? 1 : -1;
+              if (aTrulyUncounted && bTrulyUncounted) return 0;
+              // Compute costDiff
+              const aDiff = aCounted
+                ? countedMap.get(a.varianteId)! - a.qtyOnHand
+                : -a.qtyOnHand;
+              const bDiff = bCounted
+                ? countedMap.get(b.varianteId)! - b.qtyOnHand
+                : -b.qtyOnHand;
+              const aCostDiff = aDiff * a.cost;
+              const bCostDiff = bDiff * b.cost;
+              // Bucket: negative=0, positive=1, zero=2
+              const bucket = (c: number) => (c < 0 ? 0 : c > 0 ? 1 : 2);
+              const aBucket = bucket(aCostDiff);
+              const bBucket = bucket(bCostDiff);
+              if (aBucket !== bBucket) return aBucket - bBucket;
+              if (aBucket === 0) return aCostDiff - bCostDiff;
+              if (aBucket === 1) return bCostDiff - aCostDiff;
               return 0;
             })
             .map((v) => (

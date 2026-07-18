@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   }
 
   const fields = [
-    "id", "name", "barcode",
+    "id", "name", "barcode", "default_code",
     "list_price", "standard_price",
     "product_tmpl_id", "product_template_attribute_value_ids",
     "categ_id",
@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
     id: number;
     name: string;
     barcode: string | false;
+    default_code: string | false;
     list_price: number;
     standard_price: number;
     product_tmpl_id: [number, string] | false;
@@ -177,6 +178,7 @@ export async function GET(request: NextRequest) {
     varianteId: p.id,
     productoId: templateId ?? 0,
     barcode: (p.barcode as string | false) || code || "",
+    defaultCode: (p.default_code as string | false) || null,
     name: p.name,
     qty: 1,
     salePrice: p.list_price ?? 0,

@@ -136,7 +136,7 @@ export default function InventarioPage() {
             >
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["#", "Depósito", "Estado", "Artículos", "Fecha Conteo", "Acciones"].map(
+                  {["#", "Nombre", "Depósito", "Estado", "Artículos", "Fecha Conteo", "Acciones"].map(
                     (h) => (
                       <th
                         key={h}
@@ -175,6 +175,9 @@ export default function InventarioPage() {
                   >
                     <td style={{ padding: "12px 12px", color: "var(--text3)" }}>
                       #{inv.id}
+                    </td>
+                    <td style={{ padding: "12px 12px", color: "var(--text2)" }}>
+                      {inv.name ?? <span style={{ color: "var(--text3)", fontStyle: "italic" }}>—</span>}
                     </td>
                     <td style={{ padding: "12px 12px", color: "var(--text)" }}>
                       {inv.warehouseName}

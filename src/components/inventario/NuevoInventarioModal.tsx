@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Modal, Button, Text, Group, Loader, Tooltip } from "@mantine/core";
+import { Modal, Button, Text, Group, Loader, Tooltip, TextInput } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import "dayjs/locale/es";
 import { useWarehouses } from "@/hooks/useWarehouses";
@@ -22,6 +22,7 @@ export function NuevoInventarioModal({ opened, onClose }: NuevoInventarioModalPr
   const { data: warehouses = [], isLoading: wLoading } = useWarehouses();
 
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
+  const [name, setName] = useState("");
   const [countDate, setCountDate] = useState<string | null>(todayStr());
   const [accountingDate, setAccountingDate] = useState<string | null>(todayStr());
   const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
@@ -37,6 +38,7 @@ export function NuevoInventarioModal({ opened, onClose }: NuevoInventarioModalPr
   function handleClose() {
     if (creating) return;
     setSelectedWarehouse(null);
+    setName("");
     setCountDate(todayStr());
     setAccountingDate(todayStr());
     setSelectedCategories([]);
@@ -53,6 +55,7 @@ export function NuevoInventarioModal({ opened, onClose }: NuevoInventarioModalPr
         body: JSON.stringify({
           warehouseId: selectedWarehouse.id,
           warehouseName: selectedWarehouse.name,
+          name: name.trim() || null,
           countDate,
           accountingDate,
         }),
@@ -82,6 +85,26 @@ export function NuevoInventarioModal({ opened, onClose }: NuevoInventarioModalPr
       closeOnEscape={!creating}
     >
       <div style={{ padding: "2px 0 12px", display: "flex", flexDirection: "column", gap: 24 }}>
+        {/* Nombre */}
+        <div>
+          <Text
+            size="xs"
+            fw={600}
+            c="dimmed"
+            mb="sm"
+            style={{ textTransform: "uppercase", letterSpacing: "0.06em" }}
+          >
+            Nombre <span style={{ fontWeight: 400, textTransform: "none" }}>(opcional)</span>
+          </Text>
+          <TextInput
+            placeholder="Ej: Conteo enero 2026, Cierre de temporada…"
+            value={name}
+            onChange={(e) => setName(e.currentTarget.value)}
+            size="sm"
+            disabled={creating}
+          />
+        </div>
+
         {/* Fechas */}
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 140px" }}>

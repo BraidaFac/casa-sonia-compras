@@ -215,6 +215,7 @@ export interface InventoryArticle {
   varianteId: number;
   productoId: number;
   barcode: string;
+  defaultCode: string | null;
   name: string;
   qty: number;
   salePrice: number;
@@ -235,6 +236,7 @@ export interface LocalInventory {
   status: InventoryStatus;
   warehouseId: number;
   warehouseName: string;
+  name: string | null;
   countDate: string | null;
   accountingDate: string | null;
   articles: InventoryArticle[];
@@ -249,6 +251,7 @@ export interface LocalInventorySummary {
   status: InventoryStatus;
   warehouseId: number;
   warehouseName: string;
+  name: string | null;
   countDate: string | null;
   accountingDate: string | null;
   articleCount: number;

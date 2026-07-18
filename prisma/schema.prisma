@@ -45,6 +45,7 @@ model Inventory {
   status         InventoryStatus @default(BORRADOR)
   warehouseId    Int             @map("warehouse_id")
   warehouseName  String          @map("warehouse_name")
+  name           String?
   countDate      String?         @map("count_date")
   accountingDate String?         @map("accounting_date")
   articles       Json            @default("[]")

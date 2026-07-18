@@ -31,6 +31,7 @@ import {
   CheckCircle2,
   Zap,
   History,
+  Search,
 } from "lucide-react";
 import { useInventory } from "@/hooks/useInventory";
 import { InventoryStatusBadge } from "@/components/inventario/InventoryStatusBadge";
@@ -211,6 +212,11 @@ function InventarioCargarContent({
   const [articles, setArticles] = useState<InventoryArticle[]>(
     inventory.articles,
   );
+  const [inventoryName, setInventoryName] = useState(inventory.name ?? "");
+  const [editingName, setEditingName] = useState(false);
+  const [savingName, setSavingName] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [scanBuffer, setScanBuffer] = useState("");
   const [showManual, setShowManual] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -356,6 +362,8 @@ function InventarioCargarContent({
   // Refocus hidden input only when no real input is focused
   useEffect(() => {
     function refocus() {
+      // Don't steal focus if user is selecting text
+      if (window.getSelection()?.type === "Range") return;
       const active = document.activeElement;
       const isRealInput =
         active instanceof HTMLInputElement ||
@@ -388,6 +396,20 @@ function InventarioCargarContent({
       setIsSavingAll(false);
     }
   }, [invId]);
+
+  async function handleSaveName() {
+    setSavingName(true);
+    try {
+      await fetch(`/api/inventario/${invId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: inventoryName.trim() || null }),
+      });
+    } finally {
+      setSavingName(false);
+      setEditingName(false);
+    }
+  }
 
   // ── Core scan processor ────────────────────────────────────────────────────
   // Uses articlesRef (not articles closure) to always work on fresh state.
@@ -641,6 +663,16 @@ function InventarioCargarContent({
   const isReadonly = inventory.status === "CONFIRMADO";
   const canEdit = inventory.status === "BORRADOR";
 
+  const filteredArticles = searchQuery.trim()
+    ? (() => {
+        const q = searchQuery.trim().toLowerCase();
+        return articles.filter((a) =>
+          [a.name, a.barcode, a.defaultCode, a.brand, a.size, a.color]
+            .some((v) => v?.toLowerCase().includes(q)),
+        );
+      })()
+    : articles;
+
   return (
     <div style={{ paddingBottom: 100 }}>
       {/* Sticky header */}
@@ -700,6 +732,49 @@ function InventarioCargarContent({
             >
               {inventory.warehouseName}
             </div>
+            {/* Nombre editable */}
+            {editingName ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                <input
+                  ref={nameInputRef}
+                  value={inventoryName}
+                  onChange={(e) => setInventoryName(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void handleSaveName();
+                    if (e.key === "Escape") { setInventoryName(inventory.name ?? ""); setEditingName(false); }
+                  }}
+                  onBlur={() => void handleSaveName()}
+                  disabled={savingName}
+                  placeholder="Nombre del inventario…"
+                  autoFocus
+                  style={{
+                    fontSize: 12,
+                    color: "var(--text2)",
+                    background: "var(--mantine-color-dark-6)",
+                    border: "1px solid var(--mantine-color-dark-4)",
+                    borderRadius: 4,
+                    padding: "2px 6px",
+                    outline: "none",
+                    width: 200,
+                    fontFamily: "var(--font-sans)",
+                  }}
+                />
+              </div>
+            ) : (
+              <div
+                onClick={() => { if (!isReadonly) setEditingName(true); }}
+                style={{
+                  fontSize: 12,
+                  color: inventoryName ? "var(--text2)" : "var(--text3)",
+                  marginTop: 2,
+                  cursor: isReadonly ? "default" : "text",
+                  fontStyle: inventoryName ? "normal" : "italic",
+                  padding: "1px 0",
+                }}
+              >
+                {inventoryName || (isReadonly ? "" : "Agregar nombre…")}
+              </div>
+            )}
             <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 1 }}>
               {inventory.countDate && (
                 <span>
@@ -714,6 +789,57 @@ function InventarioCargarContent({
               )}
             </div>
           </div>
+        </div>
+
+        {/* Search filter */}
+        <div style={{ flex: 1, maxWidth: 280, margin: "0 12px" }}>
+          <TextInput
+            placeholder="Filtrar escaneados..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.currentTarget.value)}
+            leftSection={<Search size={13} color="var(--text3)" />}
+            rightSection={
+              searchQuery ? (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "var(--text3)",
+                    display: "flex",
+                    alignItems: "center",
+                    padding: 0,
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              ) : null
+            }
+            size="xs"
+            styles={{
+              input: {
+                background: "var(--mantine-color-dark-7)",
+                border: "1px solid var(--mantine-color-dark-4)",
+                fontSize: 12,
+              },
+            }}
+          />
+          {searchQuery.trim() && (
+            <div
+              style={{
+                position: "absolute",
+                top: "calc(100% + 4px)",
+                left: "50%",
+                transform: "translateX(-50%)",
+                fontSize: 10,
+                color: "var(--text3)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {filteredArticles.length} de {articles.length}
+            </div>
+          )}
         </div>
 
         {canEdit && (
@@ -932,6 +1058,18 @@ function InventarioCargarContent({
               o usá el botón &quot;Manual&quot; para ingresar uno a mano
             </div>
           </div>
+        ) : filteredArticles.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "64px 24px",
+              color: "var(--text3)",
+              fontSize: 13,
+            }}
+          >
+            <Search size={28} style={{ opacity: 0.3, marginBottom: 12 }} />
+            <div>Sin resultados para &quot;{searchQuery.trim()}&quot;</div>
+          </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table
@@ -977,7 +1115,7 @@ function InventarioCargarContent({
                 </tr>
               </thead>
               <tbody>
-                {articles.map((a) => (
+                {filteredArticles.map((a) => (
                   <ArticleRow
                     key={a.varianteId}
                     article={a}
