@@ -58,15 +58,19 @@ export function computeOrderSummary(articles: Article[]): CategorySummary[] {
         // Sum warehouseQuantities keys ending in `:${size.name}`
         let qty = 0;
         const suffix = `:${size.name}`;
+        let hasWarehouseQty = false;
         for (const [key, val] of Object.entries(row.warehouseQuantities)) {
           if (key.endsWith(suffix)) {
+            hasWarehouseQty = true;
             const n = parseFloat(val);
             if (!isNaN(n)) qty += n;
           }
         }
-        // Also add plain quantities (no-warehouse mode)
-        const plain = parseFloat(row.quantities[size.name] || "0");
-        if (!isNaN(plain)) qty += plain;
+        // Only read plain quantities in no-warehouse mode
+        if (!hasWarehouseQty) {
+          const plain = parseFloat(row.quantities[size.name] || "0");
+          if (!isNaN(plain)) qty += plain;
+        }
 
         if (qty > 0) {
           acc.quantityBySize[canonical] =

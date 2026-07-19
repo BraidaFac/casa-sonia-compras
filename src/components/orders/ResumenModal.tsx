@@ -1,4 +1,5 @@
 "use client";
+import { useMemo } from "react";
 import { Modal, ScrollArea, Text } from "@mantine/core";
 import type { Article } from "@/types";
 import { computeOrderSummary } from "@/lib/orderSummary";
@@ -54,7 +55,7 @@ function formatCost(n: number): string {
 }
 
 export function ResumenModal({ opened, onClose, articles }: Props) {
-  const summaries = computeOrderSummary(articles);
+  const summaries = useMemo(() => computeOrderSummary(articles), [articles]);
 
   return (
     <Modal
