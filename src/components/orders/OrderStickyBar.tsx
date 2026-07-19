@@ -1,7 +1,7 @@
 "use client";
 import { Badge, Group, Text } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, LayoutList } from "lucide-react";
 import type { Article, Supplier } from "@/types";
 
 function getBrandFromArticles(articles: Article[]): string | null {
@@ -21,6 +21,7 @@ interface Props {
   totalUnits: number;
   totalAmount: number;
   onBack?: () => void;
+  onOpenResumen?: () => void;
 }
 
 const SEP = (
@@ -41,6 +42,7 @@ export function OrderStickyBar({
   totalUnits,
   totalAmount,
   onBack,
+  onOpenResumen,
 }: Props) {
   const brand = getBrandFromArticles(articles);
   const isMobile = useMediaQuery("(max-width: 639px)");
@@ -140,6 +142,38 @@ export function OrderStickyBar({
           flexShrink: 0,
         }}
       >
+        {onOpenResumen && (
+          <button
+            type="button"
+            onClick={onOpenResumen}
+            style={{
+              background: "none",
+              border: "1px solid var(--border2)",
+              color: "var(--text2)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              padding: "3px 8px",
+              borderRadius: 4,
+              fontSize: 11,
+              fontFamily: "var(--font-sans)",
+              whiteSpace: "nowrap",
+              transition: "color 120ms ease, border-color 120ms ease",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.color = "var(--text)";
+              (e.currentTarget as HTMLElement).style.borderColor = "var(--border2)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.color = "var(--text2)";
+              (e.currentTarget as HTMLElement).style.borderColor = "var(--border2)";
+            }}
+          >
+            <LayoutList size={12} />
+            Ver resumen
+          </button>
+        )}
         {totalUnits > 0 && (
           <Badge color="amber" variant="light" size="sm">
             {totalUnits} u.

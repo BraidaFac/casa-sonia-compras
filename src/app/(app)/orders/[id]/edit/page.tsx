@@ -12,6 +12,7 @@ import { ConfirmModal } from "@/components/orders/ConfirmModal";
 import { DraftWarningModal } from "@/components/orders/DraftWarningModal";
 import { OrderProgressModal } from "@/components/orders/OrderProgressModal";
 import { ErrorDetailModal } from "@/components/orders/ErrorDetailModal";
+import { ResumenModal } from "@/components/orders/ResumenModal";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { stripImagesForDB } from "@/lib/localOrders";
 import { validateForConfirm } from "@/lib/orderValidation";
@@ -71,6 +72,7 @@ export default function EditOrderPage({
   }>({ open: false, warnings: [], mode: "draft" });
 
   const [errorModal, setErrorModal] = useState(false);
+  const [resumenOpen, setResumenOpen] = useState(false);
 
   const isConfirmed = order?.status === "CONFIRMED";
 
@@ -297,6 +299,12 @@ export default function EditOrderPage({
         totalUnits={totals.units}
         totalAmount={totals.amount}
         onBack={() => router.push("/orders")}
+        onOpenResumen={() => setResumenOpen(true)}
+      />
+      <ResumenModal
+        opened={resumenOpen}
+        onClose={() => setResumenOpen(false)}
+        articles={articles}
       />
       <div
         style={{ maxWidth: 1200, margin: "0 auto" }}

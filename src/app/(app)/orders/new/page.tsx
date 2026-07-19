@@ -8,6 +8,7 @@ import { OrderStickyBar } from "@/components/orders/OrderStickyBar";
 import { OrderGrid } from "@/components/orders/OrderGrid";
 import { OrderFormFooter } from "@/components/orders/OrderFormFooter";
 import { DraftWarningModal } from "@/components/orders/DraftWarningModal";
+import { ResumenModal } from "@/components/orders/ResumenModal";
 import { OrderProgressModal } from "@/components/orders/OrderProgressModal";
 import { validateForConfirm } from "@/lib/orderValidation";
 import { stripImagesForDB } from "@/lib/localOrders";
@@ -78,6 +79,7 @@ export default function NewOrderPage() {
   const [printColumns, setPrintColumns] = useState<PrintColumn[]>([]);
   const [printValues, setPrintValues] = useState<PrintValues>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [resumenOpen, setResumenOpen] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [progressStep, setProgressStep] = useState("Guardando borrador...");
   const [progressError, setProgressError] = useState<string | undefined>(
@@ -344,6 +346,12 @@ export default function NewOrderPage() {
         totalUnits={totals.units}
         totalAmount={totals.amount}
         onBack={() => router.push("/orders")}
+        onOpenResumen={() => setResumenOpen(true)}
+      />
+      <ResumenModal
+        opened={resumenOpen}
+        onClose={() => setResumenOpen(false)}
+        articles={articles}
       />
 
       <div
