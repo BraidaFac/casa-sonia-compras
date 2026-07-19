@@ -209,6 +209,12 @@ function InventarioCargarContent({
   const router = useRouter();
   const invId = inventory.id;
 
+  // Si no vienen categorías por URL (segunda sesión), derivarlas de los artículos ya guardados
+  const effectiveWarmupCategories =
+    warmupCategories.length > 0
+      ? warmupCategories
+      : [...new Set(inventory.articles.map((a) => a.categoryId).filter((id) => id > 0))];
+
   const [articles, setArticles] = useState<InventoryArticle[]>(
     inventory.articles,
   );
@@ -295,13 +301,13 @@ function InventarioCargarContent({
 
   // ── Warmup: populate articleCache from selected categories ──────────────────
   useEffect(() => {
-    if (warmupDoneRef.current || warmupCategories.length === 0) return;
+    if (warmupDoneRef.current || effectiveWarmupCategories.length === 0) return;
     warmupDoneRef.current = true;
 
     setWarmupStatus("loading");
 
     fetch(
-      `/api/inventario/category-warmup?categoryIds=${warmupCategories.join(",")}&warehouseId=${inventory.warehouseId}`,
+      `/api/inventario/category-warmup?categoryIds=${effectiveWarmupCategories.join(",")}&warehouseId=${inventory.warehouseId}`,
     )
       .then((r) =>
         r.ok ? r.json() : Promise.reject(new Error("warmup fetch failed")),
@@ -940,16 +946,16 @@ function InventarioCargarContent({
           </Button>
         )}
 
-        {/* Scan feedback pill — centered in header */}
+        {/* Scan feedback pill — centered below header */}
         {scanFeedback && (
           <div
             style={{
-              position: "absolute",
+              position: "fixed",
               left: "50%",
-              top: "calc(100% + 10px)",
+              top: 62,
               transform: "translateX(-50%)",
               pointerEvents: "none",
-              zIndex: 10,
+              zIndex: 200,
             }}
           >
             <ScanFeedbackPill
@@ -1161,11 +1167,11 @@ function ScanFeedbackPill({
   return (
     <>
       <style>{`
-        @keyframes scanPillIn {
-          0%   { opacity: 0; scale: 0.92; }
-          12%  { opacity: 1; scale: 1;    }
-          78%  { opacity: 1; scale: 1;    }
-          100% { opacity: 0; scale: 0.96; }
+        @keyframes scanPill {
+          0%   { opacity: 0; translate: 0 -80px; }
+          18%  { opacity: 1; translate: 0 0;     }
+          80%  { opacity: 1; translate: 0 0;     }
+          100% { opacity: 0; translate: 0 -12px; }
         }
       `}</style>
       <div
@@ -1174,27 +1180,27 @@ function ScanFeedbackPill({
           display: "flex",
           alignItems: "center",
           gap: 7,
-          padding: "6px 12px",
+          padding: "7px 14px",
           borderRadius: 100,
           background: isSuccess
-            ? "color-mix(in srgb, var(--mantine-color-green-9) 92%, transparent)"
-            : "color-mix(in srgb, var(--mantine-color-red-9) 92%, transparent)",
+            ? "color-mix(in srgb, var(--mantine-color-green-9) 96%, transparent)"
+            : "color-mix(in srgb, var(--mantine-color-red-9) 96%, transparent)",
           border: `1px solid ${isSuccess
-            ? "color-mix(in srgb, var(--mantine-color-green-5) 35%, transparent)"
-            : "color-mix(in srgb, var(--mantine-color-red-5) 35%, transparent)"}`,
+            ? "color-mix(in srgb, var(--mantine-color-green-5) 40%, transparent)"
+            : "color-mix(in srgb, var(--mantine-color-red-5) 40%, transparent)"}`,
           boxShadow: isSuccess
-            ? "0 2px 12px rgba(34,197,94,0.2)"
-            : "0 2px 12px rgba(239,68,68,0.25)",
+            ? "0 4px 20px rgba(34,197,94,0.18), 0 1px 4px rgba(0,0,0,0.3)"
+            : "0 4px 20px rgba(239,68,68,0.22), 0 1px 4px rgba(0,0,0,0.3)",
           fontSize: 12,
           fontFamily: "var(--font-sans)",
           fontWeight: 500,
           color: isSuccess
             ? "var(--mantine-color-green-3)"
             : "var(--mantine-color-red-3)",
-          maxWidth: 280,
-          animation: `scanPillIn ${duration}s ease forwards`,
+          maxWidth: 300,
           whiteSpace: "nowrap",
           overflow: "hidden",
+          animation: `scanPill ${duration}s cubic-bezier(0.22, 1, 0.36, 1) forwards`,
         }}
       >
         {isSuccess ? (
