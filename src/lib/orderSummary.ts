@@ -1,7 +1,8 @@
 import type { Article } from "@/types";
 
 export interface CategorySummary {
-  categoryName: string;
+  categoryName: string;   // leaf name only (e.g. "Camisas")
+  completeName: string;   // full path (e.g. "Ropa / Camisas")
   canonicalSizes: string[]; // ordered by first appearance
   quantityBySize: Record<string, number>; // canonical → total units
   totalUnits: number;
@@ -10,10 +11,11 @@ export interface CategorySummary {
 }
 
 export function computeOrderSummary(articles: Article[]): CategorySummary[] {
-  // categoryName → accumulator
+  // completeName → accumulator (more precise key than name alone)
   const map = new Map<
     string,
     {
+      categoryName: string;
       canonicalOrder: string[]; // insertion-order canonical sizes
       seenCanonicals: Set<string>;
       quantityBySize: Record<string, number>;
@@ -24,11 +26,13 @@ export function computeOrderSummary(articles: Article[]): CategorySummary[] {
 
   for (const article of articles) {
     const categoryName = article.category?.name ?? "Sin categoría";
+    const completeName = article.category?.completeName ?? categoryName;
     const price = parseFloat(article.price || "0");
     const articlePrice = isNaN(price) ? 0 : price;
 
-    if (!map.has(categoryName)) {
-      map.set(categoryName, {
+    if (!map.has(completeName)) {
+      map.set(completeName, {
+        categoryName,
         canonicalOrder: [],
         seenCanonicals: new Set(),
         quantityBySize: {},
@@ -36,7 +40,7 @@ export function computeOrderSummary(articles: Article[]): CategorySummary[] {
         totalCost: 0,
       });
     }
-    const acc = map.get(categoryName)!;
+    const acc = map.get(completeName)!;
 
     // Build a canonical map for this article's sizes: sizeName → canonical
     const sizeToCanonical = new Map<string, string>();
@@ -85,9 +89,10 @@ export function computeOrderSummary(articles: Article[]): CategorySummary[] {
   }
 
   const result: CategorySummary[] = [];
-  for (const [categoryName, acc] of map) {
+  for (const [completeName, acc] of map) {
     result.push({
-      categoryName,
+      categoryName: acc.categoryName,
+      completeName,
       canonicalSizes: acc.canonicalOrder,
       quantityBySize: acc.quantityBySize,
       totalUnits: acc.totalUnits,
@@ -96,6 +101,6 @@ export function computeOrderSummary(articles: Article[]): CategorySummary[] {
     });
   }
 
-  result.sort((a, b) => a.categoryName.localeCompare(b.categoryName, "es"));
+  result.sort((a, b) => a.completeName.localeCompare(b.completeName, "es"));
   return result;
 }
