@@ -3,7 +3,6 @@ import React, { useCallback } from "react";
 import { ArticleRow } from "./ArticleRow";
 import type {
   Article,
-  AttributeValue,
   ColorValue,
   PrintColumn,
   SizeAttribute,

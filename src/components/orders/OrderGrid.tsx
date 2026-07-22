@@ -7,7 +7,6 @@ const EMPTY_STRING_ARRAY: string[] = [];
 
 const ORDER_DRAFT_KEY = "order_new_draft";
 import { Plus } from "lucide-react";
-import { ArticleRow } from "./ArticleRow";
 import { ArticleRowContainer } from "./ArticleRowContainer";
 import { REQUIRED_ATTR_FAMILIES } from "./ArticleAttributes";
 import { useAttributes } from "@/hooks/useAttributes";
