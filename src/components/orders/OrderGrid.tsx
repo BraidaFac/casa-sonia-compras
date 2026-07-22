@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Button, Group, Text } from "@mantine/core";
 
 const ORDER_DRAFT_KEY = "order_new_draft";
@@ -120,14 +120,14 @@ export function OrderGrid({
   });
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function updateArticles(
+  const updateArticles = useCallback((
     updater: Article[] | ((prev: Article[]) => Article[]),
-  ) {
+  ) => {
     setArticles((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       return next;
     });
-  }
+  }, []);
 
   useEffect(() => {
     if (isEditMode && initialArticles && initialArticles.length > 0) {
@@ -143,6 +143,10 @@ export function OrderGrid({
   const [printValues, setPrintValues] = useState<PrintValues>(
     () => (draft?.printValues as PrintValues) ?? {},
   );
+  const printValuesRef = useRef(printValues);
+  useEffect(() => {
+    printValuesRef.current = printValues;
+  }, [printValues]);
   const effectiveValidateMode = showValidation;
 
   // Use props directly — controlled by parent (DatosCabeceraOrden)
@@ -209,20 +213,20 @@ export function OrderGrid({
     return () => clearTimeout(timer);
   }, [globalBrand, brandAttributeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function addPrintColumn() {
+  const addPrintColumn = useCallback(() => {
     setPrintColumns((prev) => [
       ...prev,
       { id: crypto.randomUUID(), header: "" },
     ]);
-  }
+  }, []);
 
-  function updatePrintColumnHeader(id: string, header: string) {
+  const updatePrintColumnHeader = useCallback((id: string, header: string) => {
     setPrintColumns((prev) =>
       prev.map((col) => (col.id === id ? { ...col, header } : col)),
     );
-  }
+  }, []);
 
-  function removePrintColumn(id: string) {
+  const removePrintColumn = useCallback((id: string) => {
     setPrintColumns((prev) => prev.filter((col) => col.id !== id));
     setPrintValues((prev) => {
       const next = { ...prev };
@@ -231,78 +235,79 @@ export function OrderGrid({
       });
       return next;
     });
-  }
+  }, []);
 
-  function updatePrintValue(
+  const updatePrintValue = useCallback((
     articleId: string,
     rowId: string,
     columnId: string,
     value: string,
-  ) {
+  ) => {
     setPrintValues((prev) => ({
       ...prev,
       [`${articleId}:${rowId}:${columnId}`]: value,
     }));
-  }
+  }, []);
 
-  function getPrintValue(
+  // Reads from ref so it stays stable even as printValues changes
+  const getPrintValue = useCallback((
     articleId: string,
     rowId: string,
     columnId: string,
-  ): string {
-    return printValues[`${articleId}:${rowId}:${columnId}`] || "";
-  }
+  ): string => {
+    return printValuesRef.current[`${articleId}:${rowId}:${columnId}`] || "";
+  }, []);
 
-  function updateArticle(id: string, updated: Article) {
+  const updateArticle = useCallback((id: string, updated: Article) => {
     updateArticles((prev) => prev.map((a) => (a.id === id ? updated : a)));
-  }
+  }, [updateArticles]);
 
-  function removeArticle(id: string) {
+  const removeArticle = useCallback((id: string) => {
     updateArticles((prev) => prev.filter((a) => a.id !== id));
-  }
+  }, [updateArticles]);
 
-  function duplicateArticle(id: string) {
-    const original = articles.find((a) => a.id === id);
-    if (!original) return;
-
-    const duplicated: Article = {
-      ...original,
-      id: crypto.randomUUID(),
-      name: "",
-      referencia: "",
-      existingProductId: null,
-      colorImages: {},
-      deletedOdooImageIds: [],
-      clearedPrimaryColorNames: [],
-      rows: original.rows.map((row) => ({
-        ...row,
-        id: crypto.randomUUID(),
-        quantities: {},
-        warehouseQuantities: {},
-        barcodes: {},
-      })),
-      sizes: original.sizes.map((size) => ({ ...size })),
-      attributes: original.attributes.map((attr) => ({
-        ...attr,
-        values: [...attr.values],
-      })),
-    };
-
+  const duplicateArticle = useCallback((id: string) => {
     updateArticles((prev) => {
+      const original = prev.find((a) => a.id === id);
+      if (!original) return prev;
+
+      const duplicated: Article = {
+        ...original,
+        id: crypto.randomUUID(),
+        name: "",
+        referencia: "",
+        existingProductId: null,
+        colorImages: {},
+        deletedOdooImageIds: [],
+        clearedPrimaryColorNames: [],
+        rows: original.rows.map((row) => ({
+          ...row,
+          id: crypto.randomUUID(),
+          quantities: {},
+          warehouseQuantities: {},
+          barcodes: {},
+        })),
+        sizes: original.sizes.map((size) => ({ ...size })),
+        attributes: original.attributes.map((attr) => ({
+          ...attr,
+          values: [...attr.values],
+        })),
+      };
+
       const idx = prev.findIndex((a) => a.id === id);
       const next = [...prev];
       next.splice(idx + 1, 0, duplicated);
       return next;
     });
-  }
+  }, [updateArticles]);
 
-  function addArticle() {
+  const addArticle = useCallback(() => {
     const brandInfo =
       globalBrand && brandAttributeId
         ? { attributeId: brandAttributeId, brand: globalBrand }
         : null;
     updateArticles((prev) => [...prev, createEmptyArticle(brandInfo)]);
-  }
+  }, [globalBrand, brandAttributeId, updateArticles]);
 
   const totalUnits = useMemo(() => articles.reduce((sum, article) => {
     return (
