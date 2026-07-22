@@ -2,9 +2,13 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Button, Group, Text } from "@mantine/core";
 
+// Stable empty array reference — prevents new array allocation per render for articles with no missing required attrs
+const EMPTY_STRING_ARRAY: string[] = [];
+
 const ORDER_DRAFT_KEY = "order_new_draft";
 import { Plus } from "lucide-react";
 import { ArticleRow } from "./ArticleRow";
+import { ArticleRowContainer } from "./ArticleRowContainer";
 import { REQUIRED_ATTR_FAMILIES } from "./ArticleAttributes";
 import { useAttributes } from "@/hooks/useAttributes";
 import { useBrands } from "@/hooks/useBrands";
@@ -530,45 +534,39 @@ export function OrderGrid({
   return (
     <div style={{ position: "relative" }}>
       {/* Articles */}
-      {articles.map((article) => {
-        return (
-          <ArticleRow
-            key={article.id}
-            article={article}
-            allColors={allColors}
-            colorBaseOptions={colorBaseOptions}
-            sizeAttributes={sizeAttributes}
-            colorAttributeId={colorAttributeId}
-            sizeAttributeId={sizeAttributeId}
-            categories={categories}
-            invalidColors={[]}
-            invalidSizes={[]}
-            printColumns={printColumns}
-            onAddPrintColumn={addPrintColumn}
-            onUpdatePrintColumnHeader={updatePrintColumnHeader}
-            onRemovePrintColumn={removePrintColumn}
-            getPrintValue={(rowId, columnId) =>
-              getPrintValue(article.id, rowId, columnId)
-            }
-            onUpdatePrintValue={(rowId, columnId, value) =>
-              updatePrintValue(article.id, rowId, columnId, value)
-            }
-            selectedWarehouses={selectedWarehouses}
-            onChange={(updated) => updateArticle(article.id, updated)}
-            onRemove={() => removeArticle(article.id)}
-            onDuplicate={() => duplicateArticle(article.id)}
-            onOpenSizeModal={() => refetchAttrs()}
-            missingRequiredKeys={
-              effectiveValidateMode ? (missingRequiredPerArticle[article.id] ?? []) : []
-            }
-            isFirstMissingArticle={
-              effectiveValidateMode && article.id === firstMissingArticleId
-            }
-            orderId={orderId}
-            readOnly={readOnly}
-          />
-        );
-      })}
+      {articles.map((article) => (
+        <ArticleRowContainer
+          key={article.id}
+          article={article}
+          updateArticle={updateArticle}
+          removeArticle={removeArticle}
+          duplicateArticle={duplicateArticle}
+          getPrintValue={getPrintValue}
+          updatePrintValue={updatePrintValue}
+          refetchAttrs={refetchAttrs}
+          allColors={allColors}
+          colorBaseOptions={colorBaseOptions}
+          sizeAttributes={sizeAttributes}
+          colorAttributeId={colorAttributeId}
+          sizeAttributeId={sizeAttributeId}
+          categories={categories}
+          printColumns={printColumns}
+          onAddPrintColumn={addPrintColumn}
+          onUpdatePrintColumnHeader={updatePrintColumnHeader}
+          onRemovePrintColumn={removePrintColumn}
+          selectedWarehouses={selectedWarehouses}
+          missingRequiredKeys={
+            effectiveValidateMode
+              ? (missingRequiredPerArticle[article.id] ?? EMPTY_STRING_ARRAY)
+              : EMPTY_STRING_ARRAY
+          }
+          isFirstMissingArticle={
+            effectiveValidateMode && article.id === firstMissingArticleId
+          }
+          orderId={orderId}
+          readOnly={readOnly}
+        />
+      ))}
 
       {/* Add article — hidden in readOnly */}
       {!readOnly && (
