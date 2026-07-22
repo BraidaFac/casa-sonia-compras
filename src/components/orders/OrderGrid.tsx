@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Button, Group, Text } from "@mantine/core";
 
 const ORDER_DRAFT_KEY = "order_new_draft";
@@ -304,7 +304,7 @@ export function OrderGrid({
     updateArticles((prev) => [...prev, createEmptyArticle(brandInfo)]);
   }
 
-  const totalUnits = articles.reduce((sum, article) => {
+  const totalUnits = useMemo(() => articles.reduce((sum, article) => {
     return (
       sum +
       article.rows.reduce((s2, row) => {
@@ -326,9 +326,9 @@ export function OrderGrid({
         );
       }, 0)
     );
-  }, 0);
+  }, 0), [articles, selectedWarehouses]);
 
-  const totalAmount = articles.reduce((sum, article) => {
+  const totalAmount = useMemo(() => articles.reduce((sum, article) => {
     return (
       sum +
       article.rows.reduce((s2, row) => {
@@ -374,20 +374,21 @@ export function OrderGrid({
         );
       }, 0)
     );
-  }, 0);
+  }, 0), [articles, selectedWarehouses]);
 
   useEffect(() => {
     onTotalsChange?.(totalUnits, totalAmount);
   }, [totalUnits, totalAmount, onTotalsChange]);
 
-  const hasDirtyData =
+  const hasDirtyData = useMemo(() =>
     articles.length > 1 ||
     (articles.length === 1 &&
       (articles[0].name.trim() !== "" ||
         articles[0].sizes.length > 0 ||
         articles[0].rows.some((r) =>
           Object.values(r.quantities).some((q) => parseInt(q || "0", 10) > 0),
-        )));
+        ))),
+  [articles]);
 
   useEffect(() => {
     if (!hasDirtyData) return;
@@ -450,23 +451,6 @@ export function OrderGrid({
     return article.rows.some((r) => articleRowHasQty(article, r));
   }
 
-  const hasValidationErrors = articles.some((a) => {
-    const hasQty = articleHasQty(a);
-    const missingPrice = !a.priceGranular && !a.price && hasQty;
-    const missingColor = a.rows.some((r) => articleRowHasQty(a, r) && !r.color);
-    return missingPrice || missingColor;
-  });
-
-  const missingBrand = articles.some((a) => {
-    if (!articleHasQty(a)) return false;
-    const brandAttr = a.attributes.find((attr) =>
-      attr.attributeName.toLowerCase().includes("marca"),
-    );
-    return !brandAttr || brandAttr.values.length === 0;
-  });
-
-  const hasAnyQty = articles.some((a) => articleHasQty(a));
-
   function getMissingRequiredKeys(article: Article): string[] {
     return REQUIRED_ATTR_FAMILIES.filter(
       (family) =>
@@ -479,17 +463,38 @@ export function OrderGrid({
     ).map((f) => f.key);
   }
 
-  // Computed per article (always, not only in validateMode)
-  const missingRequiredPerArticle: Record<string, string[]> = {};
-  for (const article of articles) {
-    const missing = getMissingRequiredKeys(article);
-    if (missing.length > 0) missingRequiredPerArticle[article.id] = missing;
-  }
-  const hasMissingRequiredAttrs =
-    Object.keys(missingRequiredPerArticle).length > 0;
-  const firstMissingArticleId = articles.find(
-    (a) => missingRequiredPerArticle[a.id],
-  )?.id;
+  const { hasValidationErrors, missingBrand, hasAnyQty, missingRequiredPerArticle, firstMissingArticleId } = useMemo(() => {
+    const hasValidationErrors = articles.some((a) => {
+      const hasQty = articleHasQty(a);
+      const missingPrice = !a.priceGranular && !a.price && hasQty;
+      const missingColor = a.rows.some((r) => articleRowHasQty(a, r) && !r.color);
+      return missingPrice || missingColor;
+    });
+
+    const missingBrand = articles.some((a) => {
+      if (!articleHasQty(a)) return false;
+      const brandAttr = a.attributes.find((attr) =>
+        attr.attributeName.toLowerCase().includes("marca"),
+      );
+      return !brandAttr || brandAttr.values.length === 0;
+    });
+
+    const hasAnyQty = articles.some((a) => articleHasQty(a));
+
+    const missingRequiredPerArticle: Record<string, string[]> = {};
+    for (const article of articles) {
+      const missing = getMissingRequiredKeys(article);
+      if (missing.length > 0) missingRequiredPerArticle[article.id] = missing;
+    }
+
+    const firstMissingArticleId = articles.find(
+      (a) => missingRequiredPerArticle[a.id],
+    )?.id;
+
+    return { hasValidationErrors, missingBrand, hasAnyQty, missingRequiredPerArticle, firstMissingArticleId };
+  }, [articles, selectedWarehouses]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const hasMissingRequiredAttrs = Object.keys(missingRequiredPerArticle).length > 0;
 
   if (attrLoading) {
     return (
