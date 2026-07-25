@@ -12,8 +12,10 @@ import {
   Loader,
   Textarea,
   SegmentedControl,
+  Tooltip,
 } from "@mantine/core";
 import { CheckCircle } from "lucide-react";
+import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import type { Article, Supplier, PrintColumn, PrintValues, Warehouse } from "@/types";
 
 interface Props {
@@ -109,6 +111,8 @@ function calcArticleSummary(article: Article, warehouseMode: boolean) {
 }
 
 export function ConfirmModal({ orderId, supplier, date, articles, selectedWarehouses, printColumns, printValues, onClose, onConfirmed }: Props) {
+  const { data: currentEmployee } = useCurrentEmployee();
+  const canConfirm = currentEmployee?.role === "ADMIN" || currentEmployee?.role === "MANAGER";
   const [step, setStep] = useState<"preview" | "submitting" | "done">("preview");
   const [result, setResult] = useState<OrderResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -321,14 +325,16 @@ export function ConfirmModal({ orderId, supplier, date, articles, selectedWareho
                 Cancelar
               </Button>
             )}
-            <Button
-              color="amber"
-              onClick={() => mutation.mutate()}
-              loading={step === "submitting"}
-              disabled={step === "submitting"}
-            >
-              Enviar a Odoo →
-            </Button>
+            <Tooltip label="Sin permisos para confirmar" disabled={canConfirm} withArrow>
+              <Button
+                color="amber"
+                onClick={() => mutation.mutate()}
+                loading={step === "submitting"}
+                disabled={!canConfirm || step === "submitting"}
+              >
+                Enviar a Odoo →
+              </Button>
+            </Tooltip>
           </Group>
         </Stack>
       )}

@@ -136,7 +136,7 @@ export default function InventarioPage() {
             >
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["#", "Nombre", "Depósito", "Estado", "Artículos", "Fecha Conteo", "Acciones"].map(
+                  {["#", "Nombre", "Depósito", "Estado", "Artículos", "Fecha Conteo", "Creado por", "Acciones"].map(
                     (h) => (
                       <th
                         key={h}
@@ -190,6 +190,9 @@ export default function InventarioPage() {
                     </td>
                     <td style={{ padding: "12px 12px", color: "var(--text3)", whiteSpace: "nowrap" }}>
                       {inv.countDate ? inv.countDate.split("-").reverse().join("/") : formatDate(inv.createdAt)}
+                    </td>
+                    <td style={{ padding: "12px 12px", color: "var(--text3)", fontSize: 12 }}>
+                      {inv.createdByName ?? <span style={{ fontStyle: "italic" }}>—</span>}
                     </td>
                     <td style={{ padding: "12px 12px" }}>
                       <Group gap={4} wrap="nowrap">

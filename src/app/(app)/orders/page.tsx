@@ -255,7 +255,7 @@ export default function OrdersPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: "var(--font-sans)" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["Creada", "Proveedor", "Estado", "Artículos", "Fecha OC", "N° Odoo", "Acciones"].map((h) => (
+                  {["Creada", "Proveedor", "Estado", "Artículos", "Fecha OC", "N° Odoo", "Creado por", "Acciones"].map((h) => (
                     <th
                       key={h}
                       style={{
@@ -301,6 +301,9 @@ export default function OrdersPage() {
                       </td>
                       <td style={{ padding: "12px 12px", color: "var(--text3)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
                         {row.odooOrderName ?? "-"}
+                      </td>
+                      <td style={{ padding: "12px 12px", color: "var(--text3)", fontSize: 12 }}>
+                        {row.createdByName ?? <span style={{ fontStyle: "italic" }}>—</span>}
                       </td>
                       <td style={{ padding: "12px 12px" }}>
                         <Group gap={4} wrap="nowrap">

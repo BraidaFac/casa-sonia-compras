@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   TextInput,
   PasswordInput,
@@ -13,6 +14,7 @@ import {
 
 export function LoginForm() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,6 +39,7 @@ export function LoginForm() {
         return;
       }
 
+      queryClient.removeQueries({ queryKey: ["currentEmployee"] });
       router.push("/orders/new");
       router.refresh();
     } catch {

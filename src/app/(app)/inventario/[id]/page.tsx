@@ -34,6 +34,7 @@ import {
   Search,
 } from "lucide-react";
 import { useInventory } from "@/hooks/useInventory";
+import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { InventoryStatusBadge } from "@/components/inventario/InventoryStatusBadge";
 import { ResumenModal } from "@/components/inventario/ResumenModal";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -231,6 +232,8 @@ function InventarioCargarContent({
   const feedbackKeyRef = useRef(0);
   const [savingIds, setSavingIds] = useState<Set<number>>(new Set());
   const [resumenOpen, setResumenOpen] = useState(false);
+  const { data: currentEmployee } = useCurrentEmployee();
+  const canConfirm = currentEmployee?.role === "ADMIN" || currentEmployee?.role === "MANAGER";
 
   // Manual save state
   const [isDirty, setIsDirty] = useState(false);
@@ -1030,15 +1033,21 @@ function InventarioCargarContent({
           }}
         >
           <Tooltip
-            label="Agregá al menos un artículo para confirmar"
+            label={
+              !canConfirm
+                ? "Sin permisos para confirmar"
+                : articles.length === 0
+                  ? "Agregá al menos un artículo para confirmar"
+                  : undefined
+            }
             withArrow
-            disabled={articles.length > 0}
+            disabled={canConfirm && articles.length > 0}
           >
             <Button
               leftSection={<Check size={14} />}
               color="amber"
               size="sm"
-              disabled={articles.length === 0}
+              disabled={!canConfirm || articles.length === 0}
               onClick={() => setResumenOpen(true)}
             >
               Confirmar Inventario

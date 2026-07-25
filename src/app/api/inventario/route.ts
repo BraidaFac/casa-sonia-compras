@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
+import { getRequestPayload } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
-  if (!(await authenticateRequest(request))) {
+  const payload = await getRequestPayload(request);
+  if (!payload) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -36,19 +37,21 @@ export async function GET(request: NextRequest) {
         errorDetail: true,
         createdAt: true,
         updatedAt: true,
+        createdBy: { select: { name: true } },
       },
     }),
     prisma.inventory.count({ where }),
   ]);
 
   const summaries = inventories.map((inv) => {
-    const { articles, ...rest } = inv;
+    const { articles, createdBy, ...rest } = inv;
     return {
       ...rest,
       articleCount: Array.isArray(articles) ? (articles as unknown[]).length : 0,
       name: inv.name ?? null,
       countDate: inv.countDate ?? null,
       accountingDate: inv.accountingDate ?? null,
+      createdByName: createdBy?.name ?? null,
       createdAt: inv.createdAt.toISOString(),
       updatedAt: inv.updatedAt.toISOString(),
     };
@@ -58,7 +61,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await authenticateRequest(request))) {
+  const payload = await getRequestPayload(request);
+  if (!payload) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -87,6 +91,7 @@ export async function POST(request: NextRequest) {
       countDate: countDate ?? null,
       accountingDate: accountingDate ?? null,
       articles: [] as unknown as object[],
+      createdById: payload.employeeId,
     },
   });
 

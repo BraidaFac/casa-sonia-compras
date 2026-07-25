@@ -4,7 +4,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Tooltip } from "@mantine/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Store, Package, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { ClipboardList, Store, Package, ChevronLeft, ChevronRight, RefreshCw, Users, LogOut } from "lucide-react";
+import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 
 const NAV_ITEMS = [
   { href: "/orders", label: "Órdenes", icon: ClipboardList },
@@ -31,6 +32,27 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [showText, setShowText] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      queryClient.removeQueries({ queryKey: ["currentEmployee"] });
+      router.push("/login");
+      router.refresh();
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+  const { data: currentEmployee } = useCurrentEmployee();
+  const canManageEmployees =
+    currentEmployee?.role === "ADMIN" || currentEmployee?.role === "MANAGER";
+  const roleLabel: Record<string, string> = {
+    ADMIN: "Admin",
+    MANAGER: "Manager",
+    EMPLEADO: "Empleado",
+  };
 
   async function handleRefreshCache() {
     setIsRefreshing(true);
@@ -180,6 +202,61 @@ export function Sidebar() {
           );
         })}
 
+        {canManageEmployees && (
+          <Tooltip label="Empleados" disabled={!collapsed} position="right" withArrow>
+            <button
+              onClick={() => router.push("/empleados")}
+              style={{
+                width: "100%",
+                background:
+                  pathname === "/empleados" || pathname.startsWith("/empleados/")
+                    ? "color-mix(in srgb, var(--mantine-color-amber-6) 12%, transparent)"
+                    : "none",
+                border: "none",
+                borderLeft:
+                  pathname === "/empleados" || pathname.startsWith("/empleados/")
+                    ? "2px solid var(--mantine-color-amber-6)"
+                    : "2px solid transparent",
+                borderRadius:
+                  pathname === "/empleados" || pathname.startsWith("/empleados/")
+                    ? "0 6px 6px 0"
+                    : 6,
+                padding: exp ? "10px 12px" : "10px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: exp ? "flex-start" : "center",
+                gap: 10,
+                color:
+                  pathname === "/empleados" || pathname.startsWith("/empleados/")
+                    ? "var(--mantine-color-amber-4)"
+                    : "var(--text2)",
+                fontSize: 13,
+                fontWeight:
+                  pathname === "/empleados" || pathname.startsWith("/empleados/") ? 600 : 400,
+                fontFamily: "var(--font-sans)",
+                marginBottom: 2,
+                transition: "background 150ms, color 150ms",
+              }}
+              onMouseEnter={(e) => {
+                const active =
+                  pathname === "/empleados" || pathname.startsWith("/empleados/");
+                if (!active)
+                  (e.currentTarget as HTMLElement).style.background =
+                    "var(--surface2, rgba(255,255,255,0.05))";
+              }}
+              onMouseLeave={(e) => {
+                const active =
+                  pathname === "/empleados" || pathname.startsWith("/empleados/");
+                if (!active) (e.currentTarget as HTMLElement).style.background = "none";
+              }}
+            >
+              <Users size={16} />
+              {exp && "Empleados"}
+            </button>
+          </Tooltip>
+        )}
+
         <div style={{ borderTop: "1px solid var(--border)", margin: "8px 0" }} />
 
         {FUTURE_ITEMS.map(({ href, label, icon: Icon, soon }) => (
@@ -232,12 +309,96 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Footer — refresh cache */}
+      {/* Footer */}
       <div
         style={{
           padding: exp ? "10px 16px" : "10px 8px",
         }}
       >
+        {currentEmployee && (
+          exp ? (
+            <div
+              style={{
+                marginBottom: 8,
+                padding: "8px 12px",
+                borderRadius: 6,
+                background: "var(--surface2, rgba(255,255,255,0.04))",
+                border: "1px solid var(--border)",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "var(--mantine-color-amber-8)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: "var(--mantine-color-amber-1)",
+                  flexShrink: 0,
+                }}
+              >
+                {currentEmployee.name.charAt(0).toUpperCase()}
+              </div>
+              <div style={{ overflow: "hidden" }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "var(--text1)",
+                    fontFamily: "var(--font-sans)",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {currentEmployee.name}
+                </div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "var(--mantine-color-amber-4)",
+                    fontFamily: "var(--font-sans)",
+                  }}
+                >
+                  {roleLabel[currentEmployee.role] ?? currentEmployee.role}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              style={{
+                marginBottom: 8,
+                display: "flex",
+                justifyContent: "center",
+              }}
+            >
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "var(--mantine-color-amber-8)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: "var(--mantine-color-amber-1)",
+                }}
+              >
+                {currentEmployee.name.charAt(0).toUpperCase()}
+              </div>
+            </div>
+          )
+        )}
         <Tooltip
           label={
             exp
@@ -276,6 +437,33 @@ export function Sidebar() {
               }}
             />
             {exp && (isRefreshing ? "Refrescando..." : "Refrescar")}
+          </button>
+        </Tooltip>
+
+        <Tooltip label="Cerrar sesión" position="right" withArrow disabled={exp}>
+          <button
+            onClick={handleLogout}
+            disabled={loggingOut}
+            style={{
+              width: "100%",
+              background: "none",
+              border: "none",
+              borderRadius: 6,
+              padding: exp ? "8px 12px" : "8px",
+              cursor: loggingOut ? "default" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: exp ? "flex-start" : "center",
+              gap: 8,
+              color: "var(--mantine-color-red-5)",
+              fontSize: 12,
+              fontFamily: "var(--font-sans)",
+              opacity: loggingOut ? 0.5 : 1,
+              marginTop: 2,
+            }}
+          >
+            <LogOut size={14} />
+            {exp && (loggingOut ? "Saliendo..." : "Cerrar sesión")}
           </button>
         </Tooltip>
       </div>

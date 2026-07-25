@@ -18,6 +18,30 @@ enum InventoryStatus {
   CONFIRMADO
 }
 
+enum Role {
+  ADMIN
+  MANAGER
+  EMPLEADO
+}
+
+model Employee {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         Role     @default(EMPLEADO)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  createdOrders        Order[]     @relation("OrderCreatedBy")
+  confirmedOrders      Order[]     @relation("OrderConfirmedBy")
+  createdInventories   Inventory[] @relation("InventoryCreatedBy")
+  confirmedInventories Inventory[] @relation("InventoryConfirmedBy")
+
+  @@map("employees")
+}
+
 model Order {
   id            Int         @id @default(autoincrement())
   status        OrderStatus @default(DRAFT)
@@ -34,26 +58,36 @@ model Order {
   articles      Json
   printColumns  Json        @map("print_columns")
   printValues   Json        @map("print_values")
+  createdById   Int?        @map("created_by_id")
+  confirmedById Int?        @map("confirmed_by_id")
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  createdBy   Employee? @relation("OrderCreatedBy",   fields: [createdById],   references: [id])
+  confirmedBy Employee? @relation("OrderConfirmedBy", fields: [confirmedById], references: [id])
 
   @@map("orders")
 }
 
 model Inventory {
-  id             Int             @id @default(autoincrement())
-  status         InventoryStatus @default(BORRADOR)
-  warehouseId    Int             @map("warehouse_id")
-  warehouseName  String          @map("warehouse_name")
-  name           String?
-  countDate      String?         @map("count_date")
-  accountingDate String?         @map("accounting_date")
-  articles       Json            @default("[]")
-  confirmationSummary Json?      @map("confirmation_summary")
-  odooRef        String?         @map("odoo_ref")
-  errorDetail    String?         @db.Text @map("error_detail")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
+  id                  Int             @id @default(autoincrement())
+  status              InventoryStatus @default(BORRADOR)
+  warehouseId         Int             @map("warehouse_id")
+  warehouseName       String          @map("warehouse_name")
+  name                String?
+  countDate           String?         @map("count_date")
+  accountingDate      String?         @map("accounting_date")
+  articles            Json            @default("[]")
+  confirmationSummary Json?           @map("confirmation_summary")
+  odooRef             String?         @map("odoo_ref")
+  errorDetail         String?         @db.Text @map("error_detail")
+  createdById         Int?            @map("created_by_id")
+  confirmedById       Int?            @map("confirmed_by_id")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+
+  createdBy   Employee? @relation("InventoryCreatedBy",   fields: [createdById],   references: [id])
+  confirmedBy Employee? @relation("InventoryConfirmedBy", fields: [confirmedById], references: [id])
 
   @@map("inventories")
 }

@@ -26,6 +26,7 @@
     "ag-grid-community": "^35.2.1",
     "ag-grid-react": "^35.2.1",
     "axios": "^1.16.0",
+    "bcryptjs": "^3.0.3",
     "dayjs": "^1.11.20",
     "jose": "^6.2.3",
     "lucide-react": "^1.14.0",
@@ -36,11 +37,20 @@
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "pnpm": {
-    "onlyBuiltDependencies": ["@prisma/engines", "prisma", "sharp", "unrs-resolver"]
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "prisma",
+      "sharp",
+      "unrs-resolver"
+    ]
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^3.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -48,6 +58,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5"
   }
 }

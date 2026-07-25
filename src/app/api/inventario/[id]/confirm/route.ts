@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
+import { getRequestPayload, requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { odoo } from "@/lib/odoo";
 import { buildConfirmationSummary } from "@/lib/inventoryConfirmationSummary";
@@ -19,9 +19,12 @@ async function runInBatches<T>(
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(request: NextRequest, { params }: Params) {
-  if (!(await authenticateRequest(request))) {
+  const payload = await getRequestPayload(request);
+  if (!payload) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = requireRole(payload, ["ADMIN", "MANAGER"]);
+  if (denied) return denied;
 
   const { id } = await params;
   const inv = await prisma.inventory.findUnique({ where: { id: parseInt(id) } });
@@ -180,7 +183,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     // ── Mark confirmed + persist snapshot ────────────────────────────────────
     await prisma.inventory.update({
       where: { id: parseInt(id) },
-      data: { status: "CONFIRMADO", errorDetail: null, confirmationSummary: JSON.parse(JSON.stringify(confirmationSummary)) },
+      data: { status: "CONFIRMADO", errorDetail: null, confirmationSummary: JSON.parse(JSON.stringify(confirmationSummary)), confirmedById: payload.employeeId },
     });
 
     // ── Optionally spawn new draft for excluded categories ────────────────────

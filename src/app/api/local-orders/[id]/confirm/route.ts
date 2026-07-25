@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
+import { getRequestPayload, requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { odoo } from "@/lib/odoo";
 import { restorePreviewUrls, stripImagesForDB } from "@/lib/localOrders";
@@ -15,9 +15,12 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await authenticateRequest(request))) {
+  const payload = await getRequestPayload(request);
+  if (!payload) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = requireRole(payload, ["ADMIN", "MANAGER"]);
+  if (denied) return denied;
 
   const { id } = await params;
   const orderId = parseInt(id, 10);
@@ -151,6 +154,7 @@ export async function POST(
         odooOrderName: result.purchaseOrderName,
         errorDetail: null,
         articles: updatedLocalArticles as unknown as object,
+        confirmedById: payload.employeeId,
       },
     });
 

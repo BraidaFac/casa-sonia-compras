@@ -203,6 +203,7 @@ export interface LocalOrderSummary {
   supplierName: string;
   date: string;
   articleCount: number;
+  createdByName: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -257,6 +258,7 @@ export interface LocalInventorySummary {
   articleCount: number;
   odooRef: string | null;
   errorDetail: string | null;
+  createdByName: string | null;
   createdAt: string;
   updatedAt: string;
 }

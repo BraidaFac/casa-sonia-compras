@@ -1,21 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SignJWT } from "jose";
+import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   const { username, password } = await request.json();
 
-  if (
-    username !== process.env.APP_USER ||
-    password !== process.env.APP_PASSWORD
-  ) {
-    return NextResponse.json(
-      { error: "Credenciales inválidas" },
-      { status: 401 },
-    );
+  if (!username || !password) {
+    return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 });
+  }
+
+  const employee = await prisma.employee.findUnique({ where: { username } });
+
+  if (!employee || !employee.active) {
+    return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 });
+  }
+
+  const valid = await bcrypt.compare(password, employee.passwordHash);
+  if (!valid) {
+    return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 });
   }
 
   const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-  const token = await new SignJWT({ username })
+  const token = await new SignJWT({
+    employeeId: employee.id,
+    username: employee.username,
+    name: employee.name,
+    role: employee.role,
+  })
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime("365d")
     .setIssuedAt()

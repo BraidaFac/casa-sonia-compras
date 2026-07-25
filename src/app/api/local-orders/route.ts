@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
+import { getRequestPayload } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stripImagesForDB } from "@/lib/localOrders";
 import type { Article, PrintColumn, PrintValues } from "@/types";
 
 // GET /api/local-orders?status=DRAFT&supplier_id=1&date_from=2026-01-01&date_to=2026-12-31&limit=30&offset=0
 export async function GET(request: NextRequest) {
-  if (!(await authenticateRequest(request))) {
+  if (!(await getRequestPayload(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
         articles: true,
         createdAt: true,
         updatedAt: true,
+        createdBy: { select: { name: true } },
       },
     }),
     prisma.order.count({ where }),
@@ -53,11 +54,12 @@ export async function GET(request: NextRequest) {
 
   // Compute articleCount from JSON, strip full articles from list response
   const summaries = orders.map((o) => {
-    const { articles, ...rest } = o;
+    const { articles, createdBy, ...rest } = o;
     return {
       ...rest,
       articleCount: Array.isArray(articles) ? (articles as unknown[]).length : 0,
       errorDetail: o.status === "ERROR" ? o.errorDetail : null,
+      createdByName: createdBy?.name ?? null,
       createdAt: o.createdAt.toISOString(),
       updatedAt: o.updatedAt.toISOString(),
     };
@@ -69,7 +71,8 @@ export async function GET(request: NextRequest) {
 
 // POST /api/local-orders — create draft
 export async function POST(request: NextRequest) {
-  if (!(await authenticateRequest(request))) {
+  const payload = await getRequestPayload(request);
+  if (!payload) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -113,6 +116,7 @@ export async function POST(request: NextRequest) {
       articles: stripImagesForDB(body.articles ?? []) as unknown as object,
       printColumns: (body.printColumns ?? []) as unknown as object,
       printValues: (body.printValues ?? {}) as unknown as object,
+      createdById: payload.employeeId,
     },
   });
 
