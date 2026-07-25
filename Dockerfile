@@ -1,8 +1,9 @@
 FROM node:22-alpine AS deps
+RUN corepack enable && corepack prepare pnpm@11.1.1 --activate
 WORKDIR /app
-COPY package.json ./
+COPY package.json pnpm-lock.yaml ./
 RUN apk add --no-cache python3 make g++ openssl && \
-    npm install --legacy-peer-deps
+    pnpm install --frozen-lockfile
 
 FROM node:22-alpine AS builder
 RUN corepack enable && corepack prepare pnpm@11.1.1 --activate
