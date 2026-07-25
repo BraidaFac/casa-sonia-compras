@@ -37,13 +37,9 @@
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
-  },
   "pnpm": {
     "onlyBuiltDependencies": [
       "@prisma/engines",
-      "esbuild",
       "prisma",
       "sharp",
       "unrs-resolver"
@@ -59,7 +55,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
-    "tsx": "^4.23.1",
     "typescript": "^5"
   }
 }
