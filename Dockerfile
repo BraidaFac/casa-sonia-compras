@@ -17,7 +17,7 @@ FROM node:22-alpine AS migration
 WORKDIR /migration
 RUN apk add --no-cache openssl
 COPY --from=builder /app/package.json ./
-RUN npm install --no-audit --no-fund prisma
+RUN npm install --no-audit --no-fund prisma dotenv
 
 FROM node:22-alpine AS runner
 WORKDIR /app
