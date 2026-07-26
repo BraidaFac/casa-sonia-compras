@@ -66,6 +66,7 @@ model Order {
   createdBy   Employee? @relation("OrderCreatedBy",   fields: [createdById],   references: [id])
   confirmedBy Employee? @relation("OrderConfirmedBy", fields: [confirmedById], references: [id])
 
+  @@index([createdAt])
   @@map("orders")
 }
 

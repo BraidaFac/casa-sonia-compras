@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestPayload } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "../../../../prisma/generated/client";
 import { stripImagesForDB } from "@/lib/localOrders";
 import type { Article, PrintColumn, PrintValues } from "@/types";
 
@@ -43,7 +44,6 @@ export async function GET(request: NextRequest) {
         supplierId: true,
         supplierName: true,
         date: true,
-        articles: true,
         createdAt: true,
         updatedAt: true,
         createdBy: { select: { name: true } },
@@ -52,12 +52,20 @@ export async function GET(request: NextRequest) {
     prisma.order.count({ where }),
   ]);
 
-  // Compute articleCount from JSON, strip full articles from list response
+  const orderIds = orders.map((o) => o.id);
+  const articleCounts =
+    orderIds.length > 0
+      ? await prisma.$queryRaw<Array<{ id: number; cnt: bigint }>>(
+          Prisma.sql`SELECT id, JSON_LENGTH(articles) AS cnt FROM orders WHERE id IN (${Prisma.join(orderIds)})`,
+        )
+      : [];
+  const countMap = new Map(articleCounts.map((r) => [r.id, Number(r.cnt ?? 0)]));
+
   const summaries = orders.map((o) => {
-    const { articles, createdBy, ...rest } = o;
+    const { createdBy, ...rest } = o;
     return {
       ...rest,
-      articleCount: Array.isArray(articles) ? (articles as unknown[]).length : 0,
+      articleCount: countMap.get(o.id) ?? 0,
       errorDetail: o.status === "ERROR" ? o.errorDetail : null,
       createdByName: createdBy?.name ?? null,
       createdAt: o.createdAt.toISOString(),
