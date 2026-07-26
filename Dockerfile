@@ -12,6 +12,13 @@ COPY . .
 RUN DATABASE_URL="mysql://user:pass@localhost:3306/dummy" npx prisma generate
 RUN DATABASE_URL="mysql://user:pass@localhost:3306/dummy" npm run build
 
+# Dedicated stage: install prisma CLI + engines for migrate deploy
+FROM node:22-alpine AS migration
+WORKDIR /migration
+RUN apk add --no-cache openssl
+COPY --from=builder /app/package.json ./
+RUN npm install --no-audit --no-fund prisma
+
 FROM node:22-alpine AS runner
 WORKDIR /app
 
@@ -28,10 +35,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./
 
-COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma/config ./node_modules/@prisma/config
-COPY --from=builder /app/node_modules/dotenv ./node_modules/dotenv
+# Prisma CLI isolated from standalone node_modules
+COPY --from=migration /migration/node_modules /app/.prisma-cli
 
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
