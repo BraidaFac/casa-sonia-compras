@@ -35,8 +35,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./
 
-# Prisma CLI isolated from standalone node_modules
-COPY --from=migration /migration/node_modules /app/.prisma-cli
+# Prisma CLI in its own directory with proper node_modules structure
+COPY --from=migration /migration/node_modules /app/prisma-cli/node_modules
 
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
