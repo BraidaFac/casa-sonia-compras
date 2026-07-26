@@ -10,7 +10,7 @@ RUN npm install --legacy-peer-deps
 
 COPY . .
 RUN DATABASE_URL="mysql://user:pass@localhost:3306/dummy" npx prisma generate
-RUN npm run build
+RUN DATABASE_URL="mysql://user:pass@localhost:3306/dummy" npm run build
 
 FROM node:22-alpine AS runner
 WORKDIR /app

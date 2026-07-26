@@ -1,0 +1,85 @@
+Already up to date
+Done in 62ms using pnpm v11.1.1
+
+   ╭──────────────────────────────────────────╮
+   │                                          │
+   │   Update available! 11.1.1 → 11.15.0.    │
+   │   Changelog: https://pnpm.io/v/11.15.0   │
+   │     To update, run: pnpm self-update     │
+   │                                          │
+   ╰──────────────────────────────────────────╯
+
+$ next build
+▲ Next.js 16.2.6 (Turbopack)
+- Environments: .env
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 29.2s
+  Running TypeScript ...
+  Finished TypeScript in 43s ...
+  Collecting page data using 15 workers ...
+  Generating static pages using 15 workers (0/37) ...
+  Generating static pages using 15 workers (9/37) 
+  Generating static pages using 15 workers (18/37) 
+  Generating static pages using 15 workers (27/37) 
+✓ Generating static pages using 15 workers (37/37) in 1069ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/attributes
+├ ƒ /api/attributes/all
+├ ƒ /api/attributes/values
+├ ƒ /api/auth/login
+├ ƒ /api/auth/logout
+├ ƒ /api/brands
+├ ƒ /api/cache/clear
+├ ƒ /api/categories
+├ ƒ /api/color-base-options
+├ ƒ /api/compradora
+├ ƒ /api/description
+├ ƒ /api/inventario
+├ ƒ /api/inventario/[id]
+├ ƒ /api/inventario/[id]/confirm
+├ ƒ /api/inventario/[id]/summary-data
+├ ƒ /api/inventario/barcode
+├ ƒ /api/inventario/category-products
+├ ƒ /api/inventario/category-warmup
+├ ƒ /api/inventario/product-update
+├ ƒ /api/inventario/variant-search
+├ ƒ /api/inventario/variants
+├ ƒ /api/local-orders
+├ ƒ /api/local-orders/[id]
+├ ƒ /api/local-orders/[id]/confirm
+├ ƒ /api/local-orders/[id]/duplicate
+├ ƒ /api/local-orders/[id]/images
+├ ƒ /api/orders
+├ ƒ /api/orders/[id]
+├ ƒ /api/orders/[id]/pdf
+├ ƒ /api/pdf
+├ ƒ /api/product-types
+├ ƒ /api/products
+├ ƒ /api/products/[id]/detail
+├ ƒ /api/products/[id]/images
+├ ƒ /api/products/[id]/sync-images
+├ ƒ /api/size-attributes
+├ ƒ /api/suggest-hex
+├ ƒ /api/suppliers
+├ ƒ /api/warehouses
+├ ○ /inventario
+├ ƒ /inventario/[id]
+├ ○ /inventario/nuevo
+├ ○ /login
+├ ○ /odoo-orders
+├ ○ /orders
+├ ƒ /orders/[id]/edit
+├ ○ /orders/new
+└ ƒ /uploads/[...path]
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
