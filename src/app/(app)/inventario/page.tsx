@@ -14,10 +14,12 @@ import { CirclePlus, Plus, Eye, CheckCheck, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useInventories } from "@/hooks/useInventories";
 import { useInventory } from "@/hooks/useInventory";
+import { usePagination } from "@/hooks/usePagination";
 import { InventoryStatusBadge } from "@/components/inventario/InventoryStatusBadge";
 import { NuevoInventarioModal } from "@/components/inventario/NuevoInventarioModal";
 import { ResumenModal } from "@/components/inventario/ResumenModal";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { PaginationControls } from "@/components/ui/PaginationControls";
 import type { LocalInventorySummary } from "@/types";
 
 const PAGE_SIZE = 30;
@@ -33,16 +35,15 @@ function formatDate(iso: string) {
 export default function InventarioPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [offset, setOffset] = useState(0);
+  const pagination = usePagination(PAGE_SIZE);
   const [nuevoOpen, setNuevoOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<LocalInventorySummary | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [resumenInvId, setResumenInvId] = useState<number | null>(null);
 
-  const { data, isLoading } = useInventories({ limit: PAGE_SIZE, offset });
+  const { data, isLoading } = useInventories({ limit: PAGE_SIZE, offset: pagination.offset });
 
   const inventories = data?.data ?? [];
-  const total = data?.total ?? 0;
 
   function handleConfirmar(inv: LocalInventorySummary) {
     setResumenInvId(inv.id);
@@ -81,7 +82,7 @@ export default function InventarioPage() {
             Inventario
           </h1>
           <Text size="xs" c="dimmed" mt={2}>
-            {total} inventario{total !== 1 ? "s" : ""} registrado{total !== 1 ? "s" : ""}
+            {data?.total ?? 0} inventario{(data?.total ?? 0) !== 1 ? "s" : ""} registrado{(data?.total ?? 0) !== 1 ? "s" : ""}
           </Text>
         </div>
         <Tooltip label="Nuevo Inventario" withArrow position="left">
@@ -243,31 +244,14 @@ export default function InventarioPage() {
           </div>
 
           {/* Pagination */}
-          <Group justify="space-between" mt="md">
-            <Text size="xs" c="dimmed">
-              {total} inventario{total !== 1 ? "s" : ""}
-            </Text>
-            <Group gap="xs">
-              <Button
-                variant="subtle"
-                color="gray"
-                size="xs"
-                disabled={offset === 0}
-                onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-              >
-                ← Anterior
-              </Button>
-              <Button
-                variant="subtle"
-                color="gray"
-                size="xs"
-                disabled={offset + PAGE_SIZE >= total}
-                onClick={() => setOffset((o) => o + PAGE_SIZE)}
-              >
-                Siguiente →
-              </Button>
-            </Group>
-          </Group>
+          <PaginationControls
+            total={data?.total ?? 0}
+            offset={pagination.offset}
+            limit={PAGE_SIZE}
+            onNext={pagination.goNext}
+            onPrev={pagination.goPrev}
+            entityLabel={`inventario${(data?.total ?? 0) !== 1 ? "s" : ""}`}
+          />
         </>
       )}
 
