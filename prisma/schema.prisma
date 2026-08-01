@@ -47,12 +47,12 @@ model Order {
   status        OrderStatus @default(DRAFT)
   odooOrderId   Int?        @map("odoo_order_id")
   odooOrderName String?     @map("odoo_order_name")
-  errorDetail   String?     @db.Text @map("error_detail")
+  errorDetail   String?     @map("error_detail") @db.Text
   supplierId    Int         @map("supplier_id")
   supplierName  String      @map("supplier_name")
   brandId       Int?        @map("brand_id")
   brandName     String?     @map("brand_name")
-  compradoraIds  Json        @default("[]") @map("compradora_ids")
+  compradoraIds Json        @default("[]") @map("compradora_ids")
   date          String
   warehouseIds  Json        @map("warehouse_ids")
   articles      Json
@@ -63,7 +63,7 @@ model Order {
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
 
-  createdBy   Employee? @relation("OrderCreatedBy",   fields: [createdById],   references: [id])
+  createdBy   Employee? @relation("OrderCreatedBy", fields: [createdById], references: [id])
   confirmedBy Employee? @relation("OrderConfirmedBy", fields: [confirmedById], references: [id])
 
   @@index([createdAt])
@@ -79,15 +79,16 @@ model Inventory {
   countDate           String?         @map("count_date")
   accountingDate      String?         @map("accounting_date")
   articles            Json            @default("[]")
+  articleCount        Int             @default(0)    @map("article_count")
   confirmationSummary Json?           @map("confirmation_summary")
   odooRef             String?         @map("odoo_ref")
-  errorDetail         String?         @db.Text @map("error_detail")
+  errorDetail         String?         @map("error_detail") @db.Text
   createdById         Int?            @map("created_by_id")
   confirmedById       Int?            @map("confirmed_by_id")
   createdAt           DateTime        @default(now()) @map("created_at")
   updatedAt           DateTime        @updatedAt @map("updated_at")
 
-  createdBy   Employee? @relation("InventoryCreatedBy",   fields: [createdById],   references: [id])
+  createdBy   Employee? @relation("InventoryCreatedBy", fields: [createdById], references: [id])
   confirmedBy Employee? @relation("InventoryConfirmedBy", fields: [confirmedById], references: [id])
 
   @@map("inventories")
