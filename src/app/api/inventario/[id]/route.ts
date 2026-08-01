@@ -57,7 +57,10 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
   const data: Record<string, unknown> = {};
   if (body.status !== undefined) data.status = body.status;
-  if (body.articles !== undefined) data.articles = body.articles as unknown as object[];
+  if (body.articles !== undefined) {
+    data.articles = body.articles as unknown as object[];
+    data.articleCount = body.articles.length;
+  }
   if (body.name !== undefined) data.name = body.name;
   if (body.countDate !== undefined) data.countDate = body.countDate;
   if (body.accountingDate !== undefined) data.accountingDate = body.accountingDate;
