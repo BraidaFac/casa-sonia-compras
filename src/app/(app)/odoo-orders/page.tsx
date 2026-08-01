@@ -1,22 +1,16 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
-import { Badge, Button, Group, Select, Text } from "@mantine/core";
+import { useState } from "react";
+import { Badge, Group, Select, Text } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import "dayjs/locale/es";
 import { SupplierSearch } from "@/components/orders/SupplierSearch";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { PaginationControls } from "@/components/ui/PaginationControls";
+import { useOdooOrders } from "@/hooks/useOdooOrders";
+import { usePagination } from "@/hooks/usePagination";
 import type { Supplier } from "@/types";
 
 const PAGE_SIZE = 30;
-
-interface OCSummary {
-  id: number;
-  name: string;
-  partner_id: [number, string];
-  state: string;
-  date_order: string;
-  amount_total: number;
-}
 
 const STATE_LABELS: Record<string, { label: string; color: string }> = {
   draft: { label: "Borrador", color: "gray" },
@@ -30,36 +24,22 @@ function formatDate(d: string) {
 }
 
 export default function OdooOrdersPage() {
-  const [orders, setOrders] = useState<OCSummary[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [offset, setOffset] = useState(0);
+  const pagination = usePagination(PAGE_SIZE);
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [stateFilter, setStateFilter] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState<Date | null>(null);
   const [dateTo, setDateTo] = useState<Date | null>(null);
 
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
-      if (supplier) params.set("supplier_id", String(supplier.id));
-      if (stateFilter) params.set("state", stateFilter);
-      if (dateFrom) params.set("date_from", dateFrom.toISOString().split("T")[0]);
-      if (dateTo) params.set("date_to", dateTo.toISOString().split("T")[0]);
-      const res = await fetch(`/api/orders?${params}`);
-      const data = await res.json();
-      setOrders(data.orders ?? []);
-      setTotal(data.total ?? 0);
-    } finally {
-      setLoading(false);
-    }
-  }, [supplier, stateFilter, dateFrom, dateTo, offset]);
+  const { data, isLoading } = useOdooOrders({
+    offset: pagination.offset,
+    limit: PAGE_SIZE,
+    supplierId: supplier?.id,
+    state: stateFilter ?? undefined,
+    dateFrom: dateFrom ? dateFrom.toISOString().split("T")[0] : undefined,
+    dateTo: dateTo ? dateTo.toISOString().split("T")[0] : undefined,
+  });
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchOrders();
-  }, [fetchOrders]);
+  const orders = data?.orders ?? [];
 
   return (
     <div style={{ padding: "24px 24px 80px" }}>
@@ -79,7 +59,10 @@ export default function OdooOrdersPage() {
       <Group mb="lg" gap="md" align="flex-end" wrap="wrap">
         <div>
           <Text size="xs" c="dimmed" fw={500} mb={4}>Proveedor</Text>
-          <SupplierSearch value={supplier} onChange={setSupplier} />
+          <SupplierSearch
+            value={supplier}
+            onChange={(v) => { setSupplier(v); pagination.reset(); }}
+          />
         </div>
         <Select
           label={<Text size="xs" c="dimmed" fw={500}>Estado</Text>}
@@ -90,7 +73,7 @@ export default function OdooOrdersPage() {
             { value: "purchase", label: "Confirmada" },
           ]}
           value={stateFilter}
-          onChange={setStateFilter}
+          onChange={(v) => { setStateFilter(v); pagination.reset(); }}
           clearable
           w={160}
           size="sm"
@@ -98,7 +81,7 @@ export default function OdooOrdersPage() {
         <DatePickerInput
           label={<Text size="xs" c="dimmed" fw={500}>Desde</Text>}
           value={dateFrom}
-          onChange={(v) => setDateFrom(v as Date | null)}
+          onChange={(v) => { setDateFrom(v as Date | null); pagination.reset(); }}
           valueFormat="DD/MM/YYYY"
           locale="es"
           clearable
@@ -108,7 +91,7 @@ export default function OdooOrdersPage() {
         <DatePickerInput
           label={<Text size="xs" c="dimmed" fw={500}>Hasta</Text>}
           value={dateTo}
-          onChange={(v) => setDateTo(v as Date | null)}
+          onChange={(v) => { setDateTo(v as Date | null); pagination.reset(); }}
           valueFormat="DD/MM/YYYY"
           locale="es"
           clearable
@@ -117,7 +100,7 @@ export default function OdooOrdersPage() {
         />
       </Group>
 
-      {loading ? (
+      {isLoading ? (
         <div style={{ display: "flex", gap: 8, padding: 48, justifyContent: "center", color: "var(--text2)" }}>
           <LoadingSpinner size={20} /> Cargando desde Odoo...
         </div>
@@ -191,19 +174,14 @@ export default function OdooOrdersPage() {
             </table>
           </div>
 
-          <Group justify="space-between" mt="md">
-            <Text size="xs" c="dimmed">{total} orden{total !== 1 ? "es" : ""}</Text>
-            <Group gap="xs">
-              <Button variant="subtle" color="gray" size="xs" disabled={offset === 0}
-                onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}>
-                ← Anterior
-              </Button>
-              <Button variant="subtle" color="gray" size="xs" disabled={offset + PAGE_SIZE >= total}
-                onClick={() => setOffset((o) => o + PAGE_SIZE)}>
-                Siguiente →
-              </Button>
-            </Group>
-          </Group>
+          <PaginationControls
+            total={data?.total ?? 0}
+            offset={pagination.offset}
+            limit={PAGE_SIZE}
+            onNext={pagination.goNext}
+            onPrev={pagination.goPrev}
+            entityLabel={`orden${(data?.total ?? 0) !== 1 ? "es" : ""}`}
+          />
         </>
       )}
     </div>
