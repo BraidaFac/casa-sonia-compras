@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
         name: true,
         countDate: true,
         accountingDate: true,
-        articles: true,
+        articleCount: true,
         odooRef: true,
         errorDetail: true,
         createdAt: true,
@@ -44,10 +44,9 @@ export async function GET(request: NextRequest) {
   ]);
 
   const summaries = inventories.map((inv) => {
-    const { articles, createdBy, ...rest } = inv;
+    const { createdBy, ...rest } = inv;
     return {
       ...rest,
-      articleCount: Array.isArray(articles) ? (articles as unknown[]).length : 0,
       name: inv.name ?? null,
       countDate: inv.countDate ?? null,
       accountingDate: inv.accountingDate ?? null,
