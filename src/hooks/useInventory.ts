@@ -13,5 +13,6 @@ export function useInventory(id: number | null) {
     queryFn: () => fetchInventory(id!),
     enabled: id !== null,
     staleTime: 0,
+    gcTime: 0,
   });
 }
