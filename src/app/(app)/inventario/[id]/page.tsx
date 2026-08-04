@@ -392,15 +392,18 @@ function InventarioCargarContent({
   const handleManualSave = useCallback(async () => {
     setIsSavingAll(true);
     try {
-      await fetch(`/api/inventario/${invId}`, {
+      const res = await fetch(`/api/inventario/${invId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ articles: articlesRef.current }),
       });
+      if (!res.ok) throw new Error(`Error al guardar (${res.status})`);
       setIsDirty(false);
       setSavedAt(new Date());
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       savedTimerRef.current = setTimeout(() => setSavedAt(null), 2500);
+    } catch (err) {
+      alert(`No se pudo guardar: ${err instanceof Error ? err.message : "error desconocido"}`);
     } finally {
       setIsSavingAll(false);
     }
