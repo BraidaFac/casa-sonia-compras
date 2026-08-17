@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withAuth } from "@/lib/withAuth";
 import { odoo } from "@/lib/odoo";
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (req: NextRequest) => {
   const attributeId = parseInt(
-    request.nextUrl.searchParams.get("attributeId") || "0",
+    req.nextUrl.searchParams.get("attributeId") || "0",
   );
   if (!attributeId) return NextResponse.json([]);
 
@@ -20,4 +21,4 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { withAuth } from "@/lib/withAuth";
 import { odoo } from "@/lib/odoo";
 
-export async function GET() {
+export const GET = withAuth(async (_req: NextRequest) => {
   try {
     // Try fields_get first to get selection options dynamically
     let options: string[] = [];
@@ -63,4 +64,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});

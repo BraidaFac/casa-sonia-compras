@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { withAuth } from "@/lib/withAuth";
 import { odoo } from "@/lib/odoo";
 
 export interface ProductCategory {
@@ -7,7 +8,7 @@ export interface ProductCategory {
   completeName: string; // "Abuelo / Padre / Hijo"
 }
 
-export async function GET() {
+export const GET = withAuth(async (_req: NextRequest) => {
   try {
     const allCategories = await odoo.fetchAll<{
       id: number;
@@ -46,4 +47,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});
