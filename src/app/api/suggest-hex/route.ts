@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withAuth } from "@/lib/withAuth";
 
-export async function POST(request: NextRequest) {
-  const { colorName } = await request.json();
+export const POST = withAuth(async (req: NextRequest) => {
+  const { colorName } = await req.json();
 
   if (!colorName?.trim()) {
     return NextResponse.json({ error: "colorName requerido" }, { status: 400 });
@@ -68,4 +69,4 @@ Ejemplo para "Rojo": ["#CC0000", "#FF0000", "#990000", "#FF3333", "#AA0000"]`;
       { status: 500 },
     );
   }
-}
+}, { roles: ["ADMIN", "MANAGER"] });

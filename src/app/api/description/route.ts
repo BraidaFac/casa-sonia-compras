@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withAuth } from "@/lib/withAuth";
 
 interface DescriptionRequest {
   productName: string;
@@ -24,8 +25,8 @@ Reglas:
 - No abras con saludos, exclamaciones tipo "¡Che!" ni frases dirigidas al lector
 - La primera oración debe ser una declaración del producto o una imagen evocadora`;
 
-export async function POST(request: NextRequest) {
-  const body: DescriptionRequest = await request.json();
+export const POST = withAuth(async (req: NextRequest) => {
+  const body: DescriptionRequest = await req.json();
   const { productName, brand, colors, userHint } = body;
 
   const model = process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001";
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+}, { roles: ["ADMIN", "MANAGER"] });
 
 function buildUserMessage(data: DescriptionRequest): string {
   const { productName, brand, colors, userHint } = data;
