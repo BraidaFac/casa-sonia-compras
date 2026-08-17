@@ -1,15 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getRequestPayload } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/withAuth";
+import type { TokenPayload } from "@/lib/auth";
 
-export async function GET(request: NextRequest) {
-  const payload = await getRequestPayload(request);
-  if (!payload) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+export const GET = withAuth(async (_req, payload: TokenPayload) => {
   return NextResponse.json({
     employeeId: payload.employeeId,
     username: payload.username,
     name: payload.name,
     role: payload.role,
   });
-}
+});

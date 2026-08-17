@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { getRequestPayload, requireRole } from "@/lib/auth";
+import { withAuth } from "@/lib/withAuth";
 import { prisma } from "@/lib/prisma";
 
 const SELECT = {
@@ -12,27 +12,17 @@ const SELECT = {
   createdAt: true,
 } as const;
 
-export async function GET(request: NextRequest) {
-  const payload = await getRequestPayload(request);
-  if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const denied = requireRole(payload, ["ADMIN", "MANAGER"]);
-  if (denied) return denied;
-
+export const GET = withAuth(async () => {
   const employees = await prisma.employee.findMany({
     orderBy: { name: "asc" },
     select: SELECT,
   });
 
   return NextResponse.json(employees);
-}
+}, { roles: ["ADMIN", "MANAGER"] });
 
-export async function POST(request: NextRequest) {
-  const payload = await getRequestPayload(request);
-  if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const denied = requireRole(payload, ["ADMIN", "MANAGER"]);
-  if (denied) return denied;
-
-  const { username, password, name, role } = await request.json();
+export const POST = withAuth(async (req: NextRequest, payload) => {
+  const { username, password, name, role } = await req.json();
 
   if (!username || !password || !name || !role) {
     return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
@@ -57,4 +47,4 @@ export async function POST(request: NextRequest) {
   });
 
   return NextResponse.json(employee, { status: 201 });
-}
+}, { roles: ["ADMIN", "MANAGER"] });

@@ -1,19 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
+import { withAuth } from "@/lib/withAuth";
 import { prisma } from "@/lib/prisma";
 import { saveTempImage, deleteTempImage } from "@/lib/imageStorage";
 import { randomUUID } from "crypto";
 import { extname } from "path";
 
-export async function POST(
+export const POST = withAuth(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  if (!(await authenticateRequest(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await params;
+  _payload,
+  ctx,
+) => {
+  const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
   const orderId = parseInt(id, 10);
   if (isNaN(orderId)) {
     return NextResponse.json({ error: "ID inválido" }, { status: 400 });
@@ -45,17 +42,14 @@ export async function POST(
   }
 
   return NextResponse.json({ results }, { status: 201 });
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });
 
-export async function DELETE(
+export const DELETE = withAuth(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  if (!(await authenticateRequest(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await params;
+  _payload,
+  ctx,
+) => {
+  const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
   const orderId = parseInt(id, 10);
   if (isNaN(orderId)) {
     return NextResponse.json({ error: "ID inválido" }, { status: 400 });
@@ -68,4 +62,4 @@ export async function DELETE(
 
   await deleteTempImage(tempPath);
   return new NextResponse(null, { status: 204 });
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });

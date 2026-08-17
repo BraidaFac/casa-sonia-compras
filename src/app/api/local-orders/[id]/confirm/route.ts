@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestPayload, requireRole } from "@/lib/auth";
+import { withAuth } from "@/lib/withAuth";
 import { prisma } from "@/lib/prisma";
 import { odoo } from "@/lib/odoo";
 import { restorePreviewUrls, stripImagesForDB } from "@/lib/localOrders";
@@ -10,19 +10,14 @@ import { syncProductImages } from "@/lib/odooProducts";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import type { LocalArticle, Article } from "@/types";
+import type { TokenPayload } from "@/lib/auth";
 
-export async function POST(
+export const POST = withAuth(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const payload = await getRequestPayload(request);
-  if (!payload) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const denied = requireRole(payload, ["ADMIN", "MANAGER"]);
-  if (denied) return denied;
-
-  const { id } = await params;
+  payload: TokenPayload,
+  ctx,
+) => {
+  const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
   const orderId = parseInt(id, 10);
   if (isNaN(orderId)) {
     return NextResponse.json({ error: "ID inválido" }, { status: 400 });
@@ -178,4 +173,4 @@ export async function POST(
       { status: 500 },
     );
   }
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });

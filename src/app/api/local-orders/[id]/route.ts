@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
+import { withAuth } from "@/lib/withAuth";
 import { prisma } from "@/lib/prisma";
 import { stripImagesForDB, restorePreviewUrls } from "@/lib/localOrders";
 import { deleteTempFolder } from "@/lib/imageStorage";
@@ -10,15 +10,12 @@ async function getOrder(id: number) {
 }
 
 // GET /api/local-orders/[id]
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  if (!(await authenticateRequest(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await params;
+export const GET = withAuth(async (
+  _request: NextRequest,
+  _payload,
+  ctx,
+) => {
+  const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
   const orderId = parseInt(id, 10);
   if (isNaN(orderId)) {
     return NextResponse.json({ error: "ID inválido" }, { status: 400 });
@@ -41,18 +38,15 @@ export async function GET(
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
   });
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });
 
 // PUT /api/local-orders/[id] — update draft (or reset ERROR → DRAFT)
-export async function PUT(
+export const PUT = withAuth(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  if (!(await authenticateRequest(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await params;
+  _payload,
+  ctx,
+) => {
+  const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
   const orderId = parseInt(id, 10);
   if (isNaN(orderId)) {
     return NextResponse.json({ error: "ID inválido" }, { status: 400 });
@@ -110,18 +104,15 @@ export async function PUT(
   });
 
   return NextResponse.json({ id: updated.id, status: updated.status });
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });
 
 // DELETE /api/local-orders/[id]
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  if (!(await authenticateRequest(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await params;
+export const DELETE = withAuth(async (
+  _request: NextRequest,
+  _payload,
+  ctx,
+) => {
+  const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
   const orderId = parseInt(id, 10);
   if (isNaN(orderId)) {
     return NextResponse.json({ error: "ID inválido" }, { status: 400 });
@@ -141,4 +132,4 @@ export async function DELETE(
   await deleteTempFolder(orderId).catch(() => {}); // best-effort
   await prisma.order.delete({ where: { id: orderId } });
   return new NextResponse(null, { status: 204 });
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });

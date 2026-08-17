@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withAuth } from "@/lib/withAuth";
 import { odoo } from "@/lib/odoo";
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q") || "";
   const supplierId = searchParams.get("supplier_id");
@@ -39,5 +40,4 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
-
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });

@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestPayload } from "@/lib/auth";
+import { withAuth } from "@/lib/withAuth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "../../../../prisma/generated/client";
 import { stripImagesForDB } from "@/lib/localOrders";
 import type { Article, PrintColumn, PrintValues } from "@/types";
 
 // GET /api/local-orders?status=DRAFT&supplier_id=1&date_from=2026-01-01&date_to=2026-12-31&limit=30&offset=0
-export async function GET(request: NextRequest) {
-  if (!(await getRequestPayload(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = withAuth(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
   const supplierId = searchParams.get("supplier_id");
@@ -75,15 +71,10 @@ export async function GET(request: NextRequest) {
 
   const page = Math.floor(offset / limit);
   return NextResponse.json({ data: summaries, total, page, limit });
-}
+});
 
 // POST /api/local-orders — create draft
-export async function POST(request: NextRequest) {
-  const payload = await getRequestPayload(request);
-  if (!payload) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request: NextRequest, payload) => {
   const body = (await request.json()) as {
     supplierId: number;
     supplierName: string;
@@ -129,4 +120,4 @@ export async function POST(request: NextRequest) {
   });
 
   return NextResponse.json({ id: order.id }, { status: 201 });
-}
+});

@@ -1,19 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
+import { withAuth } from "@/lib/withAuth";
 import { prisma } from "@/lib/prisma";
 import { batchResolveProductIds } from "@/lib/odooProducts";
 import type { LocalArticle } from "@/types";
 import { randomUUID } from "crypto";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  if (!(await authenticateRequest(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await params;
+export const POST = withAuth(async (
+  _request: NextRequest,
+  _payload,
+  ctx,
+) => {
+  const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
   const orderId = parseInt(id, 10);
   if (isNaN(orderId)) {
     return NextResponse.json({ error: "ID inválido" }, { status: 400 });
@@ -73,4 +70,4 @@ export async function POST(
   });
 
   return NextResponse.json({ id: newOrder.id }, { status: 201 });
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });

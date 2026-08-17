@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestPayload, requireRole } from "@/lib/auth";
+import { withAuth } from "@/lib/withAuth";
 import { prisma } from "@/lib/prisma";
 
 const SELECT = {
@@ -11,15 +11,8 @@ const SELECT = {
   createdAt: true,
 } as const;
 
-type Params = { params: Promise<{ id: string }> };
-
-export async function PATCH(request: NextRequest, { params }: Params) {
-  const payload = await getRequestPayload(request);
-  if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const denied = requireRole(payload, ["ADMIN", "MANAGER"]);
-  if (denied) return denied;
-
-  const { id } = await params;
+export const PATCH = withAuth(async (_request: NextRequest, payload, ctx) => {
+  const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
   const empId = parseInt(id, 10);
   if (isNaN(empId)) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
@@ -47,4 +40,4 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   });
 
   return NextResponse.json(updated);
-}
+}, { roles: ["ADMIN", "MANAGER"] });
