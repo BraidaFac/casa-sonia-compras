@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withAuth } from "@/lib/withAuth";
 import { odoo } from "@/lib/odoo";
 
-export async function GET(request: NextRequest) {
-  const q = request.nextUrl.searchParams.get("q") || "";
+export const GET = withAuth(async (req: NextRequest) => {
+  const q = req.nextUrl.searchParams.get("q") || "";
 
   try {
     const templates = await odoo.searchRead(
@@ -49,4 +50,4 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });

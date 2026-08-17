@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withAuth } from "@/lib/withAuth";
 import { odoo } from "@/lib/odoo";
 import type {
   Article,
@@ -39,11 +40,8 @@ function getName(val: [number, string] | number | false): string {
   return Array.isArray(val) ? val[1] : "";
 }
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
+export const GET = withAuth(async (_req: NextRequest, _payload, ctx) => {
+  const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
   const orderId = parseInt(id, 10);
   if (isNaN(orderId)) {
     return NextResponse.json({ error: "ID inválido" }, { status: 400 });
@@ -492,7 +490,7 @@ export async function GET(
       { status: 500 },
     );
   }
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });
 
 function buildOrderHeader(order: {
   id: number;
@@ -521,4 +519,3 @@ function buildOrderHeader(order: {
     writeDate: order.write_date,
   };
 }
-

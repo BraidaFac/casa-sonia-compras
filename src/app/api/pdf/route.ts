@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withAuth } from "@/lib/withAuth";
 import { generateOrderPDF, generateGridPDF } from "@/lib/pdf";
 import { odoo } from "@/lib/odoo";
 
-export async function GET(request: NextRequest) {
-  const orderId = request.nextUrl.searchParams.get("orderId");
+export const GET = withAuth(async (req: NextRequest) => {
+  const orderId = req.nextUrl.searchParams.get("orderId");
 
   if (!orderId) {
     return NextResponse.json({ error: "orderId requerido" }, { status: 400 });
@@ -25,11 +26,11 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (req: NextRequest) => {
   try {
-    const body = await request.json();
+    const body = await req.json();
     const { orderId, printColumns, printValues, articles, comment, selectedWarehouses = [], type = "supplier", orientation = "landscape" } = body;
 
     if (!orderId) {
@@ -75,4 +76,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });

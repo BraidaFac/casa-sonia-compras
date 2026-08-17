@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withAuth } from "@/lib/withAuth";
 import { odoo } from "@/lib/odoo";
 import type { ColorImages } from "@/types";
 
@@ -7,17 +8,14 @@ interface ResolvedColor {
   name: string;
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
+export const POST = withAuth(async (req: NextRequest, _payload, ctx) => {
+  const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
   const templateId = parseInt(id, 10);
   if (isNaN(templateId)) {
     return NextResponse.json({ error: "Invalid product ID" }, { status: 400 });
   }
 
-  const body = await request.json();
+  const body = await req.json();
   const {
     colorImages = {},
     deletedOdooImageIds = [],
@@ -124,4 +122,4 @@ export async function POST(
   }
 
   return NextResponse.json({ ok: true });
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });

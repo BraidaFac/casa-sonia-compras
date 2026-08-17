@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withAuth } from "@/lib/withAuth";
 import { odoo } from "@/lib/odoo";
 import type { ColorImages, ProductImage } from "@/types";
 
@@ -16,11 +17,8 @@ function detectMimeType(base64: string): string {
   return "image/jpeg";
 }
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
+export const GET = withAuth(async (_req: NextRequest, _payload, ctx) => {
+  const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
   const templateId = parseInt(id, 10);
   if (isNaN(templateId)) {
     return NextResponse.json({ error: "Invalid product ID" }, { status: 400 });
@@ -164,4 +162,4 @@ export async function GET(
       { status: 500 },
     );
   }
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });
