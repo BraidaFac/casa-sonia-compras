@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
+import { withAuth } from "@/lib/withAuth";
 import { prisma } from "@/lib/prisma";
 import type { InventoryArticle, InventoryStatus } from "@/types";
 
-type Params = { params: Promise<{ id: string }> };
-
-export async function GET(request: NextRequest, { params }: Params) {
-  if (!(await authenticateRequest(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await params;
+export const GET = withAuth(async (req: NextRequest, _payload, ctx) => {
+  const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
   const inv = await prisma.inventory.findUnique({ where: { id: parseInt(id) } });
 
   if (!inv) {
@@ -39,15 +33,11 @@ export async function GET(request: NextRequest, { params }: Params) {
     createdAt: inv.createdAt.toISOString(),
     updatedAt: inv.updatedAt.toISOString(),
   });
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });
 
-export async function PATCH(request: NextRequest, { params }: Params) {
-  if (!(await authenticateRequest(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await params;
-  const body = (await request.json()) as {
+export const PATCH = withAuth(async (req: NextRequest, _payload, ctx) => {
+  const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
+  const body = (await req.json()) as {
     status?: InventoryStatus;
     articles?: InventoryArticle[];
     name?: string | null;
@@ -75,15 +65,11 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     status: inv.status,
     updatedAt: inv.updatedAt.toISOString(),
   });
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });
 
-export async function DELETE(request: NextRequest, { params }: Params) {
-  if (!(await authenticateRequest(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await params;
+export const DELETE = withAuth(async (req: NextRequest, _payload, ctx) => {
+  const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
   await prisma.inventory.delete({ where: { id: parseInt(id) } });
 
   return NextResponse.json({ ok: true });
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });

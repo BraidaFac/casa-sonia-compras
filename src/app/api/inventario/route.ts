@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestPayload } from "@/lib/auth";
+import { withAuth } from "@/lib/withAuth";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(request: NextRequest) {
-  const payload = await getRequestPayload(request);
-  if (!payload) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
+export const GET = withAuth(async (req: NextRequest) => {
+  const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
   const warehouseId = searchParams.get("warehouse_id");
   const limit = parseInt(searchParams.get("limit") ?? "30");
@@ -57,15 +52,10 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json({ data: summaries, total, limit, offset });
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });
 
-export async function POST(request: NextRequest) {
-  const payload = await getRequestPayload(request);
-  if (!payload) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = (await request.json()) as {
+export const POST = withAuth(async (req: NextRequest, payload) => {
+  const body = (await req.json()) as {
     warehouseId: number;
     warehouseName: string;
     name?: string | null;
@@ -95,4 +85,4 @@ export async function POST(request: NextRequest) {
   });
 
   return NextResponse.json({ id: inventory.id }, { status: 201 });
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });

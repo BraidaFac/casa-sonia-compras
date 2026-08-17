@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
+import { withAuth } from "@/lib/withAuth";
 import { odoo } from "@/lib/odoo";
 
 // PATCH /api/inventario/product-update
 // Actualiza campos editables de un producto en Odoo
-export async function PATCH(request: NextRequest) {
-  if (!(await authenticateRequest(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = (await request.json()) as {
+export const PATCH = withAuth(async (req: NextRequest) => {
+  const body = (await req.json()) as {
     varianteId: number;
     salePrice?: number;
     cost?: number;
@@ -34,4 +30,4 @@ export async function PATCH(request: NextRequest) {
   await odoo.write("product.product", [varianteId], values);
 
   return NextResponse.json({ ok: true });
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });

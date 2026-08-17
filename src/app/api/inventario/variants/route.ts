@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
+import { withAuth } from "@/lib/withAuth";
 import { odoo } from "@/lib/odoo";
 import { getAttrMetadata } from "@/lib/productCache";
 import type { InventoryArticle } from "@/types";
 
-export async function GET(request: NextRequest) {
-  if (!(await authenticateRequest(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
+export const GET = withAuth(async (req: NextRequest) => {
+  const { searchParams } = new URL(req.url);
   const productoId = searchParams.get("productoId");
   const warehouseId = searchParams.get("warehouseId");
 
@@ -187,4 +183,4 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json(articles satisfies InventoryArticle[]);
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });

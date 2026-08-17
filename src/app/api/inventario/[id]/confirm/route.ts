@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestPayload, requireRole } from "@/lib/auth";
+import { withAuth } from "@/lib/withAuth";
 import { prisma } from "@/lib/prisma";
 import { odoo } from "@/lib/odoo";
 import { buildConfirmationSummary } from "@/lib/inventoryConfirmationSummary";
@@ -16,17 +16,8 @@ async function runInBatches<T>(
   }
 }
 
-type Params = { params: Promise<{ id: string }> };
-
-export async function POST(request: NextRequest, { params }: Params) {
-  const payload = await getRequestPayload(request);
-  if (!payload) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const denied = requireRole(payload, ["ADMIN", "MANAGER"]);
-  if (denied) return denied;
-
-  const { id } = await params;
+export const POST = withAuth(async (req: NextRequest, payload, ctx) => {
+  const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
   const inv = await prisma.inventory.findUnique({ where: { id: parseInt(id) } });
 
   if (!inv) {
@@ -48,7 +39,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     );
   }
 
-  const body = (await request.json().catch(() => ({}))) as {
+  const body = (await req.json().catch(() => ({}))) as {
     excludedCategoryIds?: number[];
     spawnNewDraft?: boolean;
     zeroUncounted?: boolean;
@@ -210,4 +201,4 @@ export async function POST(request: NextRequest, { params }: Params) {
     });
     return NextResponse.json({ error: detail }, { status: 500 });
   }
-}
+}, { roles: ["ADMIN", "MANAGER"] });

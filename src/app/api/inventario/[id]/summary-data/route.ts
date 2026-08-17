@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
+import { withAuth } from "@/lib/withAuth";
 import { prisma } from "@/lib/prisma";
 import { buildConfirmationSummary } from "@/lib/inventoryConfirmationSummary";
 import type { InventoryArticle } from "@/types";
-
-type Params = { params: Promise<{ id: string }> };
 
 export interface SummaryProduct {
   varianteId: number;
@@ -30,12 +28,8 @@ export interface SummaryDataResponse {
 // GET /api/inventario/[id]/summary-data
 // Returns all Odoo products for each category touched by this inventory,
 // with their current qty_available. Used to compute diffs and surface uncounted articles.
-export async function GET(request: NextRequest, { params }: Params) {
-  if (!(await authenticateRequest(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await params;
+export const GET = withAuth(async (req: NextRequest, _payload, ctx) => {
+  const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
   const inv = await prisma.inventory.findUnique({ where: { id: parseInt(id) } });
 
   if (!inv) {
@@ -51,4 +45,4 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   const result = await buildConfirmationSummary(articles, inv.warehouseId);
   return NextResponse.json(result satisfies SummaryDataResponse);
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });

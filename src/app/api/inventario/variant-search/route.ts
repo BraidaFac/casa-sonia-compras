@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
+import { withAuth } from "@/lib/withAuth";
 import { odoo } from "@/lib/odoo";
 
 export interface VariantSearchResult {
@@ -10,12 +10,8 @@ export interface VariantSearchResult {
   qtyOnHand: number;
 }
 
-export async function GET(request: NextRequest) {
-  if (!(await authenticateRequest(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
+export const GET = withAuth(async (req: NextRequest) => {
+  const { searchParams } = new URL(req.url);
   const q = searchParams.get("q")?.trim();
   const warehouseId = searchParams.get("warehouseId");
 
@@ -109,4 +105,4 @@ export async function GET(request: NextRequest) {
   }));
 
   return NextResponse.json(result);
-}
+}, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });
