@@ -6,7 +6,14 @@ export type TokenPayload = {
   employeeId: number;
   username: string;
   name: string;
-  role: "ADMIN" | "MANAGER" | "EMPLEADO";
+  role: "ADMIN" | "MANAGER" | "EMPLEADO" | "EMPLEADO_BASICO";
+};
+
+export const ROLE_LABELS: Record<string, string> = {
+  ADMIN: "Admin",
+  MANAGER: "Manager",
+  EMPLEADO: "Encargado",
+  EMPLEADO_BASICO: "Empleado",
 };
 
 export async function verifyToken(token: string): Promise<TokenPayload> {
@@ -39,7 +46,7 @@ export function requireRole(
   payload: TokenPayload,
   roles: Array<"ADMIN" | "MANAGER" | "EMPLEADO">,
 ): NextResponse | null {
-  if (!roles.includes(payload.role)) {
+  if (!(roles as readonly string[]).includes(payload.role)) {
     return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
   }
   return null;
