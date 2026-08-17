@@ -4,13 +4,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Tooltip } from "@mantine/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Store, Package, ChevronLeft, ChevronRight, RefreshCw, Users, LogOut } from "lucide-react";
+import { ClipboardList, Store, Package, Search, ChevronLeft, ChevronRight, RefreshCw, Users, LogOut } from "lucide-react";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 
 const NAV_ITEMS = [
   { href: "/orders", label: "Órdenes", icon: ClipboardList },
   { href: "/odoo-orders", label: "Historial Odoo", icon: Store },
   { href: "/inventario", label: "Inventario", icon: Package },
+  { href: "/existencias", label: "Existencias", icon: Search },
 ] as const;
 
 const FUTURE_ITEMS: { href: string; label: string; icon: React.ElementType; soon: boolean }[] = [];
@@ -25,7 +26,7 @@ function readStoredCollapsed(): boolean {
   }
 }
 
-export function Sidebar() {
+export function Sidebar({ initialRole }: { initialRole?: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -46,12 +47,13 @@ export function Sidebar() {
     }
   }
   const { data: currentEmployee } = useCurrentEmployee();
-  const canManageEmployees =
-    currentEmployee?.role === "ADMIN" || currentEmployee?.role === "MANAGER";
+  const role = initialRole;
+  const canManageEmployees = role === "ADMIN" || role === "MANAGER";
   const roleLabel: Record<string, string> = {
     ADMIN: "Admin",
     MANAGER: "Manager",
-    EMPLEADO: "Empleado",
+    EMPLEADO: "Encargado",
+    EMPLEADO_BASICO: "Empleado",
   };
 
   async function handleRefreshCache() {
@@ -157,7 +159,12 @@ export function Sidebar() {
 
       {/* Nav items */}
       <nav style={{ flex: 1, padding: exp ? "8px 8px" : "8px 4px" }}>
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {NAV_ITEMS.filter((item) => {
+          if (role === "EMPLEADO_BASICO") {
+            return item.href === "/existencias";
+          }
+          return true;
+        }).map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Tooltip key={href} label={label} disabled={!collapsed} position="right" withArrow>
