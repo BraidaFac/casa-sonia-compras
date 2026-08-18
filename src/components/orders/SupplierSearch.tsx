@@ -19,7 +19,8 @@ export function SupplierSearch({ value, onChange, disabled = false }: Props) {
 
   useEffect(() => {
     if (!combobox.dropdownOpened) {
-      setSearch(value?.name || "");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSearch(value?.name || ""); // sync search from prop when dropdown closes
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);

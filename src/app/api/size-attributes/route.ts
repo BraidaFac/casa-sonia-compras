@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/withAuth";
 import { odoo } from "@/lib/odoo";
 
@@ -14,7 +14,7 @@ export interface SizeAttribute {
   values: SizeValue[];
 }
 
-export const GET = withAuth(async (_req: NextRequest) => {
+export const GET = withAuth(async () => {
   try {
     const attributes = await odoo.searchRead(
       "product.attribute",

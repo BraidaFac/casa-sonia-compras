@@ -42,14 +42,19 @@ export function EmployeeModal({
 
   const [username, setUsername] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState("EMPLEADO");
+  const [role, setRole] = useState("EMPLEADO_BASICO");
   const [password, setPassword] = useState("");
 
   useEffect(() => {
     if (opened) {
+      // Reset form fields when modal opens — intentional sync from props
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUsername(employee?.username ?? "");
+       
       setName(employee?.name ?? "");
-      setRole(employee?.role ?? "EMPLEADO");
+       
+      setRole(employee?.role ?? "EMPLEADO_BASICO");
+       
       setPassword("");
     }
   }, [opened, employee]);
@@ -57,12 +62,14 @@ export function EmployeeModal({
   const roleOptions =
     currentEmployee.role === "ADMIN"
       ? [
-          { value: "EMPLEADO", label: "Empleado" },
+          { value: "EMPLEADO_BASICO", label: "Empleado" },
+          { value: "EMPLEADO", label: "Encargado" },
           { value: "MANAGER", label: "Manager" },
           { value: "ADMIN", label: "Admin" },
         ]
       : [
-          { value: "EMPLEADO", label: "Empleado" },
+          { value: "EMPLEADO_BASICO", label: "Empleado" },
+          { value: "EMPLEADO", label: "Encargado" },
           { value: "MANAGER", label: "Manager" },
         ];
 
@@ -96,7 +103,7 @@ export function EmployeeModal({
           <Select
             label="Rol"
             value={role}
-            onChange={(v) => setRole(v ?? "EMPLEADO")}
+            onChange={(v) => setRole(v ?? "EMPLEADO_BASICO")}
             data={roleOptions}
             required
           />

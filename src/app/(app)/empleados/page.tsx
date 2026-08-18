@@ -11,13 +11,15 @@ import type { EmployeeFormData, EmployeeRecord } from "@/components/empleados/Em
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: "Admin",
   MANAGER: "Manager",
-  EMPLEADO: "Empleado",
+  EMPLEADO: "Encargado",
+  EMPLEADO_BASICO: "Empleado",
 };
 
 const ROLE_COLOR: Record<string, string> = {
   ADMIN: "red",
   MANAGER: "blue",
   EMPLEADO: "gray",
+  EMPLEADO_BASICO: "dark",
 };
 
 async function fetchEmployees(): Promise<EmployeeRecord[]> {
@@ -32,7 +34,7 @@ export default function EmpleadosPage() {
   const { data: currentEmployee, isLoading: loadingMe } = useCurrentEmployee();
 
   useEffect(() => {
-    if (!loadingMe && currentEmployee?.role === "EMPLEADO") {
+    if (!loadingMe && (currentEmployee?.role === "EMPLEADO" || currentEmployee?.role === "EMPLEADO_BASICO")) {
       router.replace("/orders");
     }
   }, [currentEmployee, loadingMe, router]);
@@ -40,7 +42,7 @@ export default function EmpleadosPage() {
   const { data: employees = [], isLoading } = useQuery<EmployeeRecord[]>({
     queryKey: ["employees"],
     queryFn: fetchEmployees,
-    enabled: !!currentEmployee && currentEmployee.role !== "EMPLEADO",
+    enabled: !!currentEmployee && currentEmployee.role !== "EMPLEADO" && currentEmployee.role !== "EMPLEADO_BASICO",
   });
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -118,7 +120,7 @@ export default function EmpleadosPage() {
     );
   }
 
-  if (!currentEmployee || currentEmployee.role === "EMPLEADO") return null;
+  if (!currentEmployee || currentEmployee.role === "EMPLEADO" || currentEmployee.role === "EMPLEADO_BASICO") return null;
 
   return (
     <div style={{ padding: "32px 40px" }}>

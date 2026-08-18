@@ -39,8 +39,10 @@ export function LoginForm() {
         return;
       }
 
+      const data = await res.json();
       queryClient.removeQueries({ queryKey: ["currentEmployee"] });
-      router.push("/orders/new");
+      const dest = data.role === "EMPLEADO_BASICO" ? "/existencias" : "/orders/new";
+      router.push(dest);
       router.refresh();
     } catch {
       setError("Error de conexión");

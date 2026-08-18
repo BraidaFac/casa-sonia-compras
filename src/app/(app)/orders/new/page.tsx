@@ -1,6 +1,6 @@
 "use client";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Group, Text, Badge, Alert } from "@mantine/core";
+import { Group, Text, Alert } from "@mantine/core";
 import { useRouter } from "next/navigation";
 import { notifications } from "@mantine/notifications";
 import { DatosCabeceraOrden } from "@/components/orders/DatosCabeceraOrden";
@@ -10,7 +10,6 @@ import { OrderFormFooter } from "@/components/orders/OrderFormFooter";
 import { DraftWarningModal } from "@/components/orders/DraftWarningModal";
 import { ResumenModal } from "@/components/orders/ResumenModal";
 import { OrderProgressModal } from "@/components/orders/OrderProgressModal";
-import { validateForConfirm } from "@/lib/orderValidation";
 import { stripImagesForDB } from "@/lib/localOrders";
 import type {
   Article,
@@ -81,10 +80,8 @@ export default function NewOrderPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [resumenOpen, setResumenOpen] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
-  const [progressStep, setProgressStep] = useState("Guardando borrador...");
-  const [progressError, setProgressError] = useState<string | undefined>(
-    undefined,
-  );
+  const [progressStep] = useState("Guardando borrador...");
+  const [progressError] = useState<string | undefined>(undefined);
   const [draftWarning, setDraftWarning] = useState<{
     open: boolean;
     warnings: string[];
@@ -100,16 +97,23 @@ export default function NewOrderPage() {
   useEffect(() => {
     const draft = readDraft();
     if (draft.show) {
+      // Restore draft state — intentional multi-setState on mount from external storage
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSupplier(draft.supplier);
+       
       if (draft.date) setDate(draft.date);
+       
       setGlobalBrand(draft.globalBrand);
+       
       setSelectedWarehouses(draft.selectedWarehouses);
+       
       if (draft.compradoras.length > 0) setCompradoras(draft.compradoras);
+       
       setDraftBanner(true);
     }
     // Skip the first autosave tick since we just read from storage
     skipFirstSaveRef.current = true;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-save supplier + date into draft — only if draft already exists OR conditions are met
   useEffect(() => {
@@ -276,59 +280,6 @@ export default function NewOrderPage() {
     }).catch(() => {
       notifications.show({ color: "red", title: "Error al guardar", message: "Ocurrió un error inesperado." });
     });
-  }
-
-  async function handleConfirm() {
-    const localArticles = stripImagesForDB(articles);
-    const validation = validateForConfirm({
-      supplierId: supplier?.id ?? null,
-      brandId: globalBrand?.id ?? null,
-      compradoraIds: compradoras.map((c) => c.id),
-      date: dateStr,
-      articles: localArticles,
-    });
-    if (!validation.valid) {
-      setDraftWarning({ open: true, warnings: validation.missing });
-      return;
-    }
-    setProgressError(undefined);
-    setProgressStep("Guardando borrador...");
-    setIsConfirming(true);
-    let errorOccurred = false;
-    try {
-      const savedDraft = await doSaveDraft();
-      if (!savedDraft) {
-        setProgressError(
-          "No se pudo guardar el borrador. Verificá que el proveedor esté seleccionado.",
-        );
-        errorOccurred = true;
-        return;
-      }
-
-      setProgressStep("Enviando a Odoo...");
-      const confirmRes = await fetch(
-        `/api/local-orders/${savedDraft.id}/confirm`,
-        {
-          method: "POST",
-        },
-      );
-      const confirmData = await confirmRes.json();
-      if (!confirmRes.ok) {
-        setProgressError(confirmData?.error ?? "Error al confirmar la orden.");
-        errorOccurred = true;
-        return;
-      }
-
-      router.push("/orders");
-    } catch (err) {
-      setProgressError(
-        err instanceof Error ? err.message : "Error inesperado.",
-      );
-      errorOccurred = true;
-    } finally {
-      // On success, navigation handles unmount; on error, keep modal open for user to dismiss
-      if (!errorOccurred) setIsConfirming(false);
-    }
   }
 
   return (

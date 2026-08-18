@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     .setIssuedAt()
     .sign(secret);
 
-  const response = NextResponse.json({ ok: true });
+  const response = NextResponse.json({ ok: true, role: employee.role });
   response.cookies.set("auth_token", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

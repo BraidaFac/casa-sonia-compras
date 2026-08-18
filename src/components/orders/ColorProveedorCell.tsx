@@ -66,7 +66,8 @@ export function ColorProveedorCell({
   // Sync hexInput from outside only when popover is closed (avoids loop while picker is active)
   useEffect(() => {
     if (!hexPopoverOpen) {
-      setHexInput(value?.hexColor || "");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setHexInput(value?.hexColor || ""); // intentional sync from controlled prop
     }
   }, [value?.hexColor, hexPopoverOpen]);
 

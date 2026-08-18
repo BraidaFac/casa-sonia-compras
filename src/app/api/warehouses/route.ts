@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/withAuth";
 import { odoo } from "@/lib/odoo";
 
-export const GET = withAuth(async (_req: NextRequest) => {
+export const GET = withAuth(async () => {
   try {
     const warehouses = await odoo.fetchAll<{
       id: number;

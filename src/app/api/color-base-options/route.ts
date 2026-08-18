@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/withAuth";
 import { odoo } from "@/lib/odoo";
 
-export const GET = withAuth(async (_req: NextRequest) => {
+export const GET = withAuth(async () => {
   try {
     // Try fields_get first to get selection options dynamically
     let options: string[] = [];
@@ -21,7 +21,7 @@ export const GET = withAuth(async (_req: NextRequest) => {
 
       if (colorBaseField && colorBaseField.type === "selection" && Array.isArray(colorBaseField.selection)) {
         options = colorBaseField.selection.map(
-          ([_value, label]: [string, string]) => label,
+          ([, label]: [string, string]) => label,
         );
       }
     } catch {

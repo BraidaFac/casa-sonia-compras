@@ -20,7 +20,8 @@ export function ComboBox({ value, options, placeholder = "Buscar...", error = fa
   });
 
   useEffect(() => {
-    setSearch(value?.name || "");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSearch(value?.name || ""); // sync search from controlled value
   }, [value?.name]);
 
   const filtered =

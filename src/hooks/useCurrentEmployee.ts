@@ -4,7 +4,7 @@ export type CurrentEmployee = {
   employeeId: number;
   username: string;
   name: string;
-  role: "ADMIN" | "MANAGER" | "EMPLEADO";
+  role: "ADMIN" | "MANAGER" | "EMPLEADO" | "EMPLEADO_BASICO";
 };
 
 async function fetchCurrentEmployee(): Promise<CurrentEmployee> {

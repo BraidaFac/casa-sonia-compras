@@ -695,6 +695,7 @@ export async function generateGridPDF(data: GridPdfData): Promise<Uint8Array> {
 
     x = MARGIN;
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for (const _col of effectivePrintCols) {
       page.drawRectangle({
         x, y: y - ROW_H, width: PRINT_COL_W, height: ROW_H,

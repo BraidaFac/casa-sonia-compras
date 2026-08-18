@@ -1,6 +1,5 @@
 "use client";
 import { useState, useMemo } from "react";
-import { Text } from "@mantine/core";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { InventoryArticle } from "@/types";
 

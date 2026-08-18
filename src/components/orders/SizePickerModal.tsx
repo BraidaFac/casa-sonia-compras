@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, useMemo, useRef } from "react";
-import { Modal, Text, Button, UnstyledButton } from "@mantine/core";
+import { useState, useEffect, useMemo } from "react";
+import { Modal, Text, Button } from "@mantine/core";
 import {
   buildHierarchy,
   sortLetterValues,
@@ -177,16 +177,20 @@ export function SizePickerModal({
   const [selectedSuffix, setSelectedSuffix] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
-  const stepKey = useRef(0);
+  const [stepKey, setStepKey] = useState(0);
 
   useEffect(() => {
     if (!opened) return;
     if (currentSizeAttributeId) {
       const attr = sizeAttributes.find((a) => a.id === currentSizeAttributeId);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (attr) setSelectedAttribute(attr);
     }
+     
     setSelectedIds(new Set(currentSizes.map((s) => s.id)));
+     
     setSelectedType(null);
+     
     setSelectedSuffix(null);
   }, [opened]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -196,7 +200,7 @@ export function SizePickerModal({
   }, [selectedAttribute]);
 
   function advance() {
-    stepKey.current += 1;
+    setStepKey((k) => k + 1);
   }
 
   function handleSelectAttribute(attr: SizeAttribute) {
@@ -245,6 +249,7 @@ export function SizePickerModal({
     return false;
   }, [hierarchy, selectedAttribute, selectedType, selectedSuffix]);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const candidates: ClassifiedValue[] = useMemo(() => {
     if (!hierarchy || !selectedAttribute) return [];
     if (hierarchy.hasLetters && !hierarchy.hasNumerics && !hierarchy.hasSuffixes)
@@ -340,7 +345,7 @@ export function SizePickerModal({
     >
       {/* ── Step 1: Attribute selection ─────────────────────────────────────── */}
       {!selectedAttribute && (
-        <div key={`attr-${stepKey.current}`} className="sp-step">
+        <div key={`attr-${stepKey}`} className="sp-step">
           <Text
             size="xs"
             style={{
@@ -398,7 +403,7 @@ export function SizePickerModal({
 
       {/* ── Step 2a: Letter vs Numeric ──────────────────────────────────────── */}
       {selectedAttribute && showTypePicker && (
-        <div key={`type-${stepKey.current}`} className="sp-step">
+        <div key={`type-${stepKey}`} className="sp-step">
           <Text
             size="xs"
             style={{
@@ -446,7 +451,7 @@ export function SizePickerModal({
 
       {/* ── Step 2b: Suffix / measurement system ───────────────────────────── */}
       {selectedAttribute && showSuffixPicker && hierarchy && (
-        <div key={`suffix-${stepKey.current}`} className="sp-step">
+        <div key={`suffix-${stepKey}`} className="sp-step">
           <Text
             size="xs"
             style={{
@@ -486,7 +491,7 @@ export function SizePickerModal({
 
       {/* ── Step 3: Size chips ──────────────────────────────────────────────── */}
       {selectedAttribute && showCandidates && (
-        <div key={`chips-${stepKey.current}`} className="sp-step">
+        <div key={`chips-${stepKey}`} className="sp-step">
           {/* Hint */}
           <Text
             size="xs"

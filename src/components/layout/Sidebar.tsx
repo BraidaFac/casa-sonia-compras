@@ -30,7 +30,9 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [collapsed, setCollapsed] = useState<boolean>(false);
+  const [collapsed, setCollapsed] = useState<boolean>(
+    () => window.matchMedia("(max-width: 1023px)").matches || readStoredCollapsed(),
+  );
   const [showText, setShowText] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -68,7 +70,6 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
-    setCollapsed(mq.matches || readStoredCollapsed());
     const handler = (e: MediaQueryListEvent) => {
       if (e.matches) setCollapsed(true);
       else setCollapsed(readStoredCollapsed());
@@ -79,7 +80,8 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
 
   useEffect(() => {
     if (collapsed) {
-      setShowText(false);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setShowText(false); // immediate hide on collapse (no delay needed)
     } else {
       const t = setTimeout(() => setShowText(true), 160);
       return () => clearTimeout(t);

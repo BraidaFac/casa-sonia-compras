@@ -22,6 +22,7 @@ enum Role {
   ADMIN
   MANAGER
   EMPLEADO
+  EMPLEADO_BASICO
 }
 
 model Employee {
@@ -34,10 +35,11 @@ model Employee {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  createdOrders        Order[]     @relation("OrderCreatedBy")
-  confirmedOrders      Order[]     @relation("OrderConfirmedBy")
-  createdInventories   Inventory[] @relation("InventoryCreatedBy")
-  confirmedInventories Inventory[] @relation("InventoryConfirmedBy")
+  createdOrders        Order[]         @relation("OrderCreatedBy")
+  confirmedOrders      Order[]         @relation("OrderConfirmedBy")
+  createdInventories   Inventory[]     @relation("InventoryCreatedBy")
+  confirmedInventories Inventory[]     @relation("InventoryConfirmedBy")
+  searchHistory        SearchHistory[]
 
   @@map("employees")
 }
@@ -92,4 +94,20 @@ model Inventory {
   confirmedBy Employee? @relation("InventoryConfirmedBy", fields: [confirmedById], references: [id])
 
   @@map("inventories")
+}
+
+model SearchHistory {
+  id                Int      @id @default(autoincrement())
+  employeeId        Int      @map("employee_id")
+  productTemplateId Int      @map("product_template_id")
+  productName       String   @map("product_name")
+  productRef        String?  @map("product_ref")
+  thumbUrl          String?  @map("thumb_url") @db.Text
+  searchedAt        DateTime @default(now()) @map("searched_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([employeeId, productTemplateId])
+  @@index([employeeId, searchedAt(sort: Desc)])
+  @@map("search_history")
 }

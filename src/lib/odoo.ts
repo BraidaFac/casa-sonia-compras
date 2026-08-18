@@ -1,5 +1,4 @@
 const BASE_URL = `${process.env.ODOO_URL}/json/2`;
-const ODOO_DB = process.env.ODOO_DB!;
 const ODOO_API_KEY = process.env.ODOO_API_KEY!;
 
 const headers = {

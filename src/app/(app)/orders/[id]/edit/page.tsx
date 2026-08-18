@@ -1,7 +1,7 @@
 "use client";
 import { useState, useCallback, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { Group, Text, Badge, Alert } from "@mantine/core";
+import { Text, Badge, Alert } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { AlertTriangle } from "lucide-react";
 import { DatosCabeceraOrden } from "@/components/orders/DatosCabeceraOrden";
@@ -51,7 +51,7 @@ export default function EditOrderPage({
 
   const [isSaving, setIsSaving] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
-  const [progressStep, setProgressStep] = useState("Guardando...");
+  const [progressStep] = useState("Guardando...");
   const [progressError, setProgressError] = useState<string | undefined>(
     undefined,
   );

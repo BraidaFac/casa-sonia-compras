@@ -262,3 +262,62 @@ export interface LocalInventorySummary {
   createdAt: string;
   updatedAt: string;
 }
+
+// ─── Existencias types ────────────────────────────────────────────────────────
+
+export interface ExistenciasLocation {
+  id: number;
+  name: string;
+  completeName: string;
+  warehouseId: number | null;
+  warehouseName: string | null;
+}
+
+export interface ExistenciasVariant {
+  id: number; // product.product id
+  colorAttributeValueId: number | null;
+  colorName: string | null;
+  sizeAttributeValueId: number | null;
+  sizeName: string | null;
+  imageUrl: string | null; // URL de imagen por color
+}
+
+export interface ExistenciasStockCell {
+  variantId: number;
+  locationId: number;
+  qty: number;
+}
+
+export interface ExistenciasProduct {
+  templateId: number;
+  name: string;
+  ref: string | null;
+  listPrice: number | null;
+  variants: ExistenciasVariant[];
+  // Atributos descriptivos — solo los que tienen valor
+  attributes: Array<{ label: string; value: string }>;
+}
+
+export interface ExistenciasBarcodeResult {
+  variantId: number;
+  templateId: number;
+  colorAttributeValueId: number | null;
+  sizeAttributeValueId: number | null;
+}
+
+export interface SearchHistoryEntry {
+  id: number;
+  productTemplateId: number;
+  productName: string;
+  productRef: string | null;
+  thumbUrl: string | null;
+  searchedAt: string;
+}
+
+// For the shared article search component (template-level search)
+export interface ArticleSearchResult {
+  templateId: number;
+  name: string;
+  ref: string | null;
+  defaultCode: string | null;
+}

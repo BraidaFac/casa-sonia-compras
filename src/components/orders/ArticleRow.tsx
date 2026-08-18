@@ -3,7 +3,6 @@ import React, { useRef, useState, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Combobox,
-  InputBase,
   useCombobox,
   ActionIcon,
   Badge,
@@ -71,7 +70,6 @@ interface Props {
   colorAttributeId: number;
   sizeAttributeId: number;
   categories: ProductCategory[];
-  invalidColors?: string[];
   invalidSizes?: string[];
   printColumns: PrintColumn[];
   onAddPrintColumn: () => void;
@@ -104,7 +102,6 @@ export function ArticleRow({
   colorAttributeId,
   sizeAttributeId,
   categories,
-  invalidColors = [],
   invalidSizes = [],
   printColumns,
   onAddPrintColumn,

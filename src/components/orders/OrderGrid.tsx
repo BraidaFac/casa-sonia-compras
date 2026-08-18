@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Button, Group, Text } from "@mantine/core";
+import { Button } from "@mantine/core";
 
 // Stable empty array reference — prevents new array allocation per render for articles with no missing required attrs
 const EMPTY_STRING_ARRAY: string[] = [];
@@ -88,13 +88,15 @@ function createEmptyArticle(
 
 export function OrderGrid({
   supplier,
-  date,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  date: _date,
   onTotalsChange,
   mode = "create",
   initialArticles,
   orderId,
   onArticlesChange,
-  onDraftCleared,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  onDraftCleared: _onDraftCleared,
   globalBrand: globalBrandProp = null,
   selectedWarehouses: selectedWarehousesProp = [],
   onPrintColumnsChange,
@@ -471,7 +473,7 @@ export function OrderGrid({
     ).map((f) => f.key);
   }
 
-  const { hasValidationErrors, missingBrand, hasAnyQty, missingRequiredPerArticle, firstMissingArticleId } = useMemo(() => {
+  const { missingRequiredPerArticle, firstMissingArticleId } = useMemo(() => {
     const hasValidationErrors = articles.some((a) => {
       const hasQty = articleHasQty(a);
       const missingPrice = !a.priceGranular && !a.price && hasQty;
@@ -502,7 +504,6 @@ export function OrderGrid({
     return { hasValidationErrors, missingBrand, hasAnyQty, missingRequiredPerArticle, firstMissingArticleId };
   }, [articles, selectedWarehouses]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const hasMissingRequiredAttrs = Object.keys(missingRequiredPerArticle).length > 0;
 
   if (attrLoading) {
     return (

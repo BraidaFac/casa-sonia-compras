@@ -14,7 +14,7 @@ import {
 } from "@mantine/core";
 import { X, Plus, RefreshCw } from "lucide-react";
 import { useAttributeValues } from "@/hooks/useAttributeValues";
-import type { Article, ProductAttribute, AttributeValue } from "@/types";
+import type { Article, AttributeValue } from "@/types";
 
 interface ProductType {
   id: number;
@@ -47,7 +47,7 @@ import { REQUIRED_ATTR_FAMILIES } from "@/lib/required-attrs";
 // Flat list para uso interno
 const REQUIRED_ATTR_NAMES = REQUIRED_ATTR_FAMILIES.flatMap((f) => f.names);
 // Atributos que se pre-cargan pero se pueden eliminar (opcionales)
-export const OPTIONAL_PRELOADED_NAMES = ["composicion", "composición", "cuello", "corte"];
+export const OPTIONAL_PRELOADED_NAMES = ["composicion", "composición", "cuello", "corte", "ocacion", "ocasión", "ocación", "tipo de producto"];
 const ALL_PRELOADED_NAMES = [...REQUIRED_ATTR_NAMES, ...OPTIONAL_PRELOADED_NAMES];
 
 function isRequiredAttr(name: string): boolean {

@@ -12,16 +12,6 @@ export const REQUIRED_ATTR_FAMILIES: RequiredAttrFamily[] = [
   },
   { key: "genero", label: "Género", names: ["genero", "género"] },
   { key: "temporada", label: "Temporada", names: ["temporada"] },
-  {
-    key: "ocacion",
-    label: "Ocasión",
-    names: ["ocacion", "ocasión", "ocación"],
-  },
-  {
-    key: "tipo de producto",
-    label: "Tipo de Producto",
-    names: ["tipo de producto"],
-  },
   { key: "marca", label: "Marca", names: ["marca"] },
 ];
 

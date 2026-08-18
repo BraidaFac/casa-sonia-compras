@@ -35,7 +35,6 @@ import {
 } from "lucide-react";
 import { useInventory } from "@/hooks/useInventory";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
-import { InventoryStatusBadge } from "@/components/inventario/InventoryStatusBadge";
 import { ResumenModal } from "@/components/inventario/ResumenModal";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import type { InventoryArticle, LocalInventory } from "@/types";
@@ -361,7 +360,8 @@ function InventarioCargarContent({
       );
     } else {
       if (reminderTimerRef.current) clearTimeout(reminderTimerRef.current);
-      setReminderVisible(false);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setReminderVisible(false); // reset reminder when no longer dirty
     }
     return () => {
       if (reminderTimerRef.current) clearTimeout(reminderTimerRef.current);
@@ -1263,8 +1263,10 @@ function VariantSearchModal({
 
   useEffect(() => {
     if (!opened) return;
-    setQuery(""); // eslint-disable-line react-hooks/set-state-in-effect
-    setResults([]); // eslint-disable-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setQuery("");
+     
+    setResults([]);
     combobox.closeDropdown();
     const t = setTimeout(() => inputRef.current?.focus(), 80);
     return () => clearTimeout(t);
@@ -1505,7 +1507,8 @@ function ArticleRow({
   const [editingCost, setEditingCost] = useState(false);
 
   useEffect(() => {
-    setLocal(article);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLocal(article); // sync local form state when article prop updates from parent
   }, [article]);
 
   const isDirty =
