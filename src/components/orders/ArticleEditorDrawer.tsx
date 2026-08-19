@@ -230,10 +230,12 @@ export function ArticleEditorDrawer({
                         allColors={allColors}
                         colorBaseOptions={colorBaseOptions}
                         onChange={(newColor) => {
-                          const newRows = local.rows.map((r, i) =>
-                            i === idx ? { ...r, color: newColor } : r,
-                          );
-                          setLocal((p) => ({ ...p, rows: newRows }));
+                          setLocal((p) => ({
+                            ...p,
+                            rows: p.rows.map((r, i) =>
+                              i === idx ? { ...r, color: newColor } : r,
+                            ),
+                          }));
                         }}
                         hasQty={false}
                         usedColorKeys={new Set(
