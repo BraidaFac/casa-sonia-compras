@@ -1,5 +1,4 @@
 import type { LocalArticle } from "@/types";
-import { getMissingRequiredFamilies } from "./required-attrs";
 
 export interface ValidationResult {
   valid: boolean;
@@ -25,13 +24,6 @@ export function validateForDraft(order: OrderData): ValidationResult {
   if (!order.brandId) missing.push("Marca no seleccionada");
   if (!order.date) missing.push("Fecha no seleccionada");
   if (order.articles.length === 0) missing.push("Sin artículos");
-
-  for (const article of order.articles) {
-    const label = article.name || "(artículo sin nombre)";
-    if (!article.category) missing.push(`"${label}": falta categoría`);
-    if (!article.sizeAttributeId)
-      missing.push(`"${label}": falta tipo de talle`);
-  }
 
   return { valid: missing.length === 0, missing };
 }
@@ -60,25 +52,7 @@ export function validateForConfirm(order: OrderData): ValidationResult {
       return normal || warehouse;
     });
     if (!hasQty) missing.push(`"${label}": sin cantidades cargadas`);
-
-    const missingAttrs = getMissingRequiredFamilies(article.attributes ?? []);
-    for (const family of missingAttrs) {
-      missing.push(`"${label}": falta atributo "${family.label}"`);
-    }
-
-    for (const row of article.rows) {
-      if (!row.color) continue;
-      if (row.color.isNew) {
-        if (!row.color.colorBase)
-          missing.push(
-            `"${label}" color "${row.color.name}": falta Color Base`,
-          );
-        if (!row.color.hexColor)
-          missing.push(`"${label}" color "${row.color.name}": falta color HEX`);
-      }
-    }
   }
-  console.log(missing);
 
   return { valid: missing.length === 0, missing };
 }

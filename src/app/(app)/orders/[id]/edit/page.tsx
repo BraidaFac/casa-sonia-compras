@@ -17,7 +17,6 @@ import { ResumenModal } from "@/components/orders/ResumenModal";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { stripImagesForDB } from "@/lib/localOrders";
 import { validateForConfirm } from "@/lib/orderValidation";
-import { getMissingRequiredFamilies } from "@/lib/required-attrs";
 import type {
   Article,
   AttributeValue,
@@ -57,7 +56,6 @@ export default function EditOrderPage({
     undefined,
   );
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [showValidation, setShowValidation] = useState(false);
 
   // Track OrderGrid internal state for ConfirmModal
   const [printColumns, setPrintColumns] = useState<PrintColumn[]>([]);
@@ -209,20 +207,6 @@ export default function EditOrderPage({
 
   async function handleConfirm() {
     const localArticles = stripImagesForDB(articles);
-
-    // Check required attributes — activates red highlights in OrderGrid
-    const attrWarnings: string[] = [];
-    for (const article of articles) {
-      const label = article.name || "(artículo sin nombre)";
-      const missing = getMissingRequiredFamilies(article.attributes ?? []);
-      for (const f of missing)
-        attrWarnings.push(`"${label}": falta atributo "${f.label}"`);
-    }
-    if (attrWarnings.length > 0) {
-      setShowValidation(true);
-      setDraftWarning({ open: true, warnings: attrWarnings, mode: "confirm" });
-      return;
-    }
 
     const validation = validateForConfirm({
       supplierId: supplier?.id ?? null,
@@ -385,7 +369,7 @@ export default function EditOrderPage({
           selectedWarehouses={selectedWarehouses}
           onPrintColumnsChange={setPrintColumns}
           onPrintValuesChange={setPrintValues}
-          showValidation={showValidation}
+          showValidation={false}
           readOnly={isConfirmed}
           onEditArticle={isConfirmed ? handleEditArticle : undefined}
         />
