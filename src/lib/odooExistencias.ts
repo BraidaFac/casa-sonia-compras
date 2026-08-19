@@ -1,6 +1,17 @@
 import { odoo } from "./odoo";
 import { LETTER_SIZES } from "./sizes";
 
+// Cache de ubicaciones internas — TTL 12 horas (cambian raramente)
+const LOCATIONS_TTL_MS = 12 * 60 * 60 * 1000;
+type LocationEntry = {
+  id: number;
+  name: string;
+  completeName: string;
+  warehouseId: number | null;
+  warehouseName: string | null;
+};
+let _locationsCache: { data: LocationEntry[]; exp: number } | null = null;
+
 // ASSUMPTION: El campo barcode en product.product se llama "barcode"
 // ASSUMPTION: Los atributos de Color contienen "color" en el nombre (case-insensitive)
 // ASSUMPTION: Los atributos de Talle contienen "talle" o "talle" en el nombre, o sus valores son talles conocidos
@@ -93,13 +104,11 @@ export async function getProductByBarcode(barcode: string): Promise<{
   return { variantId, templateId, colorAttributeValueId, sizeAttributeValueId };
 }
 
-export async function getInternalLocations(): Promise<Array<{
-  id: number;
-  name: string;
-  completeName: string;
-  warehouseId: number | null;
-  warehouseName: string | null;
-}>> {
+export async function getInternalLocations(): Promise<LocationEntry[]> {
+  if (_locationsCache && Date.now() < _locationsCache.exp) {
+    return _locationsCache.data;
+  }
+
   const [locations, warehouses] = await Promise.all([
     odoo.searchRead(
       "stock.location",
@@ -124,7 +133,7 @@ export async function getInternalLocations(): Promise<Array<{
     }
   }
 
-  return (locations as Array<{ id: number; name: string; complete_name: string }>).map((r) => {
+  const data = (locations as Array<{ id: number; name: string; complete_name: string }>).map((r) => {
     const prefix = r.complete_name.split("/")[0];
     const wh = warehouseByPrefix.get(prefix) ?? null;
     return {
@@ -135,6 +144,9 @@ export async function getInternalLocations(): Promise<Array<{
       warehouseName: wh?.name ?? null,
     };
   });
+
+  _locationsCache = { data, exp: Date.now() + LOCATIONS_TTL_MS };
+  return data;
 }
 
 export async function getStockByTemplate(templateId: number): Promise<Array<{
@@ -180,7 +192,7 @@ export async function getProductTemplate(templateId: number): Promise<{
     "name",
     "default_code",
     "list_price",
-    "image_1920",
+    "image_128",
     "product_variant_ids",
     "attribute_line_ids",
   ]);
@@ -197,7 +209,7 @@ export async function getProductTemplate(templateId: number): Promise<{
       ? odoo.read("product.product", variantIds, [
           "id",
           "product_template_attribute_value_ids",
-          "image_variant_1920",
+          "image_variant_128",
         ])
       : Promise.resolve([]),
     attrLineIds.length > 0
@@ -240,7 +252,7 @@ export async function getProductTemplate(templateId: number): Promise<{
     let colorName: string | null = null;
     let sizeAttributeValueId: number | null = null;
     let sizeName: string | null = null;
-    const hasVariantImage = !!v.image_variant_1920;
+    const hasVariantImage = !!v.image_variant_128;
 
     for (const ptavId of (v.product_template_attribute_value_ids as number[] ?? [])) {
       const ptav = ptavMap.get(ptavId);
@@ -255,9 +267,9 @@ export async function getProductTemplate(templateId: number): Promise<{
     }
 
     const imageUrl: string | null = hasVariantImage
-      ? `data:image/jpeg;base64,${v.image_variant_1920 as string}`
-      : typeof tmpl.image_1920 === "string" && tmpl.image_1920
-        ? `data:image/jpeg;base64,${tmpl.image_1920}`
+      ? `data:image/jpeg;base64,${v.image_variant_128 as string}`
+      : typeof tmpl.image_128 === "string" && tmpl.image_128
+        ? `data:image/jpeg;base64,${tmpl.image_128}`
         : null;
 
     return {

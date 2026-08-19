@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { Tooltip } from "@mantine/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { ClipboardList, Store, Package, Search, ChevronLeft, ChevronRight, RefreshCw, Users, LogOut } from "lucide-react";
-import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
+import { ROLE_LABELS } from "@/lib/auth";
 
 const NAV_ITEMS = [
   { href: "/orders", label: "Órdenes", icon: ClipboardList },
@@ -26,7 +26,7 @@ function readStoredCollapsed(): boolean {
   }
 }
 
-export function Sidebar({ initialRole }: { initialRole?: string }) {
+export function Sidebar({ initialRole, initialName }: { initialRole?: string; initialName?: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -41,22 +41,14 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
     setLoggingOut(true);
     try {
       await fetch("/api/auth/logout", { method: "POST" });
-      queryClient.removeQueries({ queryKey: ["currentEmployee"] });
       router.push("/login");
       router.refresh();
     } finally {
       setLoggingOut(false);
     }
   }
-  const { data: currentEmployee } = useCurrentEmployee();
   const role = initialRole;
   const canManageEmployees = role === "ADMIN" || role === "MANAGER";
-  const roleLabel: Record<string, string> = {
-    ADMIN: "Admin",
-    MANAGER: "Manager",
-    EMPLEADO: "Encargado",
-    EMPLEADO_BASICO: "Empleado",
-  };
 
   async function handleRefreshCache() {
     setIsRefreshing(true);
@@ -324,7 +316,7 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
           padding: exp ? "10px 16px" : "10px 8px",
         }}
       >
-        {currentEmployee && (
+        {initialName && (
           exp ? (
             <div
               style={{
@@ -354,7 +346,7 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
                   flexShrink: 0,
                 }}
               >
-                {currentEmployee.name.charAt(0).toUpperCase()}
+                {initialName.charAt(0).toUpperCase()}
               </div>
               <div style={{ overflow: "hidden" }}>
                 <div
@@ -368,7 +360,7 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
                     textOverflow: "ellipsis",
                   }}
                 >
-                  {currentEmployee.name}
+                  {initialName}
                 </div>
                 <div
                   style={{
@@ -377,7 +369,7 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
                     fontFamily: "var(--font-sans)",
                   }}
                 >
-                  {roleLabel[currentEmployee.role] ?? currentEmployee.role}
+                  {(initialRole && ROLE_LABELS[initialRole]) ?? initialRole}
                 </div>
               </div>
             </div>
@@ -403,7 +395,7 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
                   color: "var(--mantine-color-amber-1)",
                 }}
               >
-                {currentEmployee.name.charAt(0).toUpperCase()}
+                {initialName.charAt(0).toUpperCase()}
               </div>
             </div>
           )
