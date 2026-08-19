@@ -10,6 +10,7 @@ import { OrderFormFooter } from "@/components/orders/OrderFormFooter";
 import { OrderStickyBar } from "@/components/orders/OrderStickyBar";
 import { ConfirmModal } from "@/components/orders/ConfirmModal";
 import { DraftWarningModal } from "@/components/orders/DraftWarningModal";
+import { ArticleEditorDrawer } from "@/components/orders/ArticleEditorDrawer";
 import { OrderProgressModal } from "@/components/orders/OrderProgressModal";
 import { ErrorDetailModal } from "@/components/orders/ErrorDetailModal";
 import { ResumenModal } from "@/components/orders/ResumenModal";
@@ -73,8 +74,22 @@ export default function EditOrderPage({
 
   const [errorModal, setErrorModal] = useState(false);
   const [resumenOpen, setResumenOpen] = useState(false);
+  const [drawerArticle, setDrawerArticle] = useState<Article | null>(null);
+  const [drawerIndex, setDrawerIndex] = useState<number | null>(null);
 
   const isConfirmed = order?.status === "CONFIRMED";
+
+  function handleEditArticle(article: Article) {
+    const idx = articles.findIndex((a) => a.id === article.id);
+    setDrawerArticle(article);
+    setDrawerIndex(idx);
+  }
+
+  function handleArticleUpdate(updated: Article) {
+    setArticles((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+    setDrawerArticle(null);
+    setDrawerIndex(null);
+  }
 
   useEffect(() => {
     async function load() {
@@ -372,6 +387,7 @@ export default function EditOrderPage({
           onPrintValuesChange={setPrintValues}
           showValidation={showValidation}
           readOnly={isConfirmed}
+          onEditArticle={isConfirmed ? handleEditArticle : undefined}
         />
       </div>
 
@@ -409,6 +425,20 @@ export default function EditOrderPage({
             ← Volver a órdenes
           </Text>
         </div>
+      )}
+
+      {drawerArticle !== null && drawerIndex !== null && (
+        <ArticleEditorDrawer
+          orderId={order.id}
+          articleIndex={drawerIndex}
+          article={drawerArticle}
+          opened={drawerArticle !== null}
+          onClose={() => {
+            setDrawerArticle(null);
+            setDrawerIndex(null);
+          }}
+          onArticleUpdate={handleArticleUpdate}
+        />
       )}
 
       <DraftWarningModal

@@ -42,6 +42,7 @@ interface Props {
   onPrintValuesChange?: (vals: PrintValues) => void;
   showValidation?: boolean;
   readOnly?: boolean;
+  onEditArticle?: (article: Article) => void;
 }
 
 function createEmptyArticle(
@@ -103,6 +104,7 @@ export function OrderGrid({
   onPrintValuesChange,
   showValidation,
   readOnly = false,
+  onEditArticle,
 }: Props) {
   const isEditMode = mode === "edit";
 
@@ -535,37 +537,57 @@ export function OrderGrid({
     <div style={{ position: "relative" }}>
       {/* Articles */}
       {articles.map((article) => (
-        <ArticleRowContainer
-          key={article.id}
-          article={article}
-          updateArticle={updateArticle}
-          removeArticle={removeArticle}
-          duplicateArticle={duplicateArticle}
-          getPrintValue={getPrintValue}
-          updatePrintValue={updatePrintValue}
-          refetchAttrs={refetchAttrs}
-          allColors={allColors}
-          colorBaseOptions={colorBaseOptions}
-          sizeAttributes={sizeAttributes}
-          colorAttributeId={colorAttributeId}
-          sizeAttributeId={sizeAttributeId}
-          categories={categories}
-          printColumns={printColumns}
-          onAddPrintColumn={addPrintColumn}
-          onUpdatePrintColumnHeader={updatePrintColumnHeader}
-          onRemovePrintColumn={removePrintColumn}
-          selectedWarehouses={selectedWarehouses}
-          missingRequiredKeys={
-            effectiveValidateMode
-              ? (missingRequiredPerArticle[article.id] ?? EMPTY_STRING_ARRAY)
-              : EMPTY_STRING_ARRAY
-          }
-          isFirstMissingArticle={
-            effectiveValidateMode && article.id === firstMissingArticleId
-          }
-          orderId={orderId}
-          readOnly={readOnly}
-        />
+        <div key={article.id} style={{ position: "relative" }}>
+          {readOnly && onEditArticle && (
+            <div
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+                zIndex: 10,
+              }}
+            >
+              <Button
+                size="xs"
+                variant="subtle"
+                color="amber"
+                onClick={() => onEditArticle(article)}
+              >
+                Editar
+              </Button>
+            </div>
+          )}
+          <ArticleRowContainer
+            article={article}
+            updateArticle={updateArticle}
+            removeArticle={removeArticle}
+            duplicateArticle={duplicateArticle}
+            getPrintValue={getPrintValue}
+            updatePrintValue={updatePrintValue}
+            refetchAttrs={refetchAttrs}
+            allColors={allColors}
+            colorBaseOptions={colorBaseOptions}
+            sizeAttributes={sizeAttributes}
+            colorAttributeId={colorAttributeId}
+            sizeAttributeId={sizeAttributeId}
+            categories={categories}
+            printColumns={printColumns}
+            onAddPrintColumn={addPrintColumn}
+            onUpdatePrintColumnHeader={updatePrintColumnHeader}
+            onRemovePrintColumn={removePrintColumn}
+            selectedWarehouses={selectedWarehouses}
+            missingRequiredKeys={
+              effectiveValidateMode
+                ? (missingRequiredPerArticle[article.id] ?? EMPTY_STRING_ARRAY)
+                : EMPTY_STRING_ARRAY
+            }
+            isFirstMissingArticle={
+              effectiveValidateMode && article.id === firstMissingArticleId
+            }
+            orderId={orderId}
+            readOnly={readOnly}
+          />
+        </div>
       ))}
 
       {/* Add article — hidden in readOnly */}
