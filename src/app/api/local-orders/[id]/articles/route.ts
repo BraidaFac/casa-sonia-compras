@@ -21,6 +21,18 @@ export const PATCH = withAuth(
     };
     const { articleIndex, article, colorAttributeId, sizeAttributeId } = body;
 
+    if (
+      !Number.isInteger(colorAttributeId) ||
+      colorAttributeId <= 0 ||
+      !Number.isInteger(sizeAttributeId) ||
+      sizeAttributeId <= 0
+    ) {
+      return NextResponse.json(
+        { error: "IDs de atributo inválidos" },
+        { status: 400 },
+      );
+    }
+
     if (!article.existingProductId) {
       return NextResponse.json(
         { error: "El artículo no tiene producto Odoo vinculado" },

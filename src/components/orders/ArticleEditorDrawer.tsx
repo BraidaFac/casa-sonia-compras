@@ -477,6 +477,15 @@ export function ArticleEditorDrawer({
                           onChange={(files) => {
                             if (!files || files.length === 0) return;
                             Array.from(files).forEach((file) => {
+                              // 5MB max per image
+                              if (file.size > 5 * 1024 * 1024) {
+                                notifications.show({
+                                  color: "red",
+                                  title: "Imagen muy grande",
+                                  message: `"${file.name}" supera el límite de 5MB.`,
+                                });
+                                return;
+                              }
                               const reader = new FileReader();
                               reader.onload = (e) => {
                                 const dataUrl = e.target?.result as string;
