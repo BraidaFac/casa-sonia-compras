@@ -26,7 +26,7 @@ Esta feature incluye únicamente la edición post-confirmación. La relajación 
 | Talles (agregar/quitar) | `product.template.attribute_line_ids` → genera `product.product` |
 | Atributos generales | `product.template.attribute_line_ids` |
 | Códigos de barra | `product.product.barcode` por variante color+talle |
-| Imágenes | `product.image` + Google Drive |
+| Imágenes | `product.image` + `product.product.image_variant_1920` directo en Odoo (base64) |
 
 **Campos bloqueados siempre:** cantidades, cabecera de orden (proveedor, fecha, marca, compradoras, almacenes).
 
@@ -173,10 +173,11 @@ write(productTemplateId, {
 - `write({ barcode: value })` en el variant encontrado
 
 **Paso 5 — Imágenes:**
-- Mismo flujo que en `ConfirmModal` / `OrderProgressModal`:
-  - Imágenes nuevas (sin `odooId`) → upload a Drive → crear `product.image` en Odoo
-  - Imágenes eliminadas (`deletedOdooImageIds`) → `unlink` en Odoo
-  - `clearedPrimaryColorNames` → limpiar `image_variant_1920` en la variante
+- Reutilizar `POST /api/products/[id]/sync-images` existente — mismo contrato que en confirmación
+- Imágenes nuevas (sin `odooId`, con `base64`): `write image_variant_1920` en `product.product` + `create product.image` para adicionales
+- Imágenes eliminadas (`deletedOdooImageIds`): `unlink` en Odoo
+- `clearedPrimaryColorNames`: limpiar `image_variant_1920` en las variantes del color
+- Sin Google Drive — las imágenes van directo a Odoo en base64
 
 ---
 
