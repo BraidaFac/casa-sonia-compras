@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
 import { SidebarClient } from "@/components/layout/SidebarClient";
+import { WarmupTierA } from "@/components/layout/WarmupTierA";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   let initialRole: string | undefined;
@@ -19,6 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div style={{ minHeight: "100dvh", background: "var(--bg)" }}>
+      <WarmupTierA />
       <SidebarClient initialRole={initialRole} initialName={initialName} />
       <main
         style={{
