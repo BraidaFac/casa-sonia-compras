@@ -207,7 +207,7 @@ export function DatosCabeceraOrden({
             </Text>
           }
           value={date}
-          onChange={onDateChange}
+          onChange={(v) => onDateChange(v ? new Date(v) : null)}
           valueFormat="DD/MM/YYYY"
           locale="es"
           w={180}
