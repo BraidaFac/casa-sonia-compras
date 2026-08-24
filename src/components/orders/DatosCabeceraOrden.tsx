@@ -194,7 +194,7 @@ export function DatosCabeceraOrden({
           </Text>
           <SupplierSearch
             value={supplier}
-            onChange={() => {}}
+            onChange={onSupplierChange}
             disabled={disabled}
           />
         </div>
@@ -207,7 +207,7 @@ export function DatosCabeceraOrden({
             </Text>
           }
           value={date}
-          onChange={() => {}}
+          onChange={onDateChange}
           valueFormat="DD/MM/YYYY"
           locale="es"
           w={180}

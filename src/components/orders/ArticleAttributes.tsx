@@ -47,8 +47,8 @@ import { REQUIRED_ATTR_FAMILIES } from "@/lib/required-attrs";
 
 // Flat list para uso interno
 const REQUIRED_ATTR_NAMES = REQUIRED_ATTR_FAMILIES.flatMap((f) => f.names);
-// Atributos que se pre-cargan pero se pueden eliminar (opcionales)
-export const OPTIONAL_PRELOADED_NAMES = ["composicion", "composición", "cuello", "corte", "ocacion", "ocasión", "ocación", "tipo de producto"];
+// Atributos que se pre-cargan pero se pueden eliminar (opcionales) — orden de visualización
+export const OPTIONAL_PRELOADED_NAMES = ["material", "temporada", "genero", "género", "corte", "cuello", "composicion", "composición", "tipo de producto"];
 const ALL_PRELOADED_NAMES = [...REQUIRED_ATTR_NAMES, ...OPTIONAL_PRELOADED_NAMES];
 
 function isRequiredAttr(name: string): boolean {
@@ -296,15 +296,17 @@ export function ArticleAttributes({
     ? { attributeId: article.sizeAttributeId ?? sizeAttributeId, attributeName: sizeAttrName, values: article.sizes, generatesVariants: true }
     : null;
 
-  // Filter out color/size from editable attributes, cuello/corte go last
+  // Filter out color/size from editable attributes, sort by defined preload order
   const editableAttributes = article.attributes
     .filter((a) => a.attributeId !== colorAttributeId && a.attributeId !== sizeAttributeId)
     .sort((a, b) => {
-      const aOptional = a.attributeId > 0 && OPTIONAL_PRELOADED_NAMES.some((n) => a.attributeName.toLowerCase().includes(n));
-      const bOptional = b.attributeId > 0 && OPTIONAL_PRELOADED_NAMES.some((n) => b.attributeName.toLowerCase().includes(n));
-      if (aOptional && !bOptional) return 1;
-      if (!aOptional && bOptional) return -1;
-      return 0;
+      const getOrder = (attr: { attributeId: number; attributeName: string }) => {
+        if (attr.attributeId <= 0) return 9999;
+        const lower = attr.attributeName.toLowerCase();
+        const idx = ALL_PRELOADED_NAMES.findIndex((n) => lower.includes(n));
+        return idx === -1 ? 9998 : idx;
+      };
+      return getOrder(a) - getOrder(b);
     });
 
   const selectableAttributes = allAttributes
