@@ -56,7 +56,6 @@ export function SupplierSearch({ value, onChange, disabled = false }: Props) {
           value={search}
           placeholder="Buscar proveedor..."
           w={320}
-          disabled={disabled}
           rightSection={isLoading ? <Loader size="xs" color="amber" /> : null}
           onChange={(e) => { if (!disabled) handleSearchChange(e.currentTarget.value); }}
           onFocus={() => { if (!disabled) combobox.openDropdown(); }}

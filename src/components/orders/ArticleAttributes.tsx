@@ -32,6 +32,7 @@ interface Props {
   onChange: (article: Article) => void;
   missingRequiredKeys?: string[];
   onRefreshAttributes?: () => void;
+  readOnly?: boolean;
 }
 
 interface ConfirmDeleteState {
@@ -110,6 +111,7 @@ export function ArticleAttributes({
   onChange,
   missingRequiredKeys = [],
   onRefreshAttributes,
+  readOnly = false,
 }: Props) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<ConfirmDeleteState>({
@@ -351,7 +353,7 @@ export function ArticleAttributes({
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                   {colorRow.values.map((v) => (
                     <span
-                      key={v.id}
+                      key={v.id ?? v.name}
                       style={{
                         background: "var(--surface3)",
                         border: "1px solid var(--border)",
@@ -395,7 +397,7 @@ export function ArticleAttributes({
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                   {sizeRow.values.map((v) => (
                     <span
-                      key={v.id}
+                      key={v.id ?? v.name}
                       style={{
                         background: "var(--surface3)",
                         border: "1px solid var(--border)",
@@ -489,7 +491,7 @@ export function ArticleAttributes({
                   )}
                 </td>
                 <td style={{ padding: "4px 8px", verticalAlign: "middle" }}>
-                  {canRemove && (
+                  {canRemove && !readOnly && (
                     <ActionIcon
                       variant="subtle"
                       color="gray"
@@ -506,17 +508,19 @@ export function ArticleAttributes({
         </tbody>
       </table>
 
-      <Button
-        variant="subtle"
-        color="gray"
-        size="xs"
-        leftSection={<Plus size={12} />}
-        mt="xs"
-        onClick={addAttributeLine}
-        style={{ border: "1px dashed var(--border2)" }}
-      >
-        Agregar línea
-      </Button>
+      {!readOnly && (
+        <Button
+          variant="subtle"
+          color="gray"
+          size="xs"
+          leftSection={<Plus size={12} />}
+          mt="xs"
+          onClick={addAttributeLine}
+          style={{ border: "1px dashed var(--border2)" }}
+        >
+          Agregar línea
+        </Button>
+      )}
 
       {/* Confirm delete modal for color/size with quantities */}
       <Modal

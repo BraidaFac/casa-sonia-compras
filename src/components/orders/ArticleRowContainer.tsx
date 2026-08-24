@@ -40,6 +40,8 @@ interface Props {
   isFirstMissingArticle?: boolean;
   orderId?: number;
   readOnly?: boolean;
+  allowArticleActions?: boolean;
+  readOnlyQuantities?: boolean;
 }
 
 export const ArticleRowContainer = React.memo(function ArticleRowContainer({

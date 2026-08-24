@@ -10,7 +10,6 @@ import { OrderFormFooter } from "@/components/orders/OrderFormFooter";
 import { OrderStickyBar } from "@/components/orders/OrderStickyBar";
 import { ConfirmModal } from "@/components/orders/ConfirmModal";
 import { DraftWarningModal } from "@/components/orders/DraftWarningModal";
-import { ArticleEditorDrawer } from "@/components/orders/ArticleEditorDrawer";
 import { OrderProgressModal } from "@/components/orders/OrderProgressModal";
 import { ErrorDetailModal } from "@/components/orders/ErrorDetailModal";
 import { ResumenModal } from "@/components/orders/ResumenModal";
@@ -62,7 +61,9 @@ export default function EditOrderPage({
   const [printValues, setPrintValues] = useState<PrintValues>({});
   const [selectedWarehouses, setSelectedWarehouses] = useState<Warehouse[]>([]);
   const [globalBrand, setGlobalBrand] = useState<AttributeValue | null>(null);
-  const [compradoras, setCompradoras] = useState<{ id: number; name: string }[]>([]);
+  const [compradoras, setCompradoras] = useState<
+    { id: number; name: string }[]
+  >([]);
 
   const [draftWarning, setDraftWarning] = useState<{
     open: boolean;
@@ -72,21 +73,45 @@ export default function EditOrderPage({
 
   const [errorModal, setErrorModal] = useState(false);
   const [resumenOpen, setResumenOpen] = useState(false);
-  const [drawerArticle, setDrawerArticle] = useState<Article | null>(null);
-  const [drawerIndex, setDrawerIndex] = useState<number | null>(null);
 
   const isConfirmed = order?.status === "CONFIRMED";
 
-  function handleEditArticle(article: Article) {
-    const idx = articles.findIndex((a) => a.id === article.id);
-    setDrawerArticle(article);
-    setDrawerIndex(idx);
-  }
-
-  function handleArticleUpdate(updated: Article) {
-    setArticles((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
-    setDrawerArticle(null);
-    setDrawerIndex(null);
+  async function handleSaveArticle(updatedArticle: Article): Promise<void> {
+    const updatedArticles = articles.map((a) =>
+      a.id === updatedArticle.id ? updatedArticle : a,
+    );
+    const localArticles = stripImagesForDB(updatedArticles);
+    const res = await fetch(`/api/local-orders/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        supplierId: supplier?.id,
+        supplierName: supplier?.name,
+        brandId: globalBrand?.id ?? null,
+        brandName: globalBrand?.name ?? null,
+        compradoraIds: compradoras.map((c) => c.id),
+        date: dateStr,
+        articles: localArticles,
+        warehouseIds: selectedWarehouses.map((w) => w.id),
+        editedArticleId: updatedArticle.id,
+        editedArticle: updatedArticle,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      notifications.show({
+        color: "red",
+        title: "Error al guardar",
+        message: data.error || "No se pudo guardar el artículo",
+      });
+      throw new Error(data.error);
+    }
+    setArticles(updatedArticles);
+    notifications.show({
+      color: "green",
+      title: "Artículo guardado",
+      message: "Los cambios fueron guardados correctamente.",
+    });
   }
 
   useEffect(() => {
@@ -113,7 +138,9 @@ export default function EditOrderPage({
 
         // Fetch Odoo images BEFORE setting state so OrderGrid mounts with correct images.
         // (OrderGrid only reads initialArticles once on mount — background updates are ignored.)
-        const articlesWithProduct = loadedArticles.filter((a) => a.existingProductId);
+        const articlesWithProduct = loadedArticles.filter(
+          (a) => a.existingProductId,
+        );
         if (articlesWithProduct.length > 0) {
           const imageResults = await Promise.allSettled(
             articlesWithProduct.map(async (article) => {
@@ -369,9 +396,9 @@ export default function EditOrderPage({
           selectedWarehouses={selectedWarehouses}
           onPrintColumnsChange={setPrintColumns}
           onPrintValuesChange={setPrintValues}
-          showValidation={false}
+          showValidation={true}
           readOnly={isConfirmed}
-          onEditArticle={isConfirmed ? handleEditArticle : undefined}
+          onSaveArticle={isConfirmed ? handleSaveArticle : undefined}
         />
       </div>
 
@@ -409,20 +436,6 @@ export default function EditOrderPage({
             ← Volver a órdenes
           </Text>
         </div>
-      )}
-
-      {drawerArticle !== null && drawerIndex !== null && (
-        <ArticleEditorDrawer
-          orderId={order.id}
-          articleIndex={drawerIndex}
-          article={drawerArticle}
-          opened={drawerArticle !== null}
-          onClose={() => {
-            setDrawerArticle(null);
-            setDrawerIndex(null);
-          }}
-          onArticleUpdate={handleArticleUpdate}
-        />
       )}
 
       <DraftWarningModal

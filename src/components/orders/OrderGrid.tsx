@@ -42,7 +42,7 @@ interface Props {
   onPrintValuesChange?: (vals: PrintValues) => void;
   showValidation?: boolean;
   readOnly?: boolean;
-  onEditArticle?: (article: Article) => void;
+  onSaveArticle?: (article: Article) => Promise<void>;
 }
 
 function createEmptyArticle(
@@ -104,9 +104,13 @@ export function OrderGrid({
   onPrintValuesChange,
   showValidation,
   readOnly = false,
-  onEditArticle,
+  onSaveArticle,
 }: Props) {
   const isEditMode = mode === "edit";
+
+  const [editingArticleId, setEditingArticleId] = useState<string | null>(null);
+  const [isSavingArticleId, setIsSavingArticleId] = useState<string | null>(null);
+  const editingSnapshotRef = useRef<Article | null>(null);
 
   // Read draft once at init time (create mode only, lazy useState runs exactly once)
   const [draft] = useState<Record<string, unknown> | null>(() => {
@@ -538,23 +542,68 @@ export function OrderGrid({
       {/* Articles */}
       {articles.map((article) => (
         <div key={article.id} style={{ position: "relative" }}>
-          {readOnly && onEditArticle && (
+          {readOnly && onSaveArticle && (
             <div
               style={{
                 position: "absolute",
                 top: 8,
                 right: 8,
                 zIndex: 10,
+                display: "flex",
+                gap: 6,
               }}
             >
-              <Button
-                size="xs"
-                variant="subtle"
-                color="amber"
-                onClick={() => onEditArticle(article)}
-              >
-                Editar
-              </Button>
+              {editingArticleId === article.id ? (
+                <>
+                  <Button
+                    size="xs"
+                    variant="filled"
+                    color="amber"
+                    loading={isSavingArticleId === article.id}
+                    disabled={isSavingArticleId === article.id}
+                    onClick={async () => {
+                      const current = articles.find((a) => a.id === article.id);
+                      if (!current) return;
+                      setIsSavingArticleId(article.id);
+                      try {
+                        await onSaveArticle(current);
+                        setEditingArticleId(null);
+                        editingSnapshotRef.current = null;
+                      } finally {
+                        setIsSavingArticleId(null);
+                      }
+                    }}
+                  >
+                    Guardar
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    color="gray"
+                    onClick={() => {
+                      if (editingSnapshotRef.current) {
+                        updateArticle(article.id, editingSnapshotRef.current);
+                      }
+                      setEditingArticleId(null);
+                      editingSnapshotRef.current = null;
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  color="amber"
+                  onClick={() => {
+                    editingSnapshotRef.current = article;
+                    setEditingArticleId(article.id);
+                  }}
+                >
+                  Editar
+                </Button>
+              )}
             </div>
           )}
           <ArticleRowContainer
@@ -585,7 +634,9 @@ export function OrderGrid({
               effectiveValidateMode && article.id === firstMissingArticleId
             }
             orderId={orderId}
-            readOnly={readOnly}
+            readOnly={readOnly && article.id !== editingArticleId}
+            allowArticleActions={!readOnly}
+            readOnlyQuantities={readOnly}
           />
         </div>
       ))}

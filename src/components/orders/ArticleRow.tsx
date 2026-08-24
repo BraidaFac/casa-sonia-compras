@@ -86,6 +86,8 @@ interface Props {
   isFirstMissingArticle?: boolean;
   orderId?: number;
   readOnly?: boolean;
+  allowArticleActions?: boolean;
+  readOnlyQuantities?: boolean;
 }
 
 const COLOR_COL = "__color__";
@@ -118,6 +120,8 @@ export function ArticleRow({
   isFirstMissingArticle = false,
   orderId,
   readOnly = false,
+  allowArticleActions = true,
+  readOnlyQuantities = false,
 }: Props) {
   const [debouncedNameQuery, setDebouncedNameQuery] = useState("");
   const [isFetchingDetail, setIsFetchingDetail] = useState(false);
@@ -129,6 +133,7 @@ export function ArticleRow({
     new Set(),
   );
   const [focusedColor, setFocusedColor] = useState<string | null>(null);
+  const [isCheckingCode, setIsCheckingCode] = useState(false);
 
   type PendingChange =
     | {
@@ -303,8 +308,14 @@ export function ArticleRow({
             color: {
               id: color.id,
               name: color.name,
-              colorBase: color.colorBase || allColors.find((c) => c.id === color.id)?.colorBase || "",
-              hexColor: color.hexColor || allColors.find((c) => c.id === color.id)?.hexColor || "",
+              colorBase:
+                color.colorBase ||
+                allColors.find((c) => c.id === color.id)?.colorBase ||
+                "",
+              hexColor:
+                color.hexColor ||
+                allColors.find((c) => c.id === color.id)?.hexColor ||
+                "",
               isNew: false,
             },
             quantities: Object.fromEntries(p.sizes.map((s) => [s.name, ""])),
@@ -623,8 +634,12 @@ export function ArticleRow({
   // Coefficient popover state
   const [coefPopoverOpen, setCoefPopoverOpen] = useState(false);
   const [localCoef, setLocalCoef] = useState<number | string>(coef);
-  const localCoefNum = typeof localCoef === "number" ? localCoef : parseFloat(String(localCoef)) || 0;
-  const precioConLocalCoef = costo > 0 && localCoefNum > 0 ? costo * localCoefNum : null;
+  const localCoefNum =
+    typeof localCoef === "number"
+      ? localCoef
+      : parseFloat(String(localCoef)) || 0;
+  const precioConLocalCoef =
+    costo > 0 && localCoefNum > 0 ? costo * localCoefNum : null;
 
   async function handleGenerateDescription() {
     const brandAttr = article.attributes.find((attr) =>
@@ -1071,36 +1086,38 @@ export function ArticleRow({
         }}
       >
         {/* Duplicate & Remove — top-right corner */}
-        {!readOnly && <div
-          style={{
-            position: "absolute",
-            top: 6,
-            right: 8,
-            display: "flex",
-            gap: 4,
-          }}
-        >
-          <Tooltip label="Duplicar artículo (sin nombre ni código)" withArrow>
+        {allowArticleActions && !readOnly && (
+          <div
+            style={{
+              position: "absolute",
+              top: 6,
+              right: 8,
+              display: "flex",
+              gap: 4,
+            }}
+          >
+            <Tooltip label="Duplicar artículo (sin nombre ni código)" withArrow>
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                onClick={onDuplicate}
+                title="Duplicar artículo"
+                size="sm"
+              >
+                <Copy size={14} />
+              </ActionIcon>
+            </Tooltip>
             <ActionIcon
               variant="subtle"
               color="gray"
-              onClick={onDuplicate}
-              title="Duplicar artículo"
+              onClick={onRemove}
+              title="Eliminar artículo"
               size="sm"
             >
-              <Copy size={14} />
+              <X size={14} />
             </ActionIcon>
-          </Tooltip>
-          <ActionIcon
-            variant="subtle"
-            color="gray"
-            onClick={onRemove}
-            title="Eliminar artículo"
-            size="sm"
-          >
-            <X size={14} />
-          </ActionIcon>
-        </div>}
+          </div>
+        )}
 
         {/* Article header — always visible */}
         <div
@@ -1110,6 +1127,7 @@ export function ArticleRow({
             gap: 12,
             marginBottom: 12,
             flexWrap: "wrap",
+            ...(readOnly ? { pointerEvents: "none", userSelect: "none", opacity: 0.85 } : {}),
           }}
         >
           {/* Product name autocomplete */}
@@ -1160,7 +1178,8 @@ export function ArticleRow({
                   placeholder="Nombre del artículo..."
                   size="xs"
                   style={{ width: "100%" }}
-                  styles={{ input: { fontWeight: 600 } }}
+                  styles={{ input: { fontWeight: 600, color: "#ffffff", opacity: 1 }, label: { color: "#ffffff" } }}
+                  disabled={readOnlyQuantities}
                   rightSection={
                     isFetchingProducts || isFetchingDetail ? (
                       <Loader size="xs" color="amber" />
@@ -1245,16 +1264,56 @@ export function ArticleRow({
 
           {/* Código Referencia */}
           <div style={{ display: "flex", alignItems: "flex-end", gap: 4 }}>
-            <TextInput
-              label="Cód. Referencia"
-              placeholder="Ej: HO15100CS"
-              size="xs"
-              w={140}
-              value={article.referencia}
-              onChange={(e) =>
-                onChange({ ...article, referencia: e.currentTarget.value })
-              }
-            />
+            <Tooltip
+              label="Este código ya existe en Odoo. No se puede confirmar la orden."
+              withArrow
+              color="red"
+              disabled={!article.referenciaExistsInOdoo}
+            >
+              <TextInput
+                label="Cód. Referencia"
+                placeholder="Ej: HO15100CS"
+                size="xs"
+                w={140}
+                disabled={readOnlyQuantities}
+                styles={{ label: { color: "#ffffff" }, input: { color: "#ffffff", opacity: 1 } }}
+                value={article.referencia}
+                error={
+                  article.referenciaExistsInOdoo
+                    ? "Ya existe en Odoo"
+                    : undefined
+                }
+                rightSection={isCheckingCode ? <Loader size={12} /> : undefined}
+                onChange={(e) =>
+                  onChange({
+                    ...article,
+                    referencia: e.currentTarget.value,
+                    referenciaExistsInOdoo: false,
+                  })
+                }
+                onBlur={async () => {
+                  const code = article.referencia.trim();
+                  if (!code || article.existingProductId) return;
+                  setIsCheckingCode(true);
+                  try {
+                    const res = await fetch(
+                      `/api/products/check-code?code=${encodeURIComponent(code)}`,
+                    );
+                    if (res.ok) {
+                      const data = (await res.json()) as { exists: boolean };
+                      onChange({
+                        ...article,
+                        referenciaExistsInOdoo: data.exists,
+                      });
+                    }
+                  } catch {
+                    // best-effort — no bloquear al usuario si falla
+                  } finally {
+                    setIsCheckingCode(false);
+                  }
+                }}
+              />
+            </Tooltip>
             {!article.referencia && !readOnly && (
               <Tooltip label="Auto-generar código de referencia" withArrow>
                 <ActionIcon
@@ -1413,14 +1472,6 @@ export function ArticleRow({
             thousandSeparator="."
             decimalSeparator=","
             w={120}
-            styles={{
-              label: {
-                fontSize: 12,
-                color: allSizesHaveSpecificPrice
-                  ? "var(--text3)"
-                  : "var(--text2)",
-              },
-            }}
           />
 
           {/* Granular toggle */}
@@ -1481,7 +1532,11 @@ export function ArticleRow({
                 width={220}
               >
                 <Popover.Target>
-                  <Tooltip label="Ajustar coeficiente y aplicar precio" withArrow disabled={coefPopoverOpen}>
+                  <Tooltip
+                    label="Ajustar coeficiente y aplicar precio"
+                    withArrow
+                    disabled={coefPopoverOpen}
+                  >
                     <ActionIcon
                       variant="subtle"
                       color="amber"
@@ -1521,8 +1576,8 @@ export function ArticleRow({
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}
-                        </strong>
-                        {" "}(× {localCoefNum})
+                        </strong>{" "}
+                        (× {localCoefNum})
                       </Text>
                     )}
                     <Button
@@ -1573,468 +1628,774 @@ export function ArticleRow({
           </Tabs.List>
 
           {/* Tab panel content — pointer-events disabled in readOnly to allow tab switching but block edits */}
-          <div style={readOnly ? { pointerEvents: "none", userSelect: "none", opacity: 0.85 } : undefined}>
-
-          {/* Cantidades tab */}
-          <Tabs.Panel value="quantities" pt="sm">
-            {/* Hidden print cols chips */}
-            {hiddenPrintColsList.length > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  gap: 4,
-                  marginBottom: 8,
-                  flexWrap: "wrap",
-                }}
-              >
-                <span
+          <div
+            style={
+              readOnly
+                ? { pointerEvents: "none", userSelect: "none", opacity: 0.85 }
+                : undefined
+            }
+          >
+            {/* Cantidades tab */}
+            <Tabs.Panel value="quantities" pt="sm">
+            <div style={readOnlyQuantities ? { pointerEvents: "none", userSelect: "none", opacity: 0.85 } : undefined}>
+              {/* Hidden print cols chips */}
+              {hiddenPrintColsList.length > 0 && (
+                <div
                   style={{
-                    fontSize: 11,
-                    color: "var(--text3)",
-                    alignSelf: "center",
+                    display: "flex",
+                    gap: 4,
+                    marginBottom: 8,
+                    flexWrap: "wrap",
                   }}
                 >
-                  Col. PDF ocultas:
-                </span>
-                {hiddenPrintColsList.map((col) => (
-                  <button
-                    key={col.id}
-                    type="button"
-                    onClick={() => toggleHidePrintCol(col.id)}
-                    title="Mostrar columna"
+                  <span
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 3,
-                      background: "var(--surface2)",
-                      border: "1px solid var(--border)",
-                      color: "var(--text3)",
-                      borderRadius: 4,
-                      padding: "2px 7px",
                       fontSize: 11,
-                      cursor: "pointer",
+                      color: "var(--text3)",
+                      alignSelf: "center",
                     }}
                   >
-                    <Eye size={10} />
-                    {col.header || "—"}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Grid */}
-            <div style={{ overflowX: "auto" }}>
-              <table
-                ref={tableRef}
-                style={{
-                  borderCollapse: "collapse",
-                  tableLayout: "fixed",
-                  fontSize: 13,
-                }}
-              >
-                <colgroup>
-                  <col style={{ width: ADD_BTN_W }} />
-                  {visiblePrintColumns.map((col) => (
-                    <col
+                    Col. PDF ocultas:
+                  </span>
+                  {hiddenPrintColsList.map((col) => (
+                    <button
                       key={col.id}
-                      style={{ width: getColWidth(col.id, PRINT_COL_W) }}
-                    />
-                  ))}
-                  <col
-                    style={{ width: getColWidth(COLOR_COL, DEFAULT_COLOR_W) }}
-                  />
-                  <col style={{ width: getColWidth("__color_base__", 110) }} />
-                  {selectedWarehouses.length > 0 && (
-                    <col style={{ width: 90 }} />
-                  )}
-                  {visibleSizes.map((size) => (
-                    <col
-                      key={size.id}
-                      style={{ width: getColWidth(size.name, DEFAULT_SIZE_W) }}
-                    />
-                  ))}
-                  <col style={{ width: 60 }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    {/* + columna de impresión */}
-                    <th
+                      type="button"
+                      onClick={() => toggleHidePrintCol(col.id)}
+                      title="Mostrar columna"
                       style={{
-                        ...headerCellStyle,
-                        width: ADD_BTN_W,
-                        padding: "4px",
-                        position: "sticky",
-                        left: 0,
-                        zIndex: 4,
-                        background: "var(--surface3)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 3,
+                        background: "var(--surface2)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text3)",
+                        borderRadius: 4,
+                        padding: "2px 7px",
+                        fontSize: 11,
+                        cursor: "pointer",
                       }}
                     >
-                      <Tooltip
-                        label="Agregar columna de impresión"
-                        withArrow
-                        position="right"
-                      >
-                        <ActionIcon
-                          variant="subtle"
-                          color="gray"
-                          size="xs"
-                          tabIndex={-1}
-                          onClick={onAddPrintColumn}
-                        >
-                          <Plus size={12} />
-                        </ActionIcon>
-                      </Tooltip>
-                    </th>
+                      <Eye size={10} />
+                      {col.header || "—"}
+                    </button>
+                  ))}
+                </div>
+              )}
 
-                    {/* Columnas de impresión */}
-                    {visiblePrintColumns.map((col, colIdx) => (
-                      <th
+              {/* Grid */}
+              <div style={{ overflowX: "auto" }}>
+                <table
+                  ref={tableRef}
+                  style={{
+                    borderCollapse: "collapse",
+                    tableLayout: "fixed",
+                    fontSize: 13,
+                  }}
+                >
+                  <colgroup>
+                    <col style={{ width: ADD_BTN_W }} />
+                    {visiblePrintColumns.map((col) => (
+                      <col
                         key={col.id}
+                        style={{ width: getColWidth(col.id, PRINT_COL_W) }}
+                      />
+                    ))}
+                    <col
+                      style={{ width: getColWidth(COLOR_COL, DEFAULT_COLOR_W) }}
+                    />
+                    <col
+                      style={{ width: getColWidth("__color_base__", 110) }}
+                    />
+                    {selectedWarehouses.length > 0 && (
+                      <col style={{ width: 90 }} />
+                    )}
+                    {visibleSizes.map((size) => (
+                      <col
+                        key={size.id}
+                        style={{
+                          width: getColWidth(size.name, DEFAULT_SIZE_W),
+                        }}
+                      />
+                    ))}
+                    <col style={{ width: 60 }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      {/* + columna de impresión */}
+                      <th
                         style={{
                           ...headerCellStyle,
+                          width: ADD_BTN_W,
+                          padding: "4px",
                           position: "sticky",
-                          left: printColLeftOffsets[colIdx],
-                          zIndex: 3 + (visiblePrintColumns.length - colIdx),
+                          left: 0,
+                          zIndex: 4,
                           background: "var(--surface3)",
                         }}
                       >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 2,
-                            paddingRight: 2,
-                          }}
+                        <Tooltip
+                          label="Agregar columna de impresión"
+                          withArrow
+                          position="right"
                         >
-                          <input
-                            type="text"
-                            value={col.header}
-                            placeholder="Título..."
-                            onChange={(e) =>
-                              onUpdatePrintColumnHeader(col.id, e.target.value)
-                            }
-                            style={{
-                              flex: 1,
-                              minWidth: 0,
-                              background: "transparent",
-                              border: "none",
-                              color: "var(--text)",
-                              outline: "none",
-                              fontSize: 12,
-                              textAlign: "center",
-                            }}
-                          />
                           <ActionIcon
                             variant="subtle"
                             color="gray"
-                            size={14}
+                            size="xs"
                             tabIndex={-1}
-                            title="Ocultar columna"
-                            onClick={() => toggleHidePrintCol(col.id)}
-                            style={{ padding: 0, flexShrink: 0 }}
+                            onClick={onAddPrintColumn}
                           >
-                            <EyeOff size={10} />
+                            <Plus size={12} />
                           </ActionIcon>
-                          <ActionIcon
-                            variant="subtle"
-                            color="red"
-                            size={14}
-                            tabIndex={-1}
-                            title="Eliminar columna"
-                            onClick={() => onRemovePrintColumn(col.id)}
-                            style={{ padding: 0, flexShrink: 0 }}
-                          >
-                            <X size={10} />
-                          </ActionIcon>
-                        </div>
+                        </Tooltip>
                       </th>
-                    ))}
 
-                    {/* Color Proveedor */}
-                    <th
-                      style={{
-                        ...headerCellStyle,
-                        textAlign: "left",
-                        position: "sticky",
-                        left: colorStickyLeft,
-                        zIndex: 3,
-                        background: "var(--surface3)",
-                      }}
-                    >
-                      Color Proveedor
-                      <div
-                        style={resizeHandle}
-                        onMouseDown={(e) =>
-                          startResize(e, COLOR_COL, DEFAULT_COLOR_W)
-                        }
-                      />
-                    </th>
-
-                    {/* Color Base */}
-                    <th style={{ ...headerCellStyle, minWidth: 110 }}>
-                      Color Base
-                      <div
-                        style={resizeHandle}
-                        onMouseDown={(e) =>
-                          startResize(e, "__color_base__", 110)
-                        }
-                      />
-                    </th>
-
-                    {/* Sucursal — solo cuando hay sucursales seleccionadas */}
-                    {selectedWarehouses.length > 0 && (
-                      <th style={{ ...headerCellStyle, minWidth: 90 }}>
-                        Sucursal
-                      </th>
-                    )}
-
-                    {visibleSizes.map((size) => {
-                      const realIdx = article.sizes.findIndex(
-                        (s) => s.id === size.id,
-                      );
-                      const isInvalid = invalidSizes.includes(size.name);
-                      return (
+                      {/* Columnas de impresión */}
+                      {visiblePrintColumns.map((col, colIdx) => (
                         <th
-                          key={size.id}
+                          key={col.id}
                           style={{
                             ...headerCellStyle,
-                            ...(isInvalid
-                              ? {
-                                  background: "rgba(239,68,68,0.15)",
-                                  color: "var(--red)",
-                                  border: "1px solid var(--red)",
-                                }
-                              : {}),
+                            position: "sticky",
+                            left: printColLeftOffsets[colIdx],
+                            zIndex: 3 + (visiblePrintColumns.length - colIdx),
+                            background: "var(--surface3)",
                           }}
                         >
-                          {!isOdooSize(realIdx) && (
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 2,
+                              paddingRight: 2,
+                            }}
+                          >
+                            <input
+                              type="text"
+                              value={col.header}
+                              placeholder="Título..."
+                              onChange={(e) =>
+                                onUpdatePrintColumnHeader(
+                                  col.id,
+                                  e.target.value,
+                                )
+                              }
+                              style={{
+                                flex: 1,
+                                minWidth: 0,
+                                background: "transparent",
+                                border: "none",
+                                color: "var(--text)",
+                                outline: "none",
+                                fontSize: 12,
+                                textAlign: "center",
+                              }}
+                            />
                             <ActionIcon
                               variant="subtle"
                               color="gray"
                               size={14}
-                              title="Eliminar talle"
-                              onClick={() => removeSize(realIdx)}
-                              style={{ position: "absolute", top: 2, right: 2 }}
+                              tabIndex={-1}
+                              title="Ocultar columna"
+                              onClick={() => toggleHidePrintCol(col.id)}
+                              style={{ padding: 0, flexShrink: 0 }}
+                            >
+                              <EyeOff size={10} />
+                            </ActionIcon>
+                            <ActionIcon
+                              variant="subtle"
+                              color="red"
+                              size={14}
+                              tabIndex={-1}
+                              title="Eliminar columna"
+                              onClick={() => onRemovePrintColumn(col.id)}
+                              style={{ padding: 0, flexShrink: 0 }}
                             >
                               <X size={10} />
                             </ActionIcon>
-                          )}
-                          <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              alignItems: "center",
-                              gap: 1,
-                            }}
-                          >
-                            <span style={{ fontWeight: 600, fontSize: 12 }}>
-                              {size.name}
-                            </span>
-                            {size.equivalencia && (
-                              <span
-                                style={{
-                                  fontSize: 10,
-                                  color: "var(--text3)",
-                                  fontWeight: 400,
-                                }}
-                              >
-                                {size.equivalencia}
-                              </span>
-                            )}
                           </div>
-                          <div
-                            style={resizeHandle}
-                            onMouseDown={(e) =>
-                              startResize(e, size.name, DEFAULT_SIZE_W)
-                            }
-                          />
                         </th>
-                      );
-                    })}
+                      ))}
 
-                    <th style={headerCellStyle}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onOpenSizeModal?.();
-                          setSizePickerOpen(true);
-                        }}
+                      {/* Color Proveedor */}
+                      <th
                         style={{
-                          background: "none",
-                          border: "1px dashed var(--border2)",
-                          color: "var(--text3)",
-                          cursor: "pointer",
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                          fontSize: 11,
-                          whiteSpace: "nowrap",
+                          ...headerCellStyle,
+                          textAlign: "left",
+                          position: "sticky",
+                          left: colorStickyLeft,
+                          zIndex: 3,
+                          background: "var(--surface3)",
                         }}
                       >
-                        + talle
-                      </button>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {article.rows.map((row) => {
-                    const hasQty = article.sizes.some(
-                      (s) => parseInt(row.quantities[s.name] || "0", 10) > 0,
-                    );
+                        Color Proveedor
+                        <div
+                          style={resizeHandle}
+                          onMouseDown={(e) =>
+                            startResize(e, COLOR_COL, DEFAULT_COLOR_W)
+                          }
+                        />
+                      </th>
 
-                    if (selectedWarehouses.length === 0) {
-                      // ── Original single-row mode ────────────────────────────
-                      return (
-                        <tr key={row.id}>
-                          {/* Celda bajo botón + */}
-                          <td
+                      {/* Color Base */}
+                      <th style={{ ...headerCellStyle, minWidth: 110 }}>
+                        Color Base
+                        <div
+                          style={resizeHandle}
+                          onMouseDown={(e) =>
+                            startResize(e, "__color_base__", 110)
+                          }
+                        />
+                      </th>
+
+                      {/* Sucursal — solo cuando hay sucursales seleccionadas */}
+                      {selectedWarehouses.length > 0 && (
+                        <th style={{ ...headerCellStyle, minWidth: 90 }}>
+                          Sucursal
+                        </th>
+                      )}
+
+                      {visibleSizes.map((size) => {
+                        const realIdx = article.sizes.findIndex(
+                          (s) => s.id === size.id,
+                        );
+                        const isInvalid = invalidSizes.includes(size.name);
+                        return (
+                          <th
+                            key={size.id}
                             style={{
-                              ...cellStyle,
-                              position: "sticky",
-                              left: 0,
-                              zIndex: 2,
-                              background: "var(--surface)",
-                            }}
-                          />
-
-                          {/* Celdas de columnas de impresión */}
-                          {visiblePrintColumns.map((col, colIdx) => (
-                            <td
-                              key={col.id}
-                              style={{
-                                ...cellStyle,
-                                position: "sticky",
-                                left: printColLeftOffsets[colIdx],
-                                zIndex: 1,
-                                background: "var(--surface)",
-                              }}
-                            >
-                              <input
-                                type="text"
-                                value={getPrintValue(row.id, col.id)}
-                                onChange={(e) =>
-                                  onUpdatePrintValue(
-                                    row.id,
-                                    col.id,
-                                    e.target.value,
-                                  )
-                                }
-                                style={{
-                                  width: "100%",
-                                  background: "transparent",
-                                  border: "none",
-                                  color: "var(--text)",
-                                  outline: "none",
-                                  textAlign: "center",
-                                  fontSize: 12,
-                                  padding: "2px",
-                                }}
-                              />
-                            </td>
-                          ))}
-
-                          {/* Color Proveedor */}
-                          <td
-                            style={{
-                              ...cellStyle,
-                              textAlign: "left",
-                              padding: "4px 8px",
-                              overflow: "hidden",
-                              maxWidth: 0,
-                              position: "sticky",
-                              left: colorStickyLeft,
-                              zIndex: 1,
-                              background: "var(--surface)",
+                              ...headerCellStyle,
+                              ...(isInvalid
+                                ? {
+                                    background: "rgba(239,68,68,0.15)",
+                                    color: "var(--red)",
+                                    border: "1px solid var(--red)",
+                                  }
+                                : {}),
                             }}
                           >
+                            {!isOdooSize(realIdx) && !readOnlyQuantities && (
+                              <ActionIcon
+                                variant="subtle"
+                                color="gray"
+                                size={14}
+                                title="Eliminar talle"
+                                onClick={() => removeSize(realIdx)}
+                                style={{
+                                  position: "absolute",
+                                  top: 2,
+                                  right: 2,
+                                }}
+                              >
+                                <X size={10} />
+                              </ActionIcon>
+                            )}
                             <div
                               style={{
                                 display: "flex",
-                                alignItems: "flex-start",
-                                gap: 6,
+                                flexDirection: "column",
+                                alignItems: "center",
+                                gap: 1,
                               }}
                             >
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <ColorProveedorCell
-                                  value={row.color}
-                                  allColors={allColors}
-                                  colorBaseOptions={colorBaseOptions}
-                                  hasQty={hasQty}
-                                  usedColorKeys={
-                                    new Set(
-                                      article.rows
-                                        .filter(
-                                          (r) => r.id !== row.id && r.color,
-                                        )
-                                        .map((r) =>
-                                          r.color!.id != null
-                                            ? String(r.color!.id)
-                                            : r.color!.name.toLowerCase(),
-                                        ),
-                                    )
-                                  }
-                                  onChange={(v) =>
-                                    handleColorChange(row.id, v, row.color)
-                                  }
-                                />
-                              </div>
-                              {!isOdooColor(row) && (
-                                <ActionIcon
-                                  variant="subtle"
-                                  color="gray"
-                                  size="xs"
-                                  tabIndex={-1}
-                                  onClick={() => removeRow(row.id)}
-                                  style={{ flexShrink: 0, marginTop: 2 }}
+                              <span style={{ fontWeight: 600, fontSize: 12 }}>
+                                {size.name}
+                              </span>
+                              {size.equivalencia && (
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    color: "var(--text3)",
+                                    fontWeight: 400,
+                                  }}
                                 >
-                                  <X size={12} />
-                                </ActionIcon>
+                                  {size.equivalencia}
+                                </span>
                               )}
                             </div>
-                          </td>
-
-                          {/* Color Base */}
-                          <td style={{ ...cellStyle, padding: 0 }}>
-                            <ColorBaseCell
-                              color={row.color}
-                              colorBaseOptions={colorBaseOptions}
-                              onChange={(updatedColor) =>
-                                updateRow(row.id, { color: updatedColor })
+                            <div
+                              style={resizeHandle}
+                              onMouseDown={(e) =>
+                                startResize(e, size.name, DEFAULT_SIZE_W)
                               }
                             />
-                          </td>
+                          </th>
+                        );
+                      })}
 
-                          {visibleSizes.map((size) => (
-                            <td key={size.id} style={cellStyle}>
-                              <input
-                                type="number"
-                                min={0}
-                                data-size-cell
-                                value={row.quantities[size.name] ?? ""}
-                                onChange={(e) =>
-                                  updateQty(row.id, size.name, e.target.value)
-                                }
-                                onKeyDown={handleSizeKeyDown}
+                      {!readOnly && (
+                        <th style={{ ...headerCellStyle, pointerEvents: "all", opacity: 1 }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onOpenSizeModal?.();
+                              setSizePickerOpen(true);
+                            }}
+                            style={{
+                              background: "none",
+                              border: "1px dashed var(--border2)",
+                              color: "var(--text3)",
+                              cursor: "pointer",
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              fontSize: 11,
+                              whiteSpace: "nowrap",
+                              pointerEvents: "all",
+                            }}
+                          >
+                            + talle
+                          </button>
+                        </th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {article.rows.map((row) => {
+                      const hasQty = article.sizes.some(
+                        (s) => parseInt(row.quantities[s.name] || "0", 10) > 0,
+                      );
+
+                      if (selectedWarehouses.length === 0) {
+                        // ── Original single-row mode ────────────────────────────
+                        return (
+                          <tr key={row.id}>
+                            {/* Celda bajo botón + */}
+                            <td
+                              style={{
+                                ...cellStyle,
+                                position: "sticky",
+                                left: 0,
+                                zIndex: 2,
+                                background: "var(--surface)",
+                              }}
+                            />
+
+                            {/* Celdas de columnas de impresión */}
+                            {visiblePrintColumns.map((col, colIdx) => (
+                              <td
+                                key={col.id}
                                 style={{
-                                  width: "100%",
-                                  background: "transparent",
-                                  border: "none",
-                                  color: "var(--text)",
-                                  outline: "none",
-                                  textAlign: "center",
-                                  fontSize: 13,
-                                  padding: "2px",
+                                  ...cellStyle,
+                                  position: "sticky",
+                                  left: printColLeftOffsets[colIdx],
+                                  zIndex: 1,
+                                  background: "var(--surface)",
+                                }}
+                              >
+                                <input
+                                  type="text"
+                                  value={getPrintValue(row.id, col.id)}
+                                  onChange={(e) =>
+                                    onUpdatePrintValue(
+                                      row.id,
+                                      col.id,
+                                      e.target.value,
+                                    )
+                                  }
+                                  style={{
+                                    width: "100%",
+                                    background: "transparent",
+                                    border: "none",
+                                    color: "var(--text)",
+                                    outline: "none",
+                                    textAlign: "center",
+                                    fontSize: 12,
+                                    padding: "2px",
+                                  }}
+                                />
+                              </td>
+                            ))}
+
+                            {/* Color Proveedor */}
+                            <td
+                              style={{
+                                ...cellStyle,
+                                textAlign: "left",
+                                padding: "4px 8px",
+                                overflow: "hidden",
+                                maxWidth: 0,
+                                position: "sticky",
+                                left: colorStickyLeft,
+                                zIndex: 1,
+                                background: "var(--surface)",
+                                pointerEvents: !readOnly ? "auto" : undefined,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "flex-start",
+                                  gap: 6,
+                                }}
+                              >
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <ColorProveedorCell
+                                    value={row.color}
+                                    allColors={allColors}
+                                    colorBaseOptions={colorBaseOptions}
+                                    hasQty={hasQty}
+                                    usedColorKeys={
+                                      new Set(
+                                        article.rows
+                                          .filter(
+                                            (r) => r.id !== row.id && r.color,
+                                          )
+                                          .map((r) =>
+                                            r.color!.id != null
+                                              ? String(r.color!.id)
+                                              : r.color!.name.toLowerCase(),
+                                          ),
+                                      )
+                                    }
+                                    onChange={(v) =>
+                                      handleColorChange(row.id, v, row.color)
+                                    }
+                                  />
+                                </div>
+                                {!isOdooColor(row) && !readOnlyQuantities && (
+                                  <ActionIcon
+                                    variant="subtle"
+                                    color="gray"
+                                    size="xs"
+                                    tabIndex={-1}
+                                    onClick={() => removeRow(row.id)}
+                                    style={{ flexShrink: 0, marginTop: 2 }}
+                                  >
+                                    <X size={12} />
+                                  </ActionIcon>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Color Base */}
+                            <td style={{ ...cellStyle, padding: 0, pointerEvents: !readOnly ? "auto" : undefined }}>
+                              <ColorBaseCell
+                                color={row.color}
+                                colorBaseOptions={colorBaseOptions}
+                                onChange={(updatedColor) =>
+                                  updateRow(row.id, { color: updatedColor })
+                                }
+                              />
+                            </td>
+
+                            {visibleSizes.map((size) => (
+                              <td key={size.id} style={cellStyle}>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  data-size-cell
+                                  value={row.quantities[size.name] ?? ""}
+                                  onChange={(e) =>
+                                    updateQty(row.id, size.name, e.target.value)
+                                  }
+                                  onKeyDown={handleSizeKeyDown}
+                                  style={{
+                                    width: "100%",
+                                    background: "transparent",
+                                    border: "none",
+                                    color: "var(--text)",
+                                    outline: "none",
+                                    textAlign: "center",
+                                    fontSize: 13,
+                                    padding: "2px",
+                                  }}
+                                />
+                                {article.priceGranular &&
+                                  (() => {
+                                    const hasSpecific =
+                                      !!row.prices?.[size.name];
+                                    const hasFallback = !!article.price;
+                                    const missing =
+                                      !hasSpecific && !hasFallback;
+                                    return (
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        placeholder={missing ? "$ falta" : "$"}
+                                        value={row.prices?.[size.name] ?? ""}
+                                        onChange={(e) => {
+                                          const newPrices = {
+                                            ...(row.prices || {}),
+                                            [size.name]: e.target.value,
+                                          };
+                                          updateRow(row.id, {
+                                            prices: newPrices,
+                                          });
+                                        }}
+                                        style={{
+                                          width: "100%",
+                                          background: missing
+                                            ? "rgba(239,68,68,0.12)"
+                                            : "transparent",
+                                          border: "none",
+                                          borderTop: `1px solid ${missing ? "var(--red)" : "var(--border)"}`,
+                                          color: missing
+                                            ? "var(--red)"
+                                            : "var(--text2)",
+                                          outline: "none",
+                                          textAlign: "center",
+                                          fontSize: 11,
+                                          padding: "2px",
+                                        }}
+                                      />
+                                    );
+                                  })()}
+                              </td>
+                            ))}
+                            <td style={cellStyle} />
+                          </tr>
+                        );
+                      }
+
+                      // ── Warehouse subrow mode ───────────────────────────────────
+                      return (
+                        <React.Fragment key={row.id}>
+                          {selectedWarehouses.map((warehouse, wIdx) => (
+                            <tr key={`${row.id}:${warehouse.id}`}>
+                              {/* Celda bajo botón + — solo primera subfila */}
+                              {wIdx === 0 && (
+                                <td
+                                  rowSpan={selectedWarehouses.length}
+                                  style={{
+                                    ...cellStyle,
+                                    position: "sticky",
+                                    left: 0,
+                                    zIndex: 2,
+                                    background: "var(--surface)",
+                                    borderTop: "2px solid var(--border2)",
+                                  }}
+                                />
+                              )}
+
+                              {/* Columnas de impresión — solo primera subfila */}
+                              {wIdx === 0 &&
+                                visiblePrintColumns.map((col, colIdx) => (
+                                  <td
+                                    key={col.id}
+                                    rowSpan={selectedWarehouses.length}
+                                    style={{
+                                      ...cellStyle,
+                                      position: "sticky",
+                                      left: printColLeftOffsets[colIdx],
+                                      zIndex: 1,
+                                      background: "var(--surface)",
+                                      borderTop: "2px solid var(--border2)",
+                                    }}
+                                  >
+                                    <input
+                                      type="text"
+                                      value={getPrintValue(row.id, col.id)}
+                                      onChange={(e) =>
+                                        onUpdatePrintValue(
+                                          row.id,
+                                          col.id,
+                                          e.target.value,
+                                        )
+                                      }
+                                      style={{
+                                        width: "100%",
+                                        background: "transparent",
+                                        border: "none",
+                                        color: "var(--text)",
+                                        outline: "none",
+                                        textAlign: "center",
+                                        fontSize: 12,
+                                        padding: "2px",
+                                      }}
+                                    />
+                                  </td>
+                                ))}
+
+                              {/* Color Proveedor — solo primera subfila con rowSpan */}
+                              {wIdx === 0 && (
+                                <td
+                                  rowSpan={selectedWarehouses.length}
+                                  style={{
+                                    ...cellStyle,
+                                    textAlign: "left",
+                                    padding: "4px 8px",
+                                    overflow: "hidden",
+                                    maxWidth: 0,
+                                    position: "sticky",
+                                    left: colorStickyLeft,
+                                    zIndex: 1,
+                                    background: "var(--surface)",
+                                    borderTop: "2px solid var(--border2)",
+                                    pointerEvents: !readOnly ? "auto" : undefined,
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "flex-start",
+                                      gap: 6,
+                                    }}
+                                  >
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <ColorProveedorCell
+                                        value={row.color}
+                                        allColors={allColors}
+                                        colorBaseOptions={colorBaseOptions}
+                                        hasQty={hasQty}
+                                        usedColorKeys={
+                                          new Set(
+                                            article.rows
+                                              .filter(
+                                                (r) =>
+                                                  r.id !== row.id && r.color,
+                                              )
+                                              .map((r) =>
+                                                r.color!.id != null
+                                                  ? String(r.color!.id)
+                                                  : r.color!.name.toLowerCase(),
+                                              ),
+                                          )
+                                        }
+                                        onChange={(v) =>
+                                          handleColorChange(
+                                            row.id,
+                                            v,
+                                            row.color,
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                    {!isOdooColor(row) && !readOnlyQuantities && (
+                                      <ActionIcon
+                                        variant="subtle"
+                                        color="gray"
+                                        size="xs"
+                                        tabIndex={-1}
+                                        onClick={() => removeRow(row.id)}
+                                        style={{ flexShrink: 0, marginTop: 2 }}
+                                      >
+                                        <X size={12} />
+                                      </ActionIcon>
+                                    )}
+                                  </div>
+                                </td>
+                              )}
+
+                              {/* Color Base — solo primera subfila con rowSpan */}
+                              {wIdx === 0 && (
+                                <td
+                                  rowSpan={selectedWarehouses.length}
+                                  style={{
+                                    ...cellStyle,
+                                    padding: 0,
+                                    borderTop: "2px solid var(--border2)",
+                                    pointerEvents: !readOnly ? "auto" : undefined,
+                                  }}
+                                >
+                                  <ColorBaseCell
+                                    color={row.color}
+                                    colorBaseOptions={colorBaseOptions}
+                                    onChange={(updatedColor) =>
+                                      updateRow(row.id, { color: updatedColor })
+                                    }
+                                  />
+                                </td>
+                              )}
+
+                              {/* Sucursal */}
+                              <td
+                                style={{
+                                  ...cellStyle,
+                                  fontSize: 12,
+                                  color: "var(--text2)",
+                                  padding: "4px 8px",
+                                  whiteSpace: "nowrap",
+                                  borderTop:
+                                    wIdx === 0
+                                      ? "2px solid var(--border2)"
+                                      : undefined,
+                                }}
+                              >
+                                {warehouse.name}
+                              </td>
+
+                              {/* Cantidades por talle */}
+                              {visibleSizes.map((size) => (
+                                <td
+                                  key={size.id}
+                                  style={{
+                                    ...cellStyle,
+                                    borderTop:
+                                      wIdx === 0
+                                        ? "2px solid var(--border2)"
+                                        : undefined,
+                                  }}
+                                >
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    data-size-cell
+                                    value={getWarehouseQty(
+                                      row.id,
+                                      warehouse.id,
+                                      size.name,
+                                    )}
+                                    onChange={(e) =>
+                                      updateWarehouseQty(
+                                        row.id,
+                                        warehouse.id,
+                                        size.name,
+                                        e.target.value,
+                                      )
+                                    }
+                                    onKeyDown={handleSizeKeyDown}
+                                    style={{
+                                      width: "100%",
+                                      background: "transparent",
+                                      border: "none",
+                                      color: "var(--text)",
+                                      outline: "none",
+                                      textAlign: "center",
+                                      fontSize: 13,
+                                      padding: "2px",
+                                    }}
+                                  />
+                                </td>
+                              ))}
+
+                              <td
+                                style={{
+                                  ...cellStyle,
+                                  borderTop:
+                                    wIdx === 0
+                                      ? "2px solid var(--border2)"
+                                      : undefined,
                                 }}
                               />
-                              {article.priceGranular &&
-                                (() => {
-                                  const hasSpecific = !!row.prices?.[size.name];
-                                  const hasFallback = !!article.price;
-                                  const missing = !hasSpecific && !hasFallback;
-                                  return (
+                            </tr>
+                          ))}
+
+                          {/* Fila de precios granulares — debajo de todas las sucursales */}
+                          {article.priceGranular && (
+                            <tr key={`${row.id}:prices`}>
+                              <td
+                                colSpan={4 + visiblePrintColumns.length}
+                                style={{
+                                  ...cellStyle,
+                                  fontSize: 11,
+                                  color: "var(--text3)",
+                                  textAlign: "right",
+                                  padding: "2px 6px",
+                                }}
+                              >
+                                Costo X Variante$
+                              </td>
+                              {visibleSizes.map((size) => {
+                                const hasSpecific = !!row.prices?.[size.name];
+                                const hasFallback = !!article.price;
+                                const missing = !hasSpecific && !hasFallback;
+                                return (
+                                  <td key={size.id} style={cellStyle}>
                                     <input
                                       type="number"
                                       min={0}
-                                      placeholder={missing ? "$ falta" : "$"}
+                                      placeholder={missing ? "falta" : ""}
                                       value={row.prices?.[size.name] ?? ""}
                                       onChange={(e) => {
                                         const newPrices = {
@@ -2061,686 +2422,430 @@ export function ArticleRow({
                                         padding: "2px",
                                       }}
                                     />
-                                  );
-                                })()}
-                            </td>
-                          ))}
-                          <td style={cellStyle} />
-                        </tr>
-                      );
-                    }
-
-                    // ── Warehouse subrow mode ───────────────────────────────────
-                    return (
-                      <React.Fragment key={row.id}>
-                        {selectedWarehouses.map((warehouse, wIdx) => (
-                          <tr key={`${row.id}:${warehouse.id}`}>
-                            {/* Celda bajo botón + — solo primera subfila */}
-                            {wIdx === 0 && (
-                              <td
-                                rowSpan={selectedWarehouses.length}
-                                style={{
-                                  ...cellStyle,
-                                  position: "sticky",
-                                  left: 0,
-                                  zIndex: 2,
-                                  background: "var(--surface)",
-                                  borderTop: "2px solid var(--border2)",
-                                }}
-                              />
-                            )}
-
-                            {/* Columnas de impresión — solo primera subfila */}
-                            {wIdx === 0 &&
-                              visiblePrintColumns.map((col, colIdx) => (
-                                <td
-                                  key={col.id}
-                                  rowSpan={selectedWarehouses.length}
-                                  style={{
-                                    ...cellStyle,
-                                    position: "sticky",
-                                    left: printColLeftOffsets[colIdx],
-                                    zIndex: 1,
-                                    background: "var(--surface)",
-                                    borderTop: "2px solid var(--border2)",
-                                  }}
-                                >
-                                  <input
-                                    type="text"
-                                    value={getPrintValue(row.id, col.id)}
-                                    onChange={(e) =>
-                                      onUpdatePrintValue(
-                                        row.id,
-                                        col.id,
-                                        e.target.value,
-                                      )
-                                    }
-                                    style={{
-                                      width: "100%",
-                                      background: "transparent",
-                                      border: "none",
-                                      color: "var(--text)",
-                                      outline: "none",
-                                      textAlign: "center",
-                                      fontSize: 12,
-                                      padding: "2px",
-                                    }}
-                                  />
-                                </td>
-                              ))}
-
-                            {/* Color Proveedor — solo primera subfila con rowSpan */}
-                            {wIdx === 0 && (
-                              <td
-                                rowSpan={selectedWarehouses.length}
-                                style={{
-                                  ...cellStyle,
-                                  textAlign: "left",
-                                  padding: "4px 8px",
-                                  overflow: "hidden",
-                                  maxWidth: 0,
-                                  position: "sticky",
-                                  left: colorStickyLeft,
-                                  zIndex: 1,
-                                  background: "var(--surface)",
-                                  borderTop: "2px solid var(--border2)",
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "flex-start",
-                                    gap: 6,
-                                  }}
-                                >
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <ColorProveedorCell
-                                      value={row.color}
-                                      allColors={allColors}
-                                      colorBaseOptions={colorBaseOptions}
-                                      hasQty={hasQty}
-                                      usedColorKeys={
-                                        new Set(
-                                          article.rows
-                                            .filter(
-                                              (r) => r.id !== row.id && r.color,
-                                            )
-                                            .map((r) =>
-                                              r.color!.id != null
-                                                ? String(r.color!.id)
-                                                : r.color!.name.toLowerCase(),
-                                            ),
-                                        )
-                                      }
-                                      onChange={(v) =>
-                                        handleColorChange(row.id, v, row.color)
-                                      }
-                                    />
-                                  </div>
-                                  {!isOdooColor(row) && (
-                                    <ActionIcon
-                                      variant="subtle"
-                                      color="gray"
-                                      size="xs"
-                                      tabIndex={-1}
-                                      onClick={() => removeRow(row.id)}
-                                      style={{ flexShrink: 0, marginTop: 2 }}
-                                    >
-                                      <X size={12} />
-                                    </ActionIcon>
-                                  )}
-                                </div>
-                              </td>
-                            )}
-
-                            {/* Color Base — solo primera subfila con rowSpan */}
-                            {wIdx === 0 && (
-                              <td
-                                rowSpan={selectedWarehouses.length}
-                                style={{
-                                  ...cellStyle,
-                                  padding: 0,
-                                  borderTop: "2px solid var(--border2)",
-                                }}
-                              >
-                                <ColorBaseCell
-                                  color={row.color}
-                                  colorBaseOptions={colorBaseOptions}
-                                  onChange={(updatedColor) =>
-                                    updateRow(row.id, { color: updatedColor })
-                                  }
-                                />
-                              </td>
-                            )}
-
-                            {/* Sucursal */}
-                            <td
-                              style={{
-                                ...cellStyle,
-                                fontSize: 12,
-                                color: "var(--text2)",
-                                padding: "4px 8px",
-                                whiteSpace: "nowrap",
-                                borderTop:
-                                  wIdx === 0
-                                    ? "2px solid var(--border2)"
-                                    : undefined,
-                              }}
-                            >
-                              {warehouse.name}
-                            </td>
-
-                            {/* Cantidades por talle */}
-                            {visibleSizes.map((size) => (
-                              <td
-                                key={size.id}
-                                style={{
-                                  ...cellStyle,
-                                  borderTop:
-                                    wIdx === 0
-                                      ? "2px solid var(--border2)"
-                                      : undefined,
-                                }}
-                              >
-                                <input
-                                  type="number"
-                                  min={0}
-                                  data-size-cell
-                                  value={getWarehouseQty(
-                                    row.id,
-                                    warehouse.id,
-                                    size.name,
-                                  )}
-                                  onChange={(e) =>
-                                    updateWarehouseQty(
-                                      row.id,
-                                      warehouse.id,
-                                      size.name,
-                                      e.target.value,
-                                    )
-                                  }
-                                  onKeyDown={handleSizeKeyDown}
-                                  style={{
-                                    width: "100%",
-                                    background: "transparent",
-                                    border: "none",
-                                    color: "var(--text)",
-                                    outline: "none",
-                                    textAlign: "center",
-                                    fontSize: 13,
-                                    padding: "2px",
-                                  }}
-                                />
-                              </td>
-                            ))}
-
-                            <td
-                              style={{
-                                ...cellStyle,
-                                borderTop:
-                                  wIdx === 0
-                                    ? "2px solid var(--border2)"
-                                    : undefined,
-                              }}
-                            />
-                          </tr>
-                        ))}
-
-                        {/* Fila de precios granulares — debajo de todas las sucursales */}
-                        {article.priceGranular && (
-                          <tr key={`${row.id}:prices`}>
-                            <td
-                              colSpan={4 + visiblePrintColumns.length}
-                              style={{
-                                ...cellStyle,
-                                fontSize: 11,
-                                color: "var(--text3)",
-                                textAlign: "right",
-                                padding: "2px 6px",
-                              }}
-                            >
-                              Costo X Variante$
-                            </td>
-                            {visibleSizes.map((size) => {
-                              const hasSpecific = !!row.prices?.[size.name];
-                              const hasFallback = !!article.price;
-                              const missing = !hasSpecific && !hasFallback;
-                              return (
-                                <td key={size.id} style={cellStyle}>
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    placeholder={missing ? "falta" : ""}
-                                    value={row.prices?.[size.name] ?? ""}
-                                    onChange={(e) => {
-                                      const newPrices = {
-                                        ...(row.prices || {}),
-                                        [size.name]: e.target.value,
-                                      };
-                                      updateRow(row.id, { prices: newPrices });
-                                    }}
-                                    style={{
-                                      width: "100%",
-                                      background: missing
-                                        ? "rgba(239,68,68,0.12)"
-                                        : "transparent",
-                                      border: "none",
-                                      borderTop: `1px solid ${missing ? "var(--red)" : "var(--border)"}`,
-                                      color: missing
-                                        ? "var(--red)"
-                                        : "var(--text2)",
-                                      outline: "none",
-                                      textAlign: "center",
-                                      fontSize: 11,
-                                      padding: "2px",
-                                    }}
-                                  />
-                                </td>
-                              );
-                            })}
-                            <td style={cellStyle} />
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Add row */}
-            <Button
-              variant="subtle"
-              color="gray"
-              size="xs"
-              leftSection={<Plus size={12} />}
-              mt="xs"
-              onClick={addRow}
-              style={{ border: "1px dashed var(--border2)" }}
-            >
-              color
-            </Button>
-
-            <SizePickerModal
-              opened={sizePickerOpen}
-              onClose={() => setSizePickerOpen(false)}
-              sizeAttributes={sizeAttributes}
-              currentSizes={article.sizes}
-              currentSizeAttributeId={article.sizeAttributeId}
-              onConfirm={handleSizeConfirm}
-            />
-          </Tabs.Panel>
-
-          {/* Atributos tab */}
-          <Tabs.Panel value="attributes" pt="sm">
-            <ArticleAttributes
-              article={article}
-              colorAttributeId={colorAttributeId}
-              sizeAttributeId={sizeAttributeId}
-              allAttributes={allAttributes}
-              productTypes={productTypes}
-              onChangeTab={setActiveTab}
-              onChange={onChange}
-              missingRequiredKeys={missingRequiredKeys}
-              onRefreshAttributes={handleRefreshAttributes}
-            />
-          </Tabs.Panel>
-
-          {/* Datos Web tab */}
-          <Tabs.Panel value="description" pt="sm">
-            <Stack gap="md">
-              {/* ── SECCIÓN IMÁGENES ── */}
-              <div>
-                <Text size="sm" fw={600} mb="xs" c="var(--text2)">
-                  Imágenes por color
-                </Text>
-
-                {!article.category ? (
-                  <Text size="xs" c="dimmed">
-                    Ingresá la categoría del artículo antes de subir imágenes.
-                  </Text>
-                ) : !article.referencia ? (
-                  <Text size="xs" c="dimmed">
-                    Ingresá el código de referencia antes de subir imágenes.
-                  </Text>
-                ) : article.rows.filter((r) => r.color).length === 0 ? (
-                  <Text size="xs" c="dimmed">
-                    Cargá colores en el tab Cantidades para poder subir
-                    imágenes.
-                  </Text>
-                ) : (
-                  <Stack gap="sm">
-                    {Array.from(
-                      new Map(
-                        article.rows
-                          .filter((r) => r.color)
-                          .map((r) => [r.color!.name, r.color!]),
-                      ).values(),
-                    ).map((color) => {
-                      const images = article.colorImages[color.name] || [];
-                      const isUploading = uploadingColors.has(color.name);
-
-                      return (
-                        <div
-                          key={color.name}
-                          tabIndex={0}
-                          onFocus={() => setFocusedColor(color.name)}
-                          onBlur={() => setFocusedColor(null)}
-                          onPaste={(e) => {
-                            if (isUploading) return;
-                            const items = Array.from(e.clipboardData.items);
-                            const imageFiles = items
-                              .filter((item) => item.type.startsWith("image/"))
-                              .map((item) => item.getAsFile())
-                              .filter((f): f is File => f !== null);
-                            if (imageFiles.length === 0) return;
-                            e.preventDefault();
-                            const dt = new DataTransfer();
-                            imageFiles.forEach((f) => dt.items.add(f));
-                            handleImageUpload(color.name, dt.files);
-                          }}
-                          style={{
-                            border:
-                              focusedColor === color.name
-                                ? "1px solid var(--accent)"
-                                : "1px solid var(--border)",
-                            borderRadius: 8,
-                            padding: 12,
-                            background: "var(--surface2)",
-                            outline: "none",
-                            boxShadow:
-                              focusedColor === color.name
-                                ? "0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent)"
-                                : "none",
-                            transition: "border-color 0.15s, box-shadow 0.15s",
-                          }}
-                        >
-                          <Group justify="space-between" mb="xs">
-                            <Text size="sm" fw={600}>
-                              {color.name}
-                            </Text>
-                            <Text size="xs" c="dimmed">
-                              {images.filter((i) => !i.error).length} imagen
-                              {images.filter((i) => !i.error).length !== 1
-                                ? "es"
-                                : ""}
-                            </Text>
-                          </Group>
-
-                          {images.length > 0 && (
-                            <div
-                              style={{
-                                display: "flex",
-                                flexWrap: "wrap",
-                                gap: 8,
-                                marginBottom: 10,
-                              }}
-                            >
-                              {images.map((img) => (
-                                <div
-                                  key={img.id}
-                                  style={{
-                                    position: "relative",
-                                    width: 80,
-                                    height: 80,
-                                    borderRadius: 6,
-                                    overflow: "hidden",
-                                    border: img.error
-                                      ? "1px solid var(--red)"
-                                      : "1px solid var(--border)",
-                                    background: "var(--surface3)",
-                                  }}
-                                >
-                                  {img.error ? (
-                                    <div
-                                      style={{
-                                        width: "100%",
-                                        height: "100%",
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        padding: 4,
-                                      }}
-                                    >
-                                      <Text
-                                        size="xs"
-                                        c="red"
-                                        ta="center"
-                                        lh={1.2}
-                                      >
-                                        Error
-                                      </Text>
-                                      <Text
-                                        size="xs"
-                                        c="dimmed"
-                                        ta="center"
-                                        lh={1.2}
-                                      >
-                                        {img.fileName}
-                                      </Text>
-                                    </div>
-                                  ) : !img.previewUrl ? (
-                                    <div
-                                      style={{
-                                        width: "100%",
-                                        height: "100%",
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        padding: 4,
-                                      }}
-                                    >
-                                      <Text
-                                        size="xs"
-                                        c="dimmed"
-                                        ta="center"
-                                        lh={1.2}
-                                      >
-                                        {img.fileName}
-                                      </Text>
-                                    </div>
-                                  ) : (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
-                                      src={img.previewUrl}
-                                      alt={img.fileName}
-                                      style={{
-                                        width: "100%",
-                                        height: "100%",
-                                        objectFit: "cover",
-                                      }}
-                                    />
-                                  )}
-
-                                  <ActionIcon
-                                    size="xs"
-                                    color="red"
-                                    variant="filled"
-                                    style={{
-                                      position: "absolute",
-                                      top: 2,
-                                      right: 2,
-                                      opacity: 0.85,
-                                    }}
-                                    onClick={() =>
-                                      handleRemoveImage(color.name, img.id)
-                                    }
-                                  >
-                                    <X size={10} />
-                                  </ActionIcon>
-                                </div>
-                              ))}
-                            </div>
+                                  </td>
+                                );
+                              })}
+                              <td style={cellStyle} />
+                            </tr>
                           )}
-
-                          <label
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 6,
-                              padding: "6px 12px",
-                              borderRadius: 6,
-                              border: "1px dashed var(--border2)",
-                              cursor: isUploading ? "not-allowed" : "pointer",
-                              fontSize: 12,
-                              color: isUploading
-                                ? "var(--text3)"
-                                : "var(--accent)",
-                              background: "none",
-                              transition: "all 0.15s",
-                            }}
-                          >
-                            {isUploading ? (
-                              <>
-                                <Loader size={12} color="amber" />
-                                Subiendo...
-                              </>
-                            ) : (
-                              <>
-                                <Plus size={12} />
-                                Agregar imágenes
-                                <span
-                                  style={{
-                                    color: "var(--text3)",
-                                    fontSize: 11,
-                                    marginLeft: 4,
-                                  }}
-                                >
-                                  · o hacé click acá y pegá con Ctrl+V
-                                </span>
-                              </>
-                            )}
-                            <input
-                              type="file"
-                              accept="image/jpeg,image/png,image/webp,image/gif"
-                              multiple
-                              disabled={isUploading}
-                              style={{ display: "none" }}
-                              onChange={(e) => {
-                                if (e.target.files) {
-                                  handleImageUpload(color.name, e.target.files);
-                                  e.target.value = "";
-                                }
-                              }}
-                            />
-                          </label>
-                        </div>
+                        </React.Fragment>
                       );
                     })}
-                  </Stack>
-                )}
+                  </tbody>
+                </table>
               </div>
 
-              {/* Divider */}
-              <div
-                style={{ borderTop: "1px solid var(--border)", paddingTop: 12 }}
+              <SizePickerModal
+                opened={sizePickerOpen}
+                onClose={() => setSizePickerOpen(false)}
+                sizeAttributes={sizeAttributes}
+                currentSizes={article.sizes}
+                currentSizeAttributeId={article.sizeAttributeId}
+                onConfirm={handleSizeConfirm}
               />
+            </div>{/* end readOnlyQuantities wrapper */}
 
-              {/* ── SECCIÓN DESCRIPCIÓN ── */}
-              <div>
-                <Text size="sm" fw={600} mb="xs" c="var(--text2)">
-                  Descripción para la web
-                </Text>
+            {/* Add row — outside readOnlyQuantities so it works in edit mode on confirmed orders */}
+            {!readOnly && (
+              <Button
+                variant="subtle"
+                color="gray"
+                size="xs"
+                leftSection={<Plus size={12} />}
+                mt="xs"
+                onClick={addRow}
+                style={{ border: "1px dashed var(--border2)" }}
+              >
+                color
+              </Button>
+            )}
+            </Tabs.Panel>
 
-                <Stack gap="xs">
-                  <div style={{ position: "relative" }}>
-                    <Textarea
-                      placeholder={
-                        isGenerating
-                          ? ""
-                          : "Escribí una sugerencia para guiar la descripción (opcional).\nEj: Remera ideal para el río, muy fresca y cómoda."
-                      }
-                      minRows={5}
-                      autosize
-                      disabled={isGenerating}
-                      value={article.description}
-                      onChange={(e) =>
-                        onChange({
-                          ...article,
-                          description: e.currentTarget.value,
-                        })
-                      }
-                      styles={{
-                        input: {
-                          opacity: isGenerating ? 0.4 : 1,
-                          transition: "opacity 0.2s",
-                        },
-                      }}
-                    />
-                    {isGenerating && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          inset: 0,
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 8,
-                          pointerEvents: "none",
-                        }}
-                      >
-                        <Loader size="sm" color="amber" />
-                        <Text size="xs" c="dimmed">
-                          Generando descripción automática...
-                        </Text>
-                      </div>
-                    )}
-                  </div>
+            {/* Atributos tab */}
+            <Tabs.Panel value="attributes" pt="sm">
+              <ArticleAttributes
+                article={article}
+                colorAttributeId={colorAttributeId}
+                sizeAttributeId={sizeAttributeId}
+                allAttributes={allAttributes}
+                productTypes={productTypes}
+                onChangeTab={setActiveTab}
+                onChange={onChange}
+                missingRequiredKeys={missingRequiredKeys}
+                onRefreshAttributes={handleRefreshAttributes}
+                readOnly={readOnly}
+              />
+            </Tabs.Panel>
 
-                  {generateError && (
-                    <Text size="xs" c="red">
-                      {generateError}
-                    </Text>
-                  )}
-
-                  <Group justify="flex-end">
-                    <Tooltip
-                      label={
-                        !article.name
-                          ? "Ingresá el nombre del artículo primero"
-                          : "Genera una descripción automática usando IA"
-                      }
-                      withArrow
-                    >
-                      <span>
-                        <Button
-                          variant="light"
-                          color="amber"
-                          size="xs"
-                          disabled={!article.name || isGenerating}
-                          loading={isGenerating}
-                          onClick={handleGenerateDescription}
-                          leftSection={<Sparkles size={14} />}
-                        >
-                          {isGenerating
-                            ? "Generando..."
-                            : "Generar descripción"}
-                        </Button>
-                      </span>
-                    </Tooltip>
-                  </Group>
-
-                  <Text size="xs" c="dimmed">
-                    La descripción generada se publicará en la web de Odoo.
-                    Podés editarla antes de confirmar la orden.
+            {/* Datos Web tab */}
+            <Tabs.Panel value="description" pt="sm">
+              <Stack gap="md">
+                {/* ── SECCIÓN IMÁGENES ── */}
+                <div>
+                  <Text size="sm" fw={600} mb="xs" c="var(--text2)">
+                    Imágenes por color
                   </Text>
-                </Stack>
-              </div>
-            </Stack>
-          </Tabs.Panel>
 
-          {/* Códigos de Barra tab */}
-          <Tabs.Panel value="barcodes">
-            <BarcodeTab
-              article={article}
-              onChange={onChange}
-              readOnly={readOnly}
-            />
-          </Tabs.Panel>
-          </div>{/* end readOnly panel wrapper */}
+                  {!article.category ? (
+                    <Text size="xs" c="dimmed">
+                      Ingresá la categoría del artículo antes de subir imágenes.
+                    </Text>
+                  ) : !article.referencia ? (
+                    <Text size="xs" c="dimmed">
+                      Ingresá el código de referencia antes de subir imágenes.
+                    </Text>
+                  ) : article.rows.filter((r) => r.color).length === 0 ? (
+                    <Text size="xs" c="dimmed">
+                      Cargá colores en el tab Cantidades para poder subir
+                      imágenes.
+                    </Text>
+                  ) : (
+                    <Stack gap="sm">
+                      {Array.from(
+                        new Map(
+                          article.rows
+                            .filter((r) => r.color)
+                            .map((r) => [r.color!.name, r.color!]),
+                        ).values(),
+                      ).map((color) => {
+                        const images = article.colorImages[color.name] || [];
+                        const isUploading = uploadingColors.has(color.name);
+
+                        return (
+                          <div
+                            key={color.name}
+                            tabIndex={0}
+                            onFocus={() => setFocusedColor(color.name)}
+                            onBlur={() => setFocusedColor(null)}
+                            onPaste={(e) => {
+                              if (isUploading) return;
+                              const items = Array.from(e.clipboardData.items);
+                              const imageFiles = items
+                                .filter((item) =>
+                                  item.type.startsWith("image/"),
+                                )
+                                .map((item) => item.getAsFile())
+                                .filter((f): f is File => f !== null);
+                              if (imageFiles.length === 0) return;
+                              e.preventDefault();
+                              const dt = new DataTransfer();
+                              imageFiles.forEach((f) => dt.items.add(f));
+                              handleImageUpload(color.name, dt.files);
+                            }}
+                            style={{
+                              border:
+                                focusedColor === color.name
+                                  ? "1px solid var(--accent)"
+                                  : "1px solid var(--border)",
+                              borderRadius: 8,
+                              padding: 12,
+                              background: "var(--surface2)",
+                              outline: "none",
+                              boxShadow:
+                                focusedColor === color.name
+                                  ? "0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent)"
+                                  : "none",
+                              transition:
+                                "border-color 0.15s, box-shadow 0.15s",
+                            }}
+                          >
+                            <Group justify="space-between" mb="xs">
+                              <Text size="sm" fw={600}>
+                                {color.name}
+                              </Text>
+                              <Text size="xs" c="dimmed">
+                                {images.filter((i) => !i.error).length} imagen
+                                {images.filter((i) => !i.error).length !== 1
+                                  ? "es"
+                                  : ""}
+                              </Text>
+                            </Group>
+
+                            {images.length > 0 && (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexWrap: "wrap",
+                                  gap: 8,
+                                  marginBottom: 10,
+                                }}
+                              >
+                                {images.map((img) => (
+                                  <div
+                                    key={img.id}
+                                    style={{
+                                      position: "relative",
+                                      width: 80,
+                                      height: 80,
+                                      borderRadius: 6,
+                                      overflow: "hidden",
+                                      border: img.error
+                                        ? "1px solid var(--red)"
+                                        : "1px solid var(--border)",
+                                      background: "var(--surface3)",
+                                    }}
+                                  >
+                                    {img.error ? (
+                                      <div
+                                        style={{
+                                          width: "100%",
+                                          height: "100%",
+                                          display: "flex",
+                                          flexDirection: "column",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          padding: 4,
+                                        }}
+                                      >
+                                        <Text
+                                          size="xs"
+                                          c="red"
+                                          ta="center"
+                                          lh={1.2}
+                                        >
+                                          Error
+                                        </Text>
+                                        <Text
+                                          size="xs"
+                                          c="dimmed"
+                                          ta="center"
+                                          lh={1.2}
+                                        >
+                                          {img.fileName}
+                                        </Text>
+                                      </div>
+                                    ) : !img.previewUrl ? (
+                                      <div
+                                        style={{
+                                          width: "100%",
+                                          height: "100%",
+                                          display: "flex",
+                                          flexDirection: "column",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          padding: 4,
+                                        }}
+                                      >
+                                        <Text
+                                          size="xs"
+                                          c="dimmed"
+                                          ta="center"
+                                          lh={1.2}
+                                        >
+                                          {img.fileName}
+                                        </Text>
+                                      </div>
+                                    ) : (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img
+                                        src={img.previewUrl}
+                                        alt={img.fileName}
+                                        style={{
+                                          width: "100%",
+                                          height: "100%",
+                                          objectFit: "cover",
+                                        }}
+                                      />
+                                    )}
+
+                                    <ActionIcon
+                                      size="xs"
+                                      color="red"
+                                      variant="filled"
+                                      style={{
+                                        position: "absolute",
+                                        top: 2,
+                                        right: 2,
+                                        opacity: 0.85,
+                                      }}
+                                      onClick={() =>
+                                        handleRemoveImage(color.name, img.id)
+                                      }
+                                    >
+                                      <X size={10} />
+                                    </ActionIcon>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {!readOnly && (
+                              <label
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                  padding: "6px 12px",
+                                  borderRadius: 6,
+                                  border: "1px dashed var(--border2)",
+                                  cursor: isUploading
+                                    ? "not-allowed"
+                                    : "pointer",
+                                  fontSize: 12,
+                                  color: isUploading
+                                    ? "var(--text3)"
+                                    : "var(--accent)",
+                                  background: "none",
+                                  transition: "all 0.15s",
+                                }}
+                              >
+                                {isUploading ? (
+                                  <>
+                                    <Loader size={12} color="amber" />
+                                    Subiendo...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus size={12} />
+                                    Agregar imágenes
+                                    <span
+                                      style={{
+                                        color: "var(--text3)",
+                                        fontSize: 11,
+                                        marginLeft: 4,
+                                      }}
+                                    >
+                                      · o hacé click acá y pegá con Ctrl+V
+                                    </span>
+                                  </>
+                                )}
+                                <input
+                                  type="file"
+                                  accept="image/jpeg,image/png,image/webp,image/gif"
+                                  multiple
+                                  disabled={isUploading}
+                                  style={{ display: "none" }}
+                                  onChange={(e) => {
+                                    if (e.target.files) {
+                                      handleImageUpload(
+                                        color.name,
+                                        e.target.files,
+                                      );
+                                      e.target.value = "";
+                                    }
+                                  }}
+                                />
+                              </label>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </Stack>
+                  )}
+                </div>
+
+                {/* Divider */}
+                <div
+                  style={{
+                    borderTop: "1px solid var(--border)",
+                    paddingTop: 12,
+                  }}
+                />
+
+                {/* ── SECCIÓN DESCRIPCIÓN ── */}
+                <div>
+                  <Text size="sm" fw={600} mb="xs" c="var(--text2)">
+                    Descripción para la web
+                  </Text>
+
+                  <Stack gap="xs">
+                    <div style={{ position: "relative" }}>
+                      <Textarea
+                        placeholder={
+                          isGenerating
+                            ? ""
+                            : "Escribí una sugerencia para guiar la descripción (opcional).\nEj: Remera ideal para el río, muy fresca y cómoda."
+                        }
+                        minRows={5}
+                        autosize
+                        disabled={isGenerating}
+                        value={article.description}
+                        onChange={(e) =>
+                          onChange({
+                            ...article,
+                            description: e.currentTarget.value,
+                          })
+                        }
+                        styles={{
+                          input: {
+                            opacity: isGenerating ? 0.4 : 1,
+                            transition: "opacity 0.2s",
+                          },
+                        }}
+                      />
+                      {isGenerating && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 8,
+                            pointerEvents: "none",
+                          }}
+                        >
+                          <Loader size="sm" color="amber" />
+                          <Text size="xs" c="dimmed">
+                            Generando descripción automática...
+                          </Text>
+                        </div>
+                      )}
+                    </div>
+
+                    {generateError && (
+                      <Text size="xs" c="red">
+                        {generateError}
+                      </Text>
+                    )}
+
+                    <Group justify="flex-end">
+                      <Tooltip
+                        label={
+                          !article.name
+                            ? "Ingresá el nombre del artículo primero"
+                            : "Genera una descripción automática usando IA"
+                        }
+                        withArrow
+                      >
+                        <span>
+                          <Button
+                            variant="light"
+                            color="amber"
+                            size="xs"
+                            disabled={!article.name || isGenerating}
+                            loading={isGenerating}
+                            onClick={handleGenerateDescription}
+                            leftSection={<Sparkles size={14} />}
+                          >
+                            {isGenerating
+                              ? "Generando..."
+                              : "Generar descripción"}
+                          </Button>
+                        </span>
+                      </Tooltip>
+                    </Group>
+
+                    <Text size="xs" c="dimmed">
+                      La descripción generada se publicará en la web de Odoo.
+                      Podés editarla antes de confirmar la orden.
+                    </Text>
+                  </Stack>
+                </div>
+              </Stack>
+            </Tabs.Panel>
+
+            {/* Códigos de Barra tab */}
+            <Tabs.Panel value="barcodes">
+              <BarcodeTab
+                article={article}
+                onChange={onChange}
+                readOnly={readOnly}
+              />
+            </Tabs.Panel>
+          </div>
+          {/* end readOnly panel wrapper */}
         </Tabs>
 
         {totalUnits > 0 && (
