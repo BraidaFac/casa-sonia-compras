@@ -68,8 +68,9 @@ export const ExistenciasSearchInput = forwardRef<
   }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Barcode lookup on Enter — always fires when Enter pressed (scanner or manual)
-  const handleEnter = useCallback(async () => {
-    const barcode = query.trim();
+  // Accepts an optional overrideValue for paste-triggered lookups
+  const handleEnter = useCallback(async (overrideValue?: string) => {
+    const barcode = (overrideValue ?? query).trim();
     if (!barcode) return;
 
     combobox.closeDropdown();
@@ -102,6 +103,15 @@ export const ExistenciasSearchInput = forwardRef<
       }
     }
   }, [query, onBarcodeResult, onNotFound, onError]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Paste handler — triggers immediate barcode lookup without waiting for debounce
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData("text").trim();
+    if (!pasted) return;
+    e.preventDefault();
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    void handleEnter(pasted);
+  }, [handleEnter]);
 
   function handleSelect(article: ArticleSearchResult) {
     combobox.closeDropdown();
@@ -145,6 +155,7 @@ export const ExistenciasSearchInput = forwardRef<
               void handleEnter();
             }
           }}
+          onPaste={handlePaste}
           onFocus={() => {
             if (results.length > 0) combobox.openDropdown();
           }}

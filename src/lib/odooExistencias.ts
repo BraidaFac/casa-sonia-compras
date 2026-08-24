@@ -177,6 +177,7 @@ export async function getProductTemplate(templateId: number): Promise<{
   name: string;
   ref: string | null;
   listPrice: number | null;
+  categoryId: number | null;
   variants: Array<{
     id: number;
     colorAttributeValueId: number | null;
@@ -192,7 +193,8 @@ export async function getProductTemplate(templateId: number): Promise<{
     "name",
     "default_code",
     "list_price",
-    "image_128",
+    "categ_id",
+    "image_512",
     "product_variant_ids",
     "attribute_line_ids",
   ]);
@@ -209,7 +211,7 @@ export async function getProductTemplate(templateId: number): Promise<{
       ? odoo.read("product.product", variantIds, [
           "id",
           "product_template_attribute_value_ids",
-          "image_variant_128",
+          "image_variant_512",
         ])
       : Promise.resolve([]),
     attrLineIds.length > 0
@@ -252,7 +254,7 @@ export async function getProductTemplate(templateId: number): Promise<{
     let colorName: string | null = null;
     let sizeAttributeValueId: number | null = null;
     let sizeName: string | null = null;
-    const hasVariantImage = !!v.image_variant_128;
+    const hasVariantImage = !!v.image_variant_512;
 
     for (const ptavId of (v.product_template_attribute_value_ids as number[] ?? [])) {
       const ptav = ptavMap.get(ptavId);
@@ -267,9 +269,9 @@ export async function getProductTemplate(templateId: number): Promise<{
     }
 
     const imageUrl: string | null = hasVariantImage
-      ? `data:image/jpeg;base64,${v.image_variant_128 as string}`
-      : typeof tmpl.image_128 === "string" && tmpl.image_128
-        ? `data:image/jpeg;base64,${tmpl.image_128}`
+      ? `data:image/jpeg;base64,${v.image_variant_512 as string}`
+      : typeof tmpl.image_512 === "string" && tmpl.image_512
+        ? `data:image/jpeg;base64,${tmpl.image_512}`
         : null;
 
     return {
@@ -325,6 +327,7 @@ export async function getProductTemplate(templateId: number): Promise<{
     name: tmpl.name,
     ref: tmpl.default_code || null,
     listPrice: typeof tmpl.list_price === "number" ? tmpl.list_price : null,
+    categoryId: Array.isArray(tmpl.categ_id) ? (tmpl.categ_id[0] ?? null) : null,
     variants,
     attributes: descriptiveAttributes,
   };
