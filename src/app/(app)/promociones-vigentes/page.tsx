@@ -408,12 +408,12 @@ function SectionTitle({ icon, label, count, color }: {
       <span style={{ color }}>{icon}</span>
       <span
         style={{
-          fontSize: 15,
-          fontWeight: 800,
-          fontFamily: "var(--font-display)",
-          color: "var(--text1)",
+          fontSize: 13,
+          fontWeight: 700,
+          fontFamily: "var(--font-sans)",
+          color: "var(--text2)",
           textTransform: "uppercase",
-          letterSpacing: "0.06em",
+          letterSpacing: "0.05em",
         }}
       >
         {label}
@@ -551,21 +551,18 @@ export default function PromocionesVigentesPage() {
 
   return (
     <div style={{ padding: "32px 40px" }}>
-      {/* Page header */}
-      <div style={{ marginBottom: 32 }}>
-        <h1
-          style={{
-            margin: 0,
-            fontSize: 26,
-            fontWeight: 800,
-            fontFamily: "var(--font-display)",
-            color: "var(--text1)",
-            letterSpacing: "-0.02em",
-          }}
-        >
-          Promociones bancarias
-        </h1>
-      </div>
+      <p
+        style={{
+          margin: 0,
+          marginBottom: 24,
+          fontSize: 22,
+          fontWeight: 700,
+          fontFamily: "var(--font-display)",
+          color: "var(--text1)",
+        }}
+      >
+        Promociones bancarias
+      </p>
 
       {isLoading && (
         <div style={{ color: "var(--text3)", fontSize: 13 }}>Cargando...</div>
