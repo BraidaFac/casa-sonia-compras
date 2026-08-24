@@ -8,6 +8,123 @@ import type { ResolvedAttributeValue } from "@/lib/odooProducts";
 import type { Article, SizeValue } from "@/types";
 
 /**
+ * Sincroniza UN artículo editado de una orden confirmada con Odoo:
+ * 1. Llama updateArticleInOdoo → sincroniza precios, descripción, categoría,
+ *    colores/talles nuevos, atributos extra, imágenes, barcodes
+ * 2. Actualiza purchase.order.line con nuevas cantidades/precios
+ * 3. Crea nuevas purchase.order.line para variantes que ahora tienen qty > 0
+ *
+ * NO actualiza nombre ni default_code — esos campos no son editables en órdenes confirmadas.
+ */
+export async function syncConfirmedArticleToOdoo(
+  article: Article,
+  odooOrderId: number,
+  warehouseIds: number[],
+): Promise<void> {
+  if (typeof article.existingProductId !== "number" || typeof article.sizeAttributeId !== "number") return;
+
+  // Fetch colorAttributeId
+  const colorAttrs: { id: number; name: string }[] = await odoo.searchRead(
+    "product.attribute",
+    [["name", "ilike", "Color"]],
+    ["id", "name"],
+  );
+  const colorAttrObj = colorAttrs.find((a) => a.name.toLowerCase().includes("color"));
+  if (!colorAttrObj) return;
+  const colorAttributeId = colorAttrObj.id;
+
+  const templateId = article.existingProductId;
+  const sizeAttributeId = article.sizeAttributeId;
+
+  // 1. Sync product data: prices, description, category, colors, sizes, attrs, images, barcodes
+  //    (updateArticleInOdoo ya no escribe name ni default_code)
+  await updateArticleInOdoo(article, colorAttributeId, sizeAttributeId);
+
+  // 2. Fetch PO lines for this order
+  const poLines: { id: number; product_id: [number, string] | number; product_qty: number; price_unit: number }[] =
+    await odoo.searchRead(
+      "purchase.order.line",
+      [["order_id", "=", odooOrderId]],
+      ["id", "product_id", "product_qty", "price_unit"],
+    );
+
+  const variantToLine = new Map<number, { id: number; currentQty: number; currentPrice: number }>();
+  for (const line of poLines) {
+    const variantId = Array.isArray(line.product_id) ? line.product_id[0] : (line.product_id as number);
+    variantToLine.set(variantId, { id: line.id, currentQty: line.product_qty, currentPrice: line.price_unit });
+  }
+
+  // Build variant map: "colorValId:sizeValId" → variantId
+  const variantMap = await buildVariantMap(templateId, colorAttributeId, sizeAttributeId);
+
+  // Get color name → colorValueId for this template
+  const ptavs: { id: number; attribute_id: [number, string] | number; product_attribute_value_id: [number, string] | number }[] =
+    await odoo.searchRead(
+      "product.template.attribute.value",
+      [["product_tmpl_id", "=", templateId], ["attribute_id", "=", colorAttributeId]],
+      ["id", "attribute_id", "product_attribute_value_id"],
+    );
+  const colorValIds = ptavs.map((p) =>
+    Array.isArray(p.product_attribute_value_id) ? p.product_attribute_value_id[0] : p.product_attribute_value_id,
+  );
+  if (colorValIds.length === 0) return;
+
+  const colorValues: { id: number; name: string }[] = await odoo.read(
+    "product.attribute.value",
+    colorValIds,
+    ["id", "name"],
+  );
+  const colorNameToId = new Map<string, number>(
+    colorValues.map((v) => [v.name.toLowerCase(), v.id]),
+  );
+
+  // 3. Update/create PO lines per row × size
+  for (const row of article.rows) {
+    if (!row.color) continue;
+    const colorValId = colorNameToId.get(row.color.name.toLowerCase());
+    if (!colorValId) continue;
+
+    for (const size of article.sizes) {
+      const variantId = variantMap.get(`${colorValId}:${size.id}`);
+      if (!variantId) continue;
+
+      let qty: number;
+      if (warehouseIds.length > 0) {
+        qty = warehouseIds.reduce((sum, wId) => {
+          return sum + (parseInt(row.warehouseQuantities?.[`${wId}:${size.name}`] || "0", 10) || 0);
+        }, 0);
+      } else {
+        qty = parseInt(row.quantities[size.name] || "0", 10) || 0;
+      }
+      const price = article.priceGranular && row.prices?.[size.name]
+        ? parseFloat(row.prices[size.name]) || 0
+        : parseFloat(article.price) || 0;
+
+      const lineInfo = variantToLine.get(variantId);
+      if (lineInfo) {
+        if (qty !== lineInfo.currentQty || price !== lineInfo.currentPrice) {
+          await odoo.write("purchase.order.line", [lineInfo.id], {
+            product_qty: qty,
+            price_unit: price,
+          });
+        }
+      } else if (qty > 0) {
+        try {
+          await odoo.create("purchase.order.line", {
+            order_id: odooOrderId,
+            product_id: variantId,
+            product_qty: qty,
+            price_unit: price,
+          });
+        } catch (err) {
+          console.error("[syncConfirmedArticle] Failed to create PO line for variant", variantId, err);
+        }
+      }
+    }
+  }
+}
+
+/**
  * Construye un mapa `${colorValueId}:${sizeValueId}` → variantId
  * leyendo product.template.attribute.value y product.product de Odoo.
  */
@@ -89,9 +206,8 @@ export async function updateArticleInOdoo(
 ): Promise<void> {
   const templateId = article.existingProductId!;
 
-  // 1. Actualizar campos del product.template
+  // 1. Actualizar campos del product.template (sin name ni default_code — no son editables en órdenes confirmadas)
   await odoo.write("product.template", [templateId], {
-    name: article.name,
     standard_price: parseFloat(article.price) || 0,
     list_price: parseFloat(article.salePrice) || 0,
     description_ecommerce: article.description || "",

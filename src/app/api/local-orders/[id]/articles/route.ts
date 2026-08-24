@@ -83,7 +83,7 @@ export const PATCH = withAuth(
 
     await prisma.order.update({
       where: { id: orderId },
-      data: { articles: updatedArticles as unknown[] },
+      data: { articles: JSON.parse(JSON.stringify(updatedArticles)) },
     });
 
     return NextResponse.json({ article });

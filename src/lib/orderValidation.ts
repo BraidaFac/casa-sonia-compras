@@ -42,6 +42,15 @@ export function validateForConfirm(order: OrderData): ValidationResult {
 
     if (!article.name) missing.push(`Artículo sin nombre`);
 
+    if (!article.category) missing.push(`"${label}": sin categoría`);
+
+    const hasMarca = article.attributes.some(
+      (attr) =>
+        attr.attributeName.toLowerCase().includes("marca") &&
+        attr.values.length > 0,
+    );
+    if (!hasMarca) missing.push(`"${label}": sin atributo Marca`);
+
     const hasQty = article.rows.some((row) => {
       const normal = article.sizes.some(
         (size) => parseInt(row.quantities[size.name] || "0") > 0,
@@ -52,6 +61,10 @@ export function validateForConfirm(order: OrderData): ValidationResult {
       return normal || warehouse;
     });
     if (!hasQty) missing.push(`"${label}": sin cantidades cargadas`);
+
+    if (article.referenciaExistsInOdoo) {
+      missing.push(`"${label}": el código "${article.referencia}" ya existe en Odoo`);
+    }
   }
 
   return { valid: missing.length === 0, missing };

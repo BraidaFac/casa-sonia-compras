@@ -100,6 +100,7 @@ export interface Article {
   clearedPrimaryColorNames: string[];  // colores cuya imagen primaria fue borrada (limpiar image_variant_1920)
   maxCoeficiente: number; // 0 if new article or no Tipo de Producto
   originalSizeIds?: number[]; // IDs de talles que ya existían en Odoo al cargar producto existente (no se pueden eliminar)
+  referenciaExistsInOdoo?: boolean; // true si el default_code ya existe en Odoo (bloquea confirmación)
 }
 
 export interface OrderPayload {
@@ -293,6 +294,7 @@ export interface ExistenciasProduct {
   name: string;
   ref: string | null;
   listPrice: number | null;
+  categoryId: number | null;
   variants: ExistenciasVariant[];
   // Atributos descriptivos — solo los que tienen valor
   attributes: Array<{ label: string; value: string }>;
@@ -320,4 +322,38 @@ export interface ArticleSearchResult {
   name: string;
   ref: string | null;
   defaultCode: string | null;
+}
+
+// Existencias filter panel — card shown in results grid
+export interface ExistenciasTemplateCard {
+  id: number;
+  name: string;
+  defaultCode: string | null;
+  thumbUrl: string | null;
+  brand: string | null;
+}
+
+// Existencias filter panel — state of all filter groups
+export interface FilterState {
+  categoryIds: number[];       // leaf category IDs
+  colorBases: string[];        // x_studio_color_base values (e.g. "rojo", "azul")
+  equivalencias: string[];     // normalized size values (e.g. "M", "L")
+  brandValueIds: number[];     // product.attribute.value IDs
+  corteValueIds: number[];     // product.attribute.value IDs
+  materialValueIds: number[];  // product.attribute.value IDs
+}
+
+// Existencias filter panel — history entry persisted in localStorage
+export interface FilterHistoryEntry {
+  id: string;           // hash of the filter combination
+  label: string;        // human-readable summary, e.g. "Remeras · Rojo, Azul · Talle M"
+  filters: FilterState;
+  appliedAt: number;    // Date.now() timestamp
+}
+
+// Existencias filter panel — paginated response from /api/existencias/filter
+export interface FilteredExistenciasResult {
+  items: ExistenciasTemplateCard[];
+  total: number;
+  page: number;
 }
