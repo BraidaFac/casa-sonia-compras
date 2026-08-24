@@ -78,18 +78,18 @@ export function OrderStickyBar({
             flexShrink: 0,
             transition: "color 120ms ease",
           }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--text)")}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--text3)")}
+          onMouseEnter={(e) =>
+            ((e.currentTarget as HTMLElement).style.color = "var(--text)")
+          }
+          onMouseLeave={(e) =>
+            ((e.currentTarget as HTMLElement).style.color = "var(--text3)")
+          }
         >
           <ArrowLeft size={16} />
         </button>
       )}
 
-      <Text
-        size="xs"
-        c="dimmed"
-        style={{ whiteSpace: "nowrap", flexShrink: 0 }}
-      >
+      <Text size="xs" style={{ whiteSpace: "nowrap", flexShrink: 0 }}>
         {title}
       </Text>
 
@@ -163,11 +163,13 @@ export function OrderStickyBar({
             }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLElement).style.color = "var(--text)";
-              (e.currentTarget as HTMLElement).style.borderColor = "var(--border2)";
+              (e.currentTarget as HTMLElement).style.borderColor =
+                "var(--border2)";
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLElement).style.color = "var(--text2)";
-              (e.currentTarget as HTMLElement).style.borderColor = "var(--border2)";
+              (e.currentTarget as HTMLElement).style.borderColor =
+                "var(--border2)";
             }}
           >
             <LayoutList size={12} />

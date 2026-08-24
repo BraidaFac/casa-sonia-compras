@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 async function fetchAttributeValues(attributeId: number) {
   const res = await fetch(`/api/attributes/values?attributeId=${attributeId}`);
@@ -8,7 +9,7 @@ async function fetchAttributeValues(attributeId: number) {
 
 export function useAttributeValues(attributeId: number | null) {
   return useQuery({
-    queryKey: ["attribute-values", attributeId],
+    queryKey: queryKeys.attributes.byId(attributeId!),
     queryFn: () => fetchAttributeValues(attributeId!),
     enabled: attributeId !== null && attributeId > 0,
     staleTime: Infinity,

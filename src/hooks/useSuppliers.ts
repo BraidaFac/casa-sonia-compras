@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { Supplier } from "@/types";
+import { queryKeys } from "@/lib/queryKeys";
 
 async function fetchSuppliers(): Promise<Supplier[]> {
   const res = await fetch("/api/suppliers");
@@ -9,7 +10,7 @@ async function fetchSuppliers(): Promise<Supplier[]> {
 
 export function useSuppliers() {
   return useQuery({
-    queryKey: ["suppliers"],
+    queryKey: queryKeys.suppliers(),
     queryFn: fetchSuppliers,
     staleTime: Infinity,
   });

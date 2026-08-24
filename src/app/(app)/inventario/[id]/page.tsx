@@ -33,10 +33,13 @@ import {
   History,
   Search,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useInventory } from "@/hooks/useInventory";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { ResumenModal } from "@/components/inventario/ResumenModal";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { queryKeys } from "@/lib/queryKeys";
+import type { BarcodeLookupResult } from "@/hooks/useBarcodeLookup";
 import type { InventoryArticle, LocalInventory } from "@/types";
 
 type Params = Promise<{ id: string }>;
@@ -207,6 +210,7 @@ function InventarioCargarContent({
   warmupCategories: number[];
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const invId = inventory.id;
 
   // Si no vienen categorías por URL (segunda sesión), derivarlas de los artículos ya guardados
@@ -324,6 +328,22 @@ function InventarioCargarContent({
           // Mark template as prefetched — no need to re-fetch siblings
           if (item.productoId) {
             prefetchedTemplates.current.add(item.productoId);
+          }
+          // Inyectar barcode → templateId en React Query (Tier B lookup).
+          // Si el usuario escanea el mismo código en Existencias, useBarcodeLookup
+          // encuentra el resultado en caché sin round-trip al servidor.
+          // colorAttributeValueId y sizeAttributeValueId no están disponibles en
+          // el warmup de inventario; Existencias los ignora cuando vienen null.
+          if (item.barcode && item.productoId) {
+            queryClient.setQueryData<BarcodeLookupResult>(
+              queryKeys.barcode(item.barcode),
+              {
+                variantId: item.varianteId,
+                templateId: item.productoId,
+                colorAttributeValueId: null,
+                sizeAttributeValueId: null,
+              },
+            );
           }
         }
         setWarmupCount(loaded);

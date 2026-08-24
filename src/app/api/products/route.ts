@@ -6,9 +6,29 @@ export const GET = withAuth(async (req: NextRequest) => {
   const q = req.nextUrl.searchParams.get("q") || "";
 
   try {
+    // Search variants by barcode to get matching template IDs
+    const variantMatches = await odoo.searchRead(
+      "product.product",
+      [["barcode", "ilike", q]],
+      ["product_tmpl_id"],
+      { limit: 50 },
+    );
+    const tmplIdsFromBarcode: number[] = [
+      ...new Set(
+        (variantMatches as { product_tmpl_id: [number, string] | false }[])
+          .map((v) => (v.product_tmpl_id ? v.product_tmpl_id[0] : null))
+          .filter((id): id is number => id !== null),
+      ),
+    ];
+
+    const domain =
+      tmplIdsFromBarcode.length > 0
+        ? ["|", "|", ["name", "ilike", q], ["default_code", "ilike", q.toUpperCase()], ["id", "in", tmplIdsFromBarcode]]
+        : ["|", ["name", "ilike", q], ["default_code", "ilike", q.toUpperCase()]];
+
     const templates = await odoo.searchRead(
       "product.template",
-      ["|", ["name", "ilike", q], ["default_code", "ilike", q.toUpperCase()]],
+      domain,
       ["id", "name", "x_studio_referencia", "default_code", "list_price", "categ_id"],
       { limit: 20 },
     );

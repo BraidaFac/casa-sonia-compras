@@ -182,18 +182,19 @@ export function DatosCabeceraOrden({
         flexDirection: "column",
         gap: 12,
         marginBottom: 8,
+        ...(disabled ? { pointerEvents: "none" } : {}),
       }}
     >
       {/* Row 1: Proveedor · Fecha · Marca · Comprador · extraContent */}
       <Group gap="xl" align="flex-end" wrap="wrap">
         {/* Proveedor */}
         <div>
-          <Text size="xs" c="dimmed" fw={500} mb={6}>
+          <Text size="xs" c="dark.0" fw={500} mb={6}>
             Proveedor
           </Text>
           <SupplierSearch
             value={supplier}
-            onChange={disabled ? () => {} : onSupplierChange}
+            onChange={() => {}}
             disabled={disabled}
           />
         </div>
@@ -201,22 +202,22 @@ export function DatosCabeceraOrden({
         {/* Fecha */}
         <DatePickerInput
           label={
-            <Text size="xs" c="dimmed" fw={500}>
+            <Text size="xs" c="dark.0" fw={500}>
               Fecha
             </Text>
           }
           value={date}
-          onChange={disabled ? () => {} : (v) => onDateChange(v as Date | null)}
+          onChange={() => {}}
           valueFormat="DD/MM/YYYY"
           locale="es"
           w={180}
-          disabled={disabled}
+          readOnly={disabled}
         />
 
         {/* Marca (global) */}
         {allBrands.length > 0 && (
           <div>
-            <Text size="xs" c="dimmed" fw={500} mb={6}>
+            <Text size="xs" c="dark.0" fw={500} mb={6}>
               Marca
             </Text>
             <Combobox
@@ -236,7 +237,6 @@ export function DatosCabeceraOrden({
                   placeholder="Seleccionar marca..."
                   size="sm"
                   w={200}
-                  disabled={disabled}
                   onChange={(e) => {
                     setBrandSearch(e.currentTarget.value);
                     brandCombobox.openDropdown();
@@ -307,7 +307,7 @@ export function DatosCabeceraOrden({
         {/* Comprador — multiselect con altura fija */}
         {allCompradoras.length > 0 && (
           <div>
-            <Text size="xs" c="dimmed" fw={500} mb={6}>
+            <Text size="xs" c="dark.0" fw={500} mb={6}>
               Comprador
             </Text>
             <Combobox
@@ -327,7 +327,6 @@ export function DatosCabeceraOrden({
                   pointer
                   size="sm"
                   w={210}
-                  disabled={disabled}
                   onClick={() => compradoraCombobox.toggleDropdown()}
                   rightSection={
                     compradoras.length > 0 && !disabled ? (
@@ -341,7 +340,7 @@ export function DatosCabeceraOrden({
                       <Combobox.Chevron />
                     )
                   }
-                  rightSectionPointerEvents="all"
+                  rightSectionPointerEvents={disabled ? "none" : "all"}
                   styles={{
                     input: {
                       textAlign: "left",
@@ -420,7 +419,7 @@ export function DatosCabeceraOrden({
       {/* Row 2: Sucursales — inline toggle chips, always visible, no dropdown */}
       {allWarehouses.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <Text size="xs" c="dimmed" fw={500}>
+          <Text size="xs" c="dark.0" fw={500}>
             Sucursales
           </Text>
           <div
@@ -436,9 +435,7 @@ export function DatosCabeceraOrden({
                   type="button"
                   role="checkbox"
                   aria-checked={isSelected}
-                  disabled={disabled}
                   onClick={() => {
-                    if (disabled) return;
                     const next = isSelected
                       ? selectedWarehouses.filter((s) => s.id !== w.id)
                       : [...selectedWarehouses, w];
@@ -458,15 +455,14 @@ export function DatosCabeceraOrden({
                     fontSize: 13,
                     fontFamily: "var(--font-sans)",
                     fontWeight: isSelected ? 600 : 400,
-                    cursor: disabled ? "not-allowed" : "pointer",
-                    opacity: disabled ? 0.5 : 1,
+                    cursor: "pointer",
+                    opacity: 1,
                     transition:
                       "border-color 150ms ease, background 150ms ease, color 150ms ease",
                     userSelect: "none",
                     whiteSpace: "nowrap",
                   }}
                   onMouseEnter={(e) => {
-                    if (disabled) return;
                     if (!isSelected) {
                       (e.currentTarget as HTMLButtonElement).style.borderColor =
                         "var(--border2)";
@@ -475,7 +471,6 @@ export function DatosCabeceraOrden({
                     }
                   }}
                   onMouseLeave={(e) => {
-                    if (disabled) return;
                     if (!isSelected) {
                       (e.currentTarget as HTMLButtonElement).style.borderColor =
                         "var(--border2)";

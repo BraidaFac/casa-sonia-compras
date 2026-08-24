@@ -1,5 +1,4 @@
 import type { LocalArticle } from "@/types";
-import { getMissingRequiredFamilies } from "./required-attrs";
 
 export interface ValidationResult {
   valid: boolean;
@@ -26,13 +25,6 @@ export function validateForDraft(order: OrderData): ValidationResult {
   if (!order.date) missing.push("Fecha no seleccionada");
   if (order.articles.length === 0) missing.push("Sin artículos");
 
-  for (const article of order.articles) {
-    const label = article.name || "(artículo sin nombre)";
-    if (!article.category) missing.push(`"${label}": falta categoría`);
-    if (!article.sizeAttributeId)
-      missing.push(`"${label}": falta tipo de talle`);
-  }
-
   return { valid: missing.length === 0, missing };
 }
 
@@ -50,6 +42,15 @@ export function validateForConfirm(order: OrderData): ValidationResult {
 
     if (!article.name) missing.push(`Artículo sin nombre`);
 
+    if (!article.category) missing.push(`"${label}": sin categoría`);
+
+    const hasMarca = article.attributes.some(
+      (attr) =>
+        attr.attributeName.toLowerCase().includes("marca") &&
+        attr.values.length > 0,
+    );
+    if (!hasMarca) missing.push(`"${label}": sin atributo Marca`);
+
     const hasQty = article.rows.some((row) => {
       const normal = article.sizes.some(
         (size) => parseInt(row.quantities[size.name] || "0") > 0,
@@ -61,24 +62,10 @@ export function validateForConfirm(order: OrderData): ValidationResult {
     });
     if (!hasQty) missing.push(`"${label}": sin cantidades cargadas`);
 
-    const missingAttrs = getMissingRequiredFamilies(article.attributes ?? []);
-    for (const family of missingAttrs) {
-      missing.push(`"${label}": falta atributo "${family.label}"`);
-    }
-
-    for (const row of article.rows) {
-      if (!row.color) continue;
-      if (row.color.isNew) {
-        if (!row.color.colorBase)
-          missing.push(
-            `"${label}" color "${row.color.name}": falta Color Base`,
-          );
-        if (!row.color.hexColor)
-          missing.push(`"${label}" color "${row.color.name}": falta color HEX`);
-      }
+    if (article.referenciaExistsInOdoo) {
+      missing.push(`"${label}": el código "${article.referencia}" ya existe en Odoo`);
     }
   }
-  console.log(missing);
 
   return { valid: missing.length === 0, missing };
 }

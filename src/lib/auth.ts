@@ -44,9 +44,9 @@ export async function authenticateRequest(request: NextRequest): Promise<boolean
  */
 export function requireRole(
   payload: TokenPayload,
-  roles: Array<"ADMIN" | "MANAGER" | "EMPLEADO">,
+  roles: Array<"ADMIN" | "MANAGER" | "EMPLEADO" | "EMPLEADO_BASICO">,
 ): NextResponse | null {
-  if (!(roles as readonly string[]).includes(payload.role)) {
+  if (!roles.includes(payload.role)) {
     return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
   }
   return null;

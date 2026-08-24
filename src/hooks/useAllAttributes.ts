@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 async function fetchAllAttributes() {
   const res = await fetch("/api/attributes/all");
@@ -8,7 +9,7 @@ async function fetchAllAttributes() {
 
 export function useAllAttributes() {
   return useQuery({
-    queryKey: ["attributes", "all"],
+    queryKey: queryKeys.attributes.all(),
     queryFn: fetchAllAttributes,
     staleTime: Infinity,
   });

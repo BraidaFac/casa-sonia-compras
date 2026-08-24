@@ -3,6 +3,7 @@ import { withAuth } from "@/lib/withAuth";
 import { prisma } from "@/lib/prisma";
 import { stripImagesForDB, restorePreviewUrls } from "@/lib/localOrders";
 import { deleteTempFolder } from "@/lib/imageStorage";
+import { syncConfirmedArticleToOdoo } from "@/lib/odooArticleUpdate";
 import type { Article, LocalArticle, PrintColumn, PrintValues } from "@/types";
 
 async function getOrder(id: number) {
@@ -56,13 +57,6 @@ export const PUT = withAuth(async (
   if (!order) {
     return NextResponse.json({ error: "Orden no encontrada" }, { status: 404 });
   }
-  if (order.status === "CONFIRMED") {
-    return NextResponse.json(
-      { error: "No se puede editar una orden confirmada" },
-      { status: 409 },
-    );
-  }
-
   const body = (await request.json()) as {
     supplierId?: number;
     supplierName?: string;
@@ -74,6 +68,8 @@ export const PUT = withAuth(async (
     warehouseIds?: number[];
     printColumns?: PrintColumn[];
     printValues?: PrintValues;
+    editedArticleId?: string;
+    editedArticle?: Article;
   };
 
   const updated = await prisma.order.update({
@@ -102,6 +98,24 @@ export const PUT = withAuth(async (
         : {}),
     },
   });
+
+  // Sync edited article to Odoo when saving a confirmed order
+  // Use editedArticle (full, with base64 images) instead of body.articles (stripped for DB)
+  if (order.status === "CONFIRMED" && order.odooOrderId && body.editedArticle) {
+    try {
+      await syncConfirmedArticleToOdoo(
+        body.editedArticle,
+        order.odooOrderId,
+        body.warehouseIds ?? (order.warehouseIds as number[] | null) ?? [],
+      );
+    } catch (err) {
+      console.error("[PUT /local-orders] Odoo sync failed:", err);
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "Error al sincronizar con Odoo" },
+        { status: 502 },
+      );
+    }
+  }
 
   return NextResponse.json({ id: updated.id, status: updated.status });
 }, { roles: ["ADMIN", "MANAGER", "EMPLEADO"] });

@@ -35,11 +35,15 @@ model Employee {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  createdOrders        Order[]         @relation("OrderCreatedBy")
-  confirmedOrders      Order[]         @relation("OrderConfirmedBy")
-  createdInventories   Inventory[]     @relation("InventoryCreatedBy")
-  confirmedInventories Inventory[]     @relation("InventoryConfirmedBy")
+  createdOrders        Order[]              @relation("OrderCreatedBy")
+  confirmedOrders      Order[]              @relation("OrderConfirmedBy")
+  createdInventories   Inventory[]          @relation("InventoryCreatedBy")
+  confirmedInventories Inventory[]          @relation("InventoryConfirmedBy")
   searchHistory        SearchHistory[]
+  mediosPagoCreados    MedioPago[]          @relation("MedioPagoCreador")
+  bancosCreados        Banco[]              @relation("BancoCreador")
+  descuentosCreados    DescuentoEspecial[]  @relation("DescuentoCreador")
+  promocionesCreadas   PromocionBancaria[]  @relation("PromoCreador")
 
   @@map("employees")
 }
@@ -110,4 +114,75 @@ model SearchHistory {
   @@unique([employeeId, productTemplateId])
   @@index([employeeId, searchedAt(sort: Desc)])
   @@map("search_history")
+}
+
+model MedioPago {
+  id            Int                 @id @default(autoincrement())
+  nombre        String              @unique
+  activo        Boolean             @default(true)
+  creadoPorId   Int                 @map("creado_por_id")
+  creadoPor     Employee            @relation("MedioPagoCreador", fields: [creadoPorId], references: [id])
+  creadoEn      DateTime            @default(now()) @map("creado_en")
+  actualizadoEn DateTime            @updatedAt @map("actualizado_en")
+  descuentos    DescuentoEspecial[]
+
+  @@map("medios_pago")
+}
+
+model Banco {
+  id            Int                 @id @default(autoincrement())
+  nombre        String              @unique
+  icono         String?             // key del catálogo bankIcons (ej: "galicia", "santander")
+  activo        Boolean             @default(true)
+  creadoPorId   Int                 @map("creado_por_id")
+  creadoPor     Employee            @relation("BancoCreador", fields: [creadoPorId], references: [id])
+  creadoEn      DateTime            @default(now()) @map("creado_en")
+  actualizadoEn DateTime            @updatedAt @map("actualizado_en")
+  promociones   PromocionBancaria[] @relation("PromoBancos")
+
+  @@map("bancos")
+}
+
+model DescuentoEspecial {
+  id              Int       @id @default(autoincrement())
+  nombre          String?
+  medioPagoId     Int       @map("medio_pago_id")
+  medioPago       MedioPago @relation(fields: [medioPagoId], references: [id])
+  tipo            String    // "porcentaje" | "monto_fijo"
+  valor           Decimal   @db.Decimal(10, 4)
+  alcance         String    @default("global") // "global" | "categoria"
+  categoriaOdooId Int?      @map("categoria_odoo_id")
+  activo          Boolean   @default(true)
+  vigenciaDesde   DateTime? @map("vigencia_desde")
+  vigenciaHasta   DateTime? @map("vigencia_hasta")
+  creadoPorId     Int       @map("creado_por_id")
+  creadoPor       Employee  @relation("DescuentoCreador", fields: [creadoPorId], references: [id])
+  creadoEn        DateTime  @default(now()) @map("creado_en")
+  actualizadoEn   DateTime  @updatedAt @map("actualizado_en")
+
+  @@map("descuentos_especiales")
+}
+
+model PromocionBancaria {
+  id                 Int       @id @default(autoincrement())
+  titulo             String
+  bancos             Banco[]   @relation("PromoBancos")
+  marcaTarjeta       String?   @map("marca_tarjeta")
+  tipoBeneficio      String    @map("tipo_beneficio") // "cuotas_sin_interes" | "cuotas_con_interes" | "reintegro" | "descuento_directo"
+  cantidadCuotas     Int?      @map("cantidad_cuotas")
+  coeficienteInteres Decimal?  @db.Decimal(8, 6) @map("coeficiente_interes")
+  valorPorcentaje    Decimal?  @db.Decimal(8, 4) @map("valor_porcentaje")
+  topeReintegro      Decimal?  @db.Decimal(10, 2) @map("tope_reintegro")
+  descripcion        String?   @db.Text
+  diasAplicables     String?   @map("dias_aplicables") // JSON: '["lunes","martes"]' — null = todos
+  vigenciaDesde      DateTime  @map("vigencia_desde")
+  vigenciaHasta      DateTime? @map("vigencia_hasta")
+  activa             Boolean   @default(true)
+  orden              Int?
+  creadoPorId        Int       @map("creado_por_id")
+  creadoPor          Employee  @relation("PromoCreador", fields: [creadoPorId], references: [id])
+  creadoEn           DateTime  @default(now()) @map("creado_en")
+  actualizadoEn      DateTime  @updatedAt @map("actualizado_en")
+
+  @@map("promociones_bancarias")
 }

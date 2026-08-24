@@ -41,7 +41,7 @@ export function LoginForm() {
 
       const data = await res.json();
       queryClient.removeQueries({ queryKey: ["currentEmployee"] });
-      const dest = data.role === "EMPLEADO_BASICO" ? "/existencias" : "/orders/new";
+      const dest = "/existencias";
       router.push(dest);
       router.refresh();
     } catch {

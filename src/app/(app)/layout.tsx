@@ -1,20 +1,18 @@
-import dynamic from "next/dynamic";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
-
-const Sidebar = dynamic(
-  () => import("@/components/layout/Sidebar").then((m) => m.Sidebar),
-  { ssr: false },
-);
+import { SidebarClient } from "@/components/layout/SidebarClient";
+import { WarmupTierA } from "@/components/layout/WarmupTierA";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   let initialRole: string | undefined;
+  let initialName: string | undefined;
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("auth_token")?.value;
     if (token) {
       const payload = await verifyToken(token);
       initialRole = payload.role as string;
+      initialName = payload.name as string;
     }
   } catch {
     // invalid token — proxy handles redirect
@@ -22,7 +20,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div style={{ minHeight: "100dvh", background: "var(--bg)" }}>
-      <Sidebar initialRole={initialRole} />
+      <WarmupTierA />
+      <SidebarClient initialRole={initialRole} initialName={initialName} />
       <main
         style={{
           marginLeft: "var(--sidebar-width, 220px)",

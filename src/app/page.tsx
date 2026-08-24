@@ -15,5 +15,5 @@ export default async function Home() {
   } catch {
     // invalid token — proxy handles auth redirect
   }
-  redirect("/orders/new");
+  redirect("/existencias");
 }

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ExistenciasLocation, ExistenciasStockCell } from "@/types";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface StockResponse {
   stock: ExistenciasStockCell[];
@@ -14,7 +15,7 @@ async function fetchStock(templateId: number): Promise<StockResponse> {
 
 export function useExistenciasStock(templateId: number | null) {
   return useQuery<StockResponse>({
-    queryKey: ["existenciasStock", templateId],
+    queryKey: queryKeys.stock(templateId!),
     queryFn: () => fetchStock(templateId!),
     enabled: templateId !== null,
     staleTime: 0,

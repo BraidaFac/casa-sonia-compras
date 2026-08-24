@@ -3,8 +3,20 @@ import { jwtVerify } from "jose";
 
 const PUBLIC_PATHS = ["/login"];
 
+const SKIP_PATHS = ["/_next/", "/uploads/", "/favicon.", "/CS.png"];
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Skip static assets — handled here instead of matcher regex (Turbopack doesn't support lookaheads)
+  if (SKIP_PATHS.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
+
+  // Skip public auth endpoints
+  if (pathname.startsWith("/api/auth/")) {
+    return NextResponse.next();
+  }
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
@@ -16,7 +28,6 @@ export async function proxy(request: NextRequest) {
     try {
       const secret = new TextEncoder().encode(process.env.JWT_SECRET);
       const { payload } = await jwtVerify(token, secret);
-
       // Guard para rol Empleado Básico (solo Existencias)
       if (payload.role === "EMPLEADO_BASICO") {
         const allowed = ["/existencias", "/api/existencias", "/api/search-history", "/api/auth/"].some(
@@ -32,7 +43,7 @@ export async function proxy(request: NextRequest) {
 
       // Guard para rol Empleado (sin acceso a gestión de empleados)
       if (payload.role === "EMPLEADO") {
-        const blocked = ["/empleados"].some((prefix) => pathname.startsWith(prefix));
+        const blocked = ["/empleados", "/api/employees"].some((prefix) => pathname.startsWith(prefix));
         if (blocked) {
           if (pathname.startsWith("/api/")) {
             return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
@@ -61,5 +72,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.svg|favicon.ico|api/auth/|uploads/).*)"],
+  matcher: ["/:path*"],
 };

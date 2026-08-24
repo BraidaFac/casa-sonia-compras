@@ -57,18 +57,14 @@ export const POST = withAuth(async (req: NextRequest, payload: TokenPayload) => 
   });
 
   // Enforce max 20 entries per employee: delete oldest beyond limit
-  const count = await prisma.searchHistory.count({
+  const all = await prisma.searchHistory.findMany({
     where: { employeeId: payload.employeeId },
+    orderBy: { searchedAt: "asc" },
+    select: { id: true },
   });
-  if (count > 20) {
-    const oldest = await prisma.searchHistory.findMany({
-      where: { employeeId: payload.employeeId },
-      orderBy: { searchedAt: "asc" },
-      take: count - 20,
-      select: { id: true },
-    });
+  if (all.length > 20) {
     await prisma.searchHistory.deleteMany({
-      where: { id: { in: oldest.map((e) => e.id) } },
+      where: { id: { in: all.slice(0, all.length - 20).map((e) => e.id) } },
     });
   }
 

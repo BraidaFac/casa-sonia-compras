@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { AttributesData } from "@/types";
+import { queryKeys } from "@/lib/queryKeys";
 
 async function fetchAttributes(): Promise<AttributesData> {
   const res = await fetch("/api/attributes");
@@ -9,7 +10,7 @@ async function fetchAttributes(): Promise<AttributesData> {
 
 export function useAttributes() {
   return useQuery({
-    queryKey: ["attributes"],
+    queryKey: queryKeys.attributes.color(),
     queryFn: fetchAttributes,
     staleTime: Infinity,
   });

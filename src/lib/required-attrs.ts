@@ -5,13 +5,6 @@ export interface RequiredAttrFamily {
 }
 
 export const REQUIRED_ATTR_FAMILIES: RequiredAttrFamily[] = [
-  {
-    key: "material principal",
-    label: "Material Principal",
-    names: ["material principal"],
-  },
-  { key: "genero", label: "Género", names: ["genero", "género"] },
-  { key: "temporada", label: "Temporada", names: ["temporada"] },
   { key: "marca", label: "Marca", names: ["marca"] },
 ];
 

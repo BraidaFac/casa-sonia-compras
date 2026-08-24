@@ -16,7 +16,6 @@ import { ResumenModal } from "@/components/orders/ResumenModal";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { stripImagesForDB } from "@/lib/localOrders";
 import { validateForConfirm } from "@/lib/orderValidation";
-import { getMissingRequiredFamilies } from "@/lib/required-attrs";
 import type {
   Article,
   AttributeValue,
@@ -56,14 +55,15 @@ export default function EditOrderPage({
     undefined,
   );
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [showValidation, setShowValidation] = useState(false);
 
   // Track OrderGrid internal state for ConfirmModal
   const [printColumns, setPrintColumns] = useState<PrintColumn[]>([]);
   const [printValues, setPrintValues] = useState<PrintValues>({});
   const [selectedWarehouses, setSelectedWarehouses] = useState<Warehouse[]>([]);
   const [globalBrand, setGlobalBrand] = useState<AttributeValue | null>(null);
-  const [compradoras, setCompradoras] = useState<{ id: number; name: string }[]>([]);
+  const [compradoras, setCompradoras] = useState<
+    { id: number; name: string }[]
+  >([]);
 
   const [draftWarning, setDraftWarning] = useState<{
     open: boolean;
@@ -75,6 +75,44 @@ export default function EditOrderPage({
   const [resumenOpen, setResumenOpen] = useState(false);
 
   const isConfirmed = order?.status === "CONFIRMED";
+
+  async function handleSaveArticle(updatedArticle: Article): Promise<void> {
+    const updatedArticles = articles.map((a) =>
+      a.id === updatedArticle.id ? updatedArticle : a,
+    );
+    const localArticles = stripImagesForDB(updatedArticles);
+    const res = await fetch(`/api/local-orders/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        supplierId: supplier?.id,
+        supplierName: supplier?.name,
+        brandId: globalBrand?.id ?? null,
+        brandName: globalBrand?.name ?? null,
+        compradoraIds: compradoras.map((c) => c.id),
+        date: dateStr,
+        articles: localArticles,
+        warehouseIds: selectedWarehouses.map((w) => w.id),
+        editedArticleId: updatedArticle.id,
+        editedArticle: updatedArticle,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      notifications.show({
+        color: "red",
+        title: "Error al guardar",
+        message: data.error || "No se pudo guardar el artículo",
+      });
+      throw new Error(data.error);
+    }
+    setArticles(updatedArticles);
+    notifications.show({
+      color: "green",
+      title: "Artículo guardado",
+      message: "Los cambios fueron guardados correctamente.",
+    });
+  }
 
   useEffect(() => {
     async function load() {
@@ -100,7 +138,9 @@ export default function EditOrderPage({
 
         // Fetch Odoo images BEFORE setting state so OrderGrid mounts with correct images.
         // (OrderGrid only reads initialArticles once on mount — background updates are ignored.)
-        const articlesWithProduct = loadedArticles.filter((a) => a.existingProductId);
+        const articlesWithProduct = loadedArticles.filter(
+          (a) => a.existingProductId,
+        );
         if (articlesWithProduct.length > 0) {
           const imageResults = await Promise.allSettled(
             articlesWithProduct.map(async (article) => {
@@ -194,20 +234,6 @@ export default function EditOrderPage({
 
   async function handleConfirm() {
     const localArticles = stripImagesForDB(articles);
-
-    // Check required attributes — activates red highlights in OrderGrid
-    const attrWarnings: string[] = [];
-    for (const article of articles) {
-      const label = article.name || "(artículo sin nombre)";
-      const missing = getMissingRequiredFamilies(article.attributes ?? []);
-      for (const f of missing)
-        attrWarnings.push(`"${label}": falta atributo "${f.label}"`);
-    }
-    if (attrWarnings.length > 0) {
-      setShowValidation(true);
-      setDraftWarning({ open: true, warnings: attrWarnings, mode: "confirm" });
-      return;
-    }
 
     const validation = validateForConfirm({
       supplierId: supplier?.id ?? null,
@@ -370,8 +396,9 @@ export default function EditOrderPage({
           selectedWarehouses={selectedWarehouses}
           onPrintColumnsChange={setPrintColumns}
           onPrintValuesChange={setPrintValues}
-          showValidation={showValidation}
+          showValidation={true}
           readOnly={isConfirmed}
+          onSaveArticle={isConfirmed ? handleSaveArticle : undefined}
         />
       </div>
 

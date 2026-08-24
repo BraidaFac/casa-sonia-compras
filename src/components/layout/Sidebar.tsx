@@ -4,14 +4,18 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Tooltip } from "@mantine/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Store, Package, Search, ChevronLeft, ChevronRight, RefreshCw, Users, LogOut } from "lucide-react";
-import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
+import { ClipboardList, Store, Package, Search, ChevronLeft, ChevronRight, RefreshCw, Users, LogOut, Settings, Tag } from "lucide-react";
+import { ROLE_LABELS } from "@/lib/auth";
 
-const NAV_ITEMS = [
-  { href: "/orders", label: "Órdenes", icon: ClipboardList },
-  { href: "/odoo-orders", label: "Historial Odoo", icon: Store },
-  { href: "/inventario", label: "Inventario", icon: Package },
+const NAV_ITEMS_TOP = [
   { href: "/existencias", label: "Existencias", icon: Search },
+  { href: "/promociones-vigentes", label: "Promociones", icon: Tag },
+  { href: "/orders", label: "Órdenes", icon: ClipboardList },
+  { href: "/inventario", label: "Inventario", icon: Package },
+] as const;
+
+const NAV_ITEMS_BOTTOM = [
+  { href: "/odoo-orders", label: "Historial Odoo", icon: Store },
 ] as const;
 
 const FUTURE_ITEMS: { href: string; label: string; icon: React.ElementType; soon: boolean }[] = [];
@@ -26,7 +30,7 @@ function readStoredCollapsed(): boolean {
   }
 }
 
-export function Sidebar({ initialRole }: { initialRole?: string }) {
+export function Sidebar({ initialRole, initialName }: { initialRole?: string; initialName?: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -41,22 +45,14 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
     setLoggingOut(true);
     try {
       await fetch("/api/auth/logout", { method: "POST" });
-      queryClient.removeQueries({ queryKey: ["currentEmployee"] });
       router.push("/login");
       router.refresh();
     } finally {
       setLoggingOut(false);
     }
   }
-  const { data: currentEmployee } = useCurrentEmployee();
   const role = initialRole;
   const canManageEmployees = role === "ADMIN" || role === "MANAGER";
-  const roleLabel: Record<string, string> = {
-    ADMIN: "Admin",
-    MANAGER: "Manager",
-    EMPLEADO: "Encargado",
-    EMPLEADO_BASICO: "Empleado",
-  };
 
   async function handleRefreshCache() {
     setIsRefreshing(true);
@@ -161,9 +157,9 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
 
       {/* Nav items */}
       <nav style={{ flex: 1, padding: exp ? "8px 8px" : "8px 4px" }}>
-        {NAV_ITEMS.filter((item) => {
+        {NAV_ITEMS_TOP.filter((item) => {
           if (role === "EMPLEADO_BASICO") {
-            return item.href === "/existencias";
+            return item.href === "/existencias" || item.href === "/promociones-vigentes";
           }
           return true;
         }).map(({ href, label, icon: Icon }) => {
@@ -266,6 +262,106 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
           </Tooltip>
         )}
 
+        {canManageEmployees && (
+          <Tooltip label="Configuración" disabled={!collapsed} position="right" withArrow>
+            <button
+              onClick={() => router.push("/configuracion")}
+              style={{
+                width: "100%",
+                background:
+                  pathname === "/configuracion" || pathname.startsWith("/configuracion/")
+                    ? "color-mix(in srgb, var(--mantine-color-amber-6) 12%, transparent)"
+                    : "none",
+                border: "none",
+                borderLeft:
+                  pathname === "/configuracion" || pathname.startsWith("/configuracion/")
+                    ? "2px solid var(--mantine-color-amber-6)"
+                    : "2px solid transparent",
+                borderRadius:
+                  pathname === "/configuracion" || pathname.startsWith("/configuracion/")
+                    ? "0 6px 6px 0"
+                    : 6,
+                padding: exp ? "10px 12px" : "10px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: exp ? "flex-start" : "center",
+                gap: 10,
+                color:
+                  pathname === "/configuracion" || pathname.startsWith("/configuracion/")
+                    ? "var(--mantine-color-amber-4)"
+                    : "var(--text2)",
+                fontSize: 13,
+                fontWeight:
+                  pathname === "/configuracion" || pathname.startsWith("/configuracion/") ? 600 : 400,
+                fontFamily: "var(--font-sans)",
+                marginBottom: 2,
+                transition: "background 150ms, color 150ms",
+              }}
+              onMouseEnter={(e) => {
+                const active =
+                  pathname === "/configuracion" || pathname.startsWith("/configuracion/");
+                if (!active)
+                  (e.currentTarget as HTMLElement).style.background =
+                    "var(--surface2, rgba(255,255,255,0.05))";
+              }}
+              onMouseLeave={(e) => {
+                const active =
+                  pathname === "/configuracion" || pathname.startsWith("/configuracion/");
+                if (!active) (e.currentTarget as HTMLElement).style.background = "none";
+              }}
+            >
+              <Settings size={16} />
+              {exp && "Configuración"}
+            </button>
+          </Tooltip>
+        )}
+
+        {role !== "EMPLEADO_BASICO" && NAV_ITEMS_BOTTOM.map(({ href, label, icon: Icon }) => {
+          const active = pathname === href || pathname.startsWith(href + "/");
+          return (
+            <Tooltip key={href} label={label} disabled={!collapsed} position="right" withArrow>
+              <button
+                onClick={() => router.push(href)}
+                style={{
+                  width: "100%",
+                  background: active
+                    ? "color-mix(in srgb, var(--mantine-color-amber-6) 12%, transparent)"
+                    : "none",
+                  border: "none",
+                  borderLeft: active
+                    ? "2px solid var(--mantine-color-amber-6)"
+                    : "2px solid transparent",
+                  borderRadius: active ? "0 6px 6px 0" : 6,
+                  padding: exp ? "10px 12px" : "10px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: exp ? "flex-start" : "center",
+                  gap: 10,
+                  color: active ? "var(--mantine-color-amber-4)" : "var(--text2)",
+                  fontSize: 13,
+                  fontWeight: active ? 600 : 400,
+                  fontFamily: "var(--font-sans)",
+                  marginBottom: 2,
+                  transition: "background 150ms, color 150ms",
+                }}
+                onMouseEnter={(e) => {
+                  if (!active)
+                    (e.currentTarget as HTMLElement).style.background =
+                      "var(--surface2, rgba(255,255,255,0.05))";
+                }}
+                onMouseLeave={(e) => {
+                  if (!active) (e.currentTarget as HTMLElement).style.background = "none";
+                }}
+              >
+                <Icon size={16} />
+                {exp && label}
+              </button>
+            </Tooltip>
+          );
+        })}
+
         <div style={{ borderTop: "1px solid var(--border)", margin: "8px 0" }} />
 
         {FUTURE_ITEMS.map(({ href, label, icon: Icon, soon }) => (
@@ -324,7 +420,7 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
           padding: exp ? "10px 16px" : "10px 8px",
         }}
       >
-        {currentEmployee && (
+        {initialName && (
           exp ? (
             <div
               style={{
@@ -354,7 +450,7 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
                   flexShrink: 0,
                 }}
               >
-                {currentEmployee.name.charAt(0).toUpperCase()}
+                {initialName.charAt(0).toUpperCase()}
               </div>
               <div style={{ overflow: "hidden" }}>
                 <div
@@ -368,7 +464,7 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
                     textOverflow: "ellipsis",
                   }}
                 >
-                  {currentEmployee.name}
+                  {initialName}
                 </div>
                 <div
                   style={{
@@ -377,7 +473,7 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
                     fontFamily: "var(--font-sans)",
                   }}
                 >
-                  {roleLabel[currentEmployee.role] ?? currentEmployee.role}
+                  {(initialRole && ROLE_LABELS[initialRole]) ?? initialRole}
                 </div>
               </div>
             </div>
@@ -403,7 +499,7 @@ export function Sidebar({ initialRole }: { initialRole?: string }) {
                   color: "var(--mantine-color-amber-1)",
                 }}
               >
-                {currentEmployee.name.charAt(0).toUpperCase()}
+                {initialName.charAt(0).toUpperCase()}
               </div>
             </div>
           )

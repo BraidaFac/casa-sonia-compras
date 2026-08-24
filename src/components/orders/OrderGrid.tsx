@@ -42,6 +42,7 @@ interface Props {
   onPrintValuesChange?: (vals: PrintValues) => void;
   showValidation?: boolean;
   readOnly?: boolean;
+  onSaveArticle?: (article: Article) => Promise<void>;
 }
 
 function createEmptyArticle(
@@ -103,8 +104,13 @@ export function OrderGrid({
   onPrintValuesChange,
   showValidation,
   readOnly = false,
+  onSaveArticle,
 }: Props) {
   const isEditMode = mode === "edit";
+
+  const [editingArticleId, setEditingArticleId] = useState<string | null>(null);
+  const [isSavingArticleId, setIsSavingArticleId] = useState<string | null>(null);
+  const editingSnapshotRef = useRef<Article | null>(null);
 
   // Read draft once at init time (create mode only, lazy useState runs exactly once)
   const [draft] = useState<Record<string, unknown> | null>(() => {
@@ -535,37 +541,104 @@ export function OrderGrid({
     <div style={{ position: "relative" }}>
       {/* Articles */}
       {articles.map((article) => (
-        <ArticleRowContainer
-          key={article.id}
-          article={article}
-          updateArticle={updateArticle}
-          removeArticle={removeArticle}
-          duplicateArticle={duplicateArticle}
-          getPrintValue={getPrintValue}
-          updatePrintValue={updatePrintValue}
-          refetchAttrs={refetchAttrs}
-          allColors={allColors}
-          colorBaseOptions={colorBaseOptions}
-          sizeAttributes={sizeAttributes}
-          colorAttributeId={colorAttributeId}
-          sizeAttributeId={sizeAttributeId}
-          categories={categories}
-          printColumns={printColumns}
-          onAddPrintColumn={addPrintColumn}
-          onUpdatePrintColumnHeader={updatePrintColumnHeader}
-          onRemovePrintColumn={removePrintColumn}
-          selectedWarehouses={selectedWarehouses}
-          missingRequiredKeys={
-            effectiveValidateMode
-              ? (missingRequiredPerArticle[article.id] ?? EMPTY_STRING_ARRAY)
-              : EMPTY_STRING_ARRAY
-          }
-          isFirstMissingArticle={
-            effectiveValidateMode && article.id === firstMissingArticleId
-          }
-          orderId={orderId}
-          readOnly={readOnly}
-        />
+        <div key={article.id} style={{ position: "relative" }}>
+          {readOnly && onSaveArticle && (
+            <div
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+                zIndex: 10,
+                display: "flex",
+                gap: 6,
+              }}
+            >
+              {editingArticleId === article.id ? (
+                <>
+                  <Button
+                    size="xs"
+                    variant="filled"
+                    color="amber"
+                    loading={isSavingArticleId === article.id}
+                    disabled={isSavingArticleId === article.id}
+                    onClick={async () => {
+                      const current = articles.find((a) => a.id === article.id);
+                      if (!current) return;
+                      setIsSavingArticleId(article.id);
+                      try {
+                        await onSaveArticle(current);
+                        setEditingArticleId(null);
+                        editingSnapshotRef.current = null;
+                      } finally {
+                        setIsSavingArticleId(null);
+                      }
+                    }}
+                  >
+                    Guardar
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    color="gray"
+                    onClick={() => {
+                      if (editingSnapshotRef.current) {
+                        updateArticle(article.id, editingSnapshotRef.current);
+                      }
+                      setEditingArticleId(null);
+                      editingSnapshotRef.current = null;
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  color="amber"
+                  onClick={() => {
+                    editingSnapshotRef.current = article;
+                    setEditingArticleId(article.id);
+                  }}
+                >
+                  Editar
+                </Button>
+              )}
+            </div>
+          )}
+          <ArticleRowContainer
+            article={article}
+            updateArticle={updateArticle}
+            removeArticle={removeArticle}
+            duplicateArticle={duplicateArticle}
+            getPrintValue={getPrintValue}
+            updatePrintValue={updatePrintValue}
+            refetchAttrs={refetchAttrs}
+            allColors={allColors}
+            colorBaseOptions={colorBaseOptions}
+            sizeAttributes={sizeAttributes}
+            colorAttributeId={colorAttributeId}
+            sizeAttributeId={sizeAttributeId}
+            categories={categories}
+            printColumns={printColumns}
+            onAddPrintColumn={addPrintColumn}
+            onUpdatePrintColumnHeader={updatePrintColumnHeader}
+            onRemovePrintColumn={removePrintColumn}
+            selectedWarehouses={selectedWarehouses}
+            missingRequiredKeys={
+              effectiveValidateMode
+                ? (missingRequiredPerArticle[article.id] ?? EMPTY_STRING_ARRAY)
+                : EMPTY_STRING_ARRAY
+            }
+            isFirstMissingArticle={
+              effectiveValidateMode && article.id === firstMissingArticleId
+            }
+            orderId={orderId}
+            readOnly={readOnly && article.id !== editingArticleId}
+            allowArticleActions={!readOnly}
+            readOnlyQuantities={readOnly}
+          />
+        </div>
       ))}
 
       {/* Add article — hidden in readOnly */}

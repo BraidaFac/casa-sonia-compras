@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface ProductType {
   id: number;
@@ -14,7 +15,7 @@ async function fetchProductTypes() {
 
 export function useProductTypes() {
   return useQuery({
-    queryKey: ["product-types"],
+    queryKey: queryKeys.productTypes(),
     queryFn: fetchProductTypes,
     staleTime: Infinity,
   });
