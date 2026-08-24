@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 async function fetchBrands() {
   const res = await fetch("/api/brands");
@@ -8,7 +9,7 @@ async function fetchBrands() {
 
 export function useBrands() {
   return useQuery({
-    queryKey: ["brands"],
+    queryKey: queryKeys.attributes.brand(),
     queryFn: fetchBrands,
     staleTime: Infinity,
   });

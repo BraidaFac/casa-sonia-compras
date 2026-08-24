@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ProductCategory } from "@/app/api/categories/route";
+import { queryKeys } from "@/lib/queryKeys";
 
 async function fetchCategories(): Promise<ProductCategory[]> {
   const res = await fetch("/api/categories");
@@ -9,7 +10,7 @@ async function fetchCategories(): Promise<ProductCategory[]> {
 
 export function useCategories() {
   return useQuery({
-    queryKey: ["categories"],
+    queryKey: queryKeys.categories(),
     queryFn: fetchCategories,
     staleTime: Infinity,
   });

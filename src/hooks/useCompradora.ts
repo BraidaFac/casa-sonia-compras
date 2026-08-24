@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 async function fetchCompradora() {
   const res = await fetch("/api/compradora");
@@ -8,7 +9,7 @@ async function fetchCompradora() {
 
 export function useCompradora() {
   return useQuery({
-    queryKey: ["compradora"],
+    queryKey: queryKeys.compradora(),
     queryFn: fetchCompradora,
     staleTime: Infinity,
   });

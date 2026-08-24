@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { SizeAttribute } from "@/app/api/size-attributes/route";
+import { queryKeys } from "@/lib/queryKeys";
 
 async function fetchSizeAttributes(): Promise<SizeAttribute[]> {
   const res = await fetch("/api/size-attributes");
@@ -9,7 +10,7 @@ async function fetchSizeAttributes(): Promise<SizeAttribute[]> {
 
 export function useSizeAttributes() {
   return useQuery({
-    queryKey: ["size-attributes"],
+    queryKey: queryKeys.attributes.size(),
     queryFn: fetchSizeAttributes,
     staleTime: Infinity,
   });

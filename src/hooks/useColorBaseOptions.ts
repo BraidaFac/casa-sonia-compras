@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 async function fetchColorBaseOptions(): Promise<string[]> {
   const res = await fetch("/api/color-base-options");
@@ -8,7 +9,7 @@ async function fetchColorBaseOptions(): Promise<string[]> {
 
 export function useColorBaseOptions() {
   return useQuery({
-    queryKey: ["color-base-options"],
+    queryKey: queryKeys.attributes.colorBaseOptions(),
     queryFn: fetchColorBaseOptions,
     staleTime: Infinity,
   });

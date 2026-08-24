@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface Warehouse {
   id: number;
@@ -14,7 +15,7 @@ async function fetchWarehouses(): Promise<Warehouse[]> {
 
 export function useWarehouses() {
   return useQuery({
-    queryKey: ["warehouses"],
+    queryKey: queryKeys.warehouses(),
     queryFn: fetchWarehouses,
     staleTime: Infinity,
   });

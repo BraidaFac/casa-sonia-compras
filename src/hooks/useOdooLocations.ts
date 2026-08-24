@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ExistenciasLocation } from "@/types";
+import { queryKeys } from "@/lib/queryKeys";
 
 async function fetchLocations(): Promise<ExistenciasLocation[]> {
   const res = await fetch("/api/existencias/stock?templateId=0");
@@ -14,7 +15,7 @@ async function fetchLocations(): Promise<ExistenciasLocation[]> {
 // This hook exists for pre-fetching or standalone use.
 export function useOdooLocations() {
   return useQuery<ExistenciasLocation[]>({
-    queryKey: ["odooLocations"],
+    queryKey: queryKeys.locations(),
     queryFn: fetchLocations,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
