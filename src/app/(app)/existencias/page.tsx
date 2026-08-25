@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   PanelLeftOpen,
+  ArrowLeft,
 } from "lucide-react";
 import { ExistenciasSearchInput, type ExistenciasSearchInputHandle } from "@/components/existencias/ExistenciasSearchInput";
 import { ArticleHeader } from "@/components/existencias/ArticleHeader";
@@ -36,6 +37,7 @@ import type {
   ArticleSearchResult,
   SearchHistoryEntry,
   ExistenciasProduct,
+  ExistenciasTemplateCard,
   FilterState,
   FilterHistoryEntry,
 } from "@/types";
@@ -78,9 +80,14 @@ export default function ExistenciasPage() {
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [filterPanelCollapsed, setFilterPanelCollapsed] = useState(false);
+  const [filterPanelWidth, setFilterPanelWidth] = useState(280);
+  const [returnToFilters, setReturnToFilters] = useState(false);
 
   const isMobile = useMediaQuery("(max-width: 768px)");
   const searchRef = useRef<ExistenciasSearchInputHandle>(null);
+  const isResizingRef = useRef(false);
+  const resizeStartXRef = useRef(0);
+  const resizeStartWidthRef = useRef(280);
 
   // ── Data hooks ──────────────────────────────────────────────────────────────
   const {
@@ -129,6 +136,27 @@ export default function ExistenciasPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.templateId]);
 
+  // ── Resize filter panel ─────────────────────────────────────────────────────
+  useEffect(() => {
+    function handleMouseMove(e: MouseEvent) {
+      if (!isResizingRef.current) return;
+      const delta = e.clientX - resizeStartXRef.current;
+      const newWidth = Math.max(200, Math.min(520, resizeStartWidthRef.current + delta));
+      setFilterPanelWidth(newWidth);
+    }
+    function handleMouseUp() {
+      isResizingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
   // ── Handlers ────────────────────────────────────────────────────────────────
   const selectTemplate = useCallback((templateId: number) => {
     setSelectedTemplateId(templateId);
@@ -146,6 +174,7 @@ export default function ExistenciasPage() {
       colorAttributeValueId: number | null;
       sizeAttributeValueId: number | null;
     }) => {
+      setReturnToFilters(false);
       setSelectedTemplateId(result.templateId);
       setSelectedColorValueId(result.colorAttributeValueId);
       setHighlightedVariantId(result.variantId);
@@ -156,7 +185,10 @@ export default function ExistenciasPage() {
   );
 
   const handleArticleSelect = useCallback(
-    (article: ArticleSearchResult) => selectTemplate(article.templateId),
+    (article: ArticleSearchResult) => {
+      setReturnToFilters(false);
+      selectTemplate(article.templateId);
+    },
     [selectTemplate],
   );
 
@@ -194,10 +226,17 @@ export default function ExistenciasPage() {
     setFilterDrawerOpen(false);
   }, []);
 
-  const handleResultCardClick = useCallback((templateId: number) => {
-    selectTemplate(templateId);
+  const handleResultCardClick = useCallback((item: ExistenciasTemplateCard) => {
+    addSearchHistory({
+      productTemplateId: item.id,
+      productName: item.name,
+      productRef: item.defaultCode ?? undefined,
+      thumbUrl: item.thumbUrl ?? undefined,
+    });
+    setReturnToFilters(true);
+    selectTemplate(item.id);
     setIsSearchActive(false);
-  }, [selectTemplate]);
+  }, [selectTemplate, addSearchHistory]);
 
   // ── Pagination ───────────────────────────────────────────────────────────────
   const totalPages = filterResults
@@ -242,6 +281,29 @@ export default function ExistenciasPage() {
           flexShrink: 0,
         }}
       >
+        {showArticle && (
+          <Tooltip label="Volver">
+            <ActionIcon
+              variant="subtle"
+              size="lg"
+              onClick={() => {
+                setSelectedTemplateId(null);
+                setHighlightedVariantId(null);
+                setNotFoundBarcode(null);
+                setErrorMsg(null);
+                if (returnToFilters) {
+                  setIsSearchActive(true);
+                  setReturnToFilters(false);
+                } else {
+                  setFilterPanelCollapsed(false);
+                }
+              }}
+            >
+              <ArrowLeft size={18} />
+            </ActionIcon>
+          </Tooltip>
+        )}
+
         <Text
           fw={700}
           size="lg"
@@ -323,14 +385,15 @@ export default function ExistenciasPage() {
         {!isMobile && (
           <div
             style={{
-              width: filterPanelCollapsed ? 40 : 280,
+              width: filterPanelCollapsed ? 40 : filterPanelWidth,
               flexShrink: 0,
               borderRight: "1px solid var(--border)",
               background: "var(--surface)",
               display: "flex",
               flexDirection: "column",
-              transition: "width 200ms ease",
+              transition: filterPanelCollapsed ? "width 200ms ease" : undefined,
               overflow: "hidden",
+              position: "relative",
             }}
           >
             {filterPanelCollapsed ? (
@@ -367,6 +430,30 @@ export default function ExistenciasPage() {
               </button>
             ) : (
               filterPanelContent
+            )}
+
+            {/* Resize handle */}
+            {!filterPanelCollapsed && (
+              <div
+                onMouseDown={(e) => {
+                  isResizingRef.current = true;
+                  resizeStartXRef.current = e.clientX;
+                  resizeStartWidthRef.current = filterPanelWidth;
+                  document.body.style.cursor = "col-resize";
+                  document.body.style.userSelect = "none";
+                  e.preventDefault();
+                }}
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 5,
+                  cursor: "col-resize",
+                  zIndex: 10,
+                }}
+                title="Arrastrar para cambiar ancho"
+              />
             )}
           </div>
         )}

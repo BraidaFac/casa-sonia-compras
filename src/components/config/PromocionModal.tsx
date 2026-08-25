@@ -37,6 +37,8 @@ const TIPOS_BENEFICIO = [
   { value: "cuotas_con_interes", label: "Cuotas con interés" },
   { value: "reintegro", label: "Reintegro" },
   { value: "descuento_directo", label: "Descuento directo" },
+  { value: "cuotas_con_descuento", label: "Cuotas + descuento en caja" },
+  { value: "cuotas_con_reintegro", label: "Cuotas + reintegro" },
 ];
 
 export type PromocionSaveData = {
@@ -121,12 +123,12 @@ export function PromocionModal({ opened, onClose, onSave, item, bancos, saving, 
       bancoIds: bancoIds.map((id) => parseInt(id, 10)),
       marcaTarjeta: marcaTarjeta.trim() || null,
       tipoBeneficio,
-      cantidadCuotas: ["cuotas_sin_interes", "cuotas_con_interes"].includes(tipoBeneficio)
+      cantidadCuotas: ["cuotas_sin_interes", "cuotas_con_interes", "cuotas_con_descuento", "cuotas_con_reintegro"].includes(tipoBeneficio)
         ? Number(cantidadCuotas) : null,
       coeficienteInteres: tipoBeneficio === "cuotas_con_interes" ? Number(coeficienteInteres) : null,
-      valorPorcentaje: ["reintegro", "descuento_directo"].includes(tipoBeneficio)
+      valorPorcentaje: ["reintegro", "descuento_directo", "cuotas_con_descuento", "cuotas_con_reintegro"].includes(tipoBeneficio)
         ? Number(valorPorcentaje) : null,
-      topeReintegro: tipoBeneficio === "reintegro" && topeReintegro !== "" ? Number(topeReintegro) : null,
+      topeReintegro: ["reintegro", "cuotas_con_descuento", "cuotas_con_reintegro"].includes(tipoBeneficio) && topeReintegro !== "" ? Number(topeReintegro) : null,
       descripcion: descripcion.trim() || null,
       diasAplicables: diasSeleccionados.length > 0 ? diasSeleccionados : null,
       vigenciaDesde: vigenciaDesde.toISOString().split("T")[0],
@@ -145,6 +147,7 @@ export function PromocionModal({ opened, onClose, onSave, item, bancos, saving, 
 
   const esCuotas = ["cuotas_sin_interes", "cuotas_con_interes"].includes(tipoBeneficio);
   const esReintegroDescuento = ["reintegro", "descuento_directo"].includes(tipoBeneficio);
+  const esCuotasConBeneficio = ["cuotas_con_descuento", "cuotas_con_reintegro"].includes(tipoBeneficio);
   const canSubmit = !!titulo.trim() && bancoIds.length > 0 && vigenciaDesde !== null;
 
   return (
@@ -254,6 +257,37 @@ export function PromocionModal({ opened, onClose, onSave, item, bancos, saving, 
               />
             )}
           </Group>
+        )}
+
+        {esCuotasConBeneficio && (
+          <>
+            <Group grow>
+              <NumberInput
+                label="Cantidad de cuotas"
+                value={cantidadCuotas as number}
+                onChange={setCantidadCuotas}
+                min={2}
+                max={60}
+                required
+              />
+              <NumberInput
+                label={tipoBeneficio === "cuotas_con_reintegro" ? "Reintegro (%)" : "Descuento (%)"}
+                value={valorPorcentaje as number}
+                onChange={setValorPorcentaje}
+                min={0}
+                max={100}
+                decimalScale={2}
+                required
+              />
+            </Group>
+            <NumberInput
+              label={tipoBeneficio === "cuotas_con_reintegro" ? "Tope de reintegro ($)" : "Tope de descuento ($)"}
+              description="Vacío = sin tope"
+              value={topeReintegro as number}
+              onChange={setTopeReintegro}
+              min={0}
+            />
+          </>
         )}
 
         <div>

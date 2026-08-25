@@ -447,11 +447,11 @@ export default function ConfiguracionPage() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--surface2, rgba(255,255,255,0.03))" }}>
-                  {["Título", "Banco", "Tipo", "Detalle", "Días", "Vigencia", "Estado", "Acciones"].map((h) => <th key={h} style={TH_STYLE}>{h}</th>)}
+                  {["Título", "Banco", "Tipo", "Detalle", "Días", "Vigencia", "Acciones"].map((h) => <th key={h} style={TH_STYLE}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {promociones.length === 0 && <EmptyRow cols={8} msg="No hay promociones bancarias" />}
+                {promociones.length === 0 && <EmptyRow cols={7} msg="No hay promociones bancarias" />}
                 {promociones.map((p) => (
                   <tr key={p.id} style={{ borderBottom: "1px solid var(--border)", opacity: p.activa ? 1 : 0.5 }}>
                     <td style={TD_STYLE}>
@@ -479,11 +479,6 @@ export default function ConfiguracionPage() {
                     </td>
                     <td style={{ ...TD_STYLE, fontSize: 12, color: "var(--text3)" }}>
                       {formatFecha(p.vigenciaDesde)} → {formatFecha(p.vigenciaHasta)}
-                    </td>
-                    <td style={TD_STYLE}>
-                      <Badge color={p.activa ? "green" : "gray"} variant="dot" size="sm">
-                        {p.activa ? "Activa" : "Inactiva"}
-                      </Badge>
                     </td>
                     <td style={TD_STYLE}>
                       <Group gap={4}>

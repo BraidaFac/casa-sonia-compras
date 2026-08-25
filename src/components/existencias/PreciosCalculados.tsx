@@ -159,7 +159,7 @@ function ChipsContent({
         const bancosStr = promo.bancos.filter((b) => b != null).map((b) => b.nombre).join(" · ");
         const banco = promo.marcaTarjeta ? `${bancosStr} · ${promo.marcaTarjeta}` : bancosStr;
         const precioStr =
-          calc.tipo === "cuotas"
+          calc.tipo === "cuotas" || calc.tipo === "cuotas_con_descuento" || calc.tipo === "cuotas_con_reintegro"
             ? `${calc.cuotas}x $${fmt(calc.cuotaMonto)}`
             : `$${fmt(calc.precioFinal)}`;
 

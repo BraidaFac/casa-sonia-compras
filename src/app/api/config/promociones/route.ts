@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/withAuth";
 import { prisma } from "@/lib/prisma";
 
-const TIPOS_BENEFICIO = ["cuotas_sin_interes", "cuotas_con_interes", "reintegro", "descuento_directo"] as const;
+const TIPOS_BENEFICIO = ["cuotas_sin_interes", "cuotas_con_interes", "reintegro", "descuento_directo", "cuotas_con_descuento", "cuotas_con_reintegro"] as const;
 
 const SELECT = {
   id: true,
@@ -51,14 +51,14 @@ export const POST = withAuth(async (req: NextRequest, payload) => {
       { status: 400 },
     );
   }
-  if (["cuotas_sin_interes", "cuotas_con_interes"].includes(tipoBeneficio) && !cantidadCuotas) {
+  if (["cuotas_sin_interes", "cuotas_con_interes", "cuotas_con_descuento", "cuotas_con_reintegro"].includes(tipoBeneficio) && !cantidadCuotas) {
     return NextResponse.json({ error: "cantidadCuotas es requerido para tipos de cuotas" }, { status: 400 });
   }
   if (tipoBeneficio === "cuotas_con_interes" && !coeficienteInteres) {
     return NextResponse.json({ error: "coeficienteInteres es requerido para cuotas_con_interes" }, { status: 400 });
   }
-  if (["reintegro", "descuento_directo"].includes(tipoBeneficio) && valorPorcentaje === undefined) {
-    return NextResponse.json({ error: "valorPorcentaje es requerido para reintegro y descuento_directo" }, { status: 400 });
+  if (["reintegro", "descuento_directo", "cuotas_con_descuento", "cuotas_con_reintegro"].includes(tipoBeneficio) && valorPorcentaje === undefined) {
+    return NextResponse.json({ error: "valorPorcentaje es requerido para este tipo de beneficio" }, { status: 400 });
   }
   if (vigenciaHasta && new Date(vigenciaDesde) > new Date(vigenciaHasta)) {
     return NextResponse.json({ error: "vigenciaDesde debe ser anterior a vigenciaHasta" }, { status: 400 });

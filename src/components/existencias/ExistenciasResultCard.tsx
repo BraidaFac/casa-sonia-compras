@@ -4,13 +4,13 @@ import type { ExistenciasTemplateCard } from "@/types";
 
 interface ExistenciasResultCardProps {
   item: ExistenciasTemplateCard;
-  onClick: (id: number) => void;
+  onClick: (item: ExistenciasTemplateCard) => void;
 }
 
 export function ExistenciasResultCard({ item, onClick }: ExistenciasResultCardProps) {
   return (
     <button
-      onClick={() => onClick(item.id)}
+      onClick={() => onClick(item)}
       style={{
         display: "flex",
         flexDirection: "column",

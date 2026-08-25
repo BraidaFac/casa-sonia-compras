@@ -8,7 +8,7 @@ interface ColorFilterProps {
 }
 
 export function ColorFilter({ variants, selectedColorValueId, onChange }: ColorFilterProps) {
-  // Get unique colors
+  // Get unique colors sorted alphabetically
   const colors = variants
     .filter((v) => v.colorAttributeValueId !== null && v.colorName !== null)
     .reduce<Array<{ id: number; name: string }>>((acc, v) => {
@@ -16,7 +16,8 @@ export function ColorFilter({ variants, selectedColorValueId, onChange }: ColorF
         acc.push({ id: v.colorAttributeValueId!, name: v.colorName! });
       }
       return acc;
-    }, []);
+    }, [])
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
 
   if (colors.length === 0) return null;
 

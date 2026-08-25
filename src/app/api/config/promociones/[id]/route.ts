@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-const TIPOS_BENEFICIO = ["cuotas_sin_interes", "cuotas_con_interes", "reintegro", "descuento_directo"] as const;
+const TIPOS_BENEFICIO = ["cuotas_sin_interes", "cuotas_con_interes", "reintegro", "descuento_directo", "cuotas_con_descuento", "cuotas_con_reintegro"] as const;
 
 const SELECT = {
   id: true,

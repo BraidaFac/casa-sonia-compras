@@ -238,7 +238,7 @@ export function FilterPanel({
             {options.colors.length > 0 && (
               <Accordion.Item value="color">
                 <Accordion.Control>
-                  <AccordionLabel label="Color" count={filters.colorBases.length} />
+                  <AccordionLabel label="Color y Diseño" count={filters.colorBases.length} />
                 </Accordion.Control>
                 <Accordion.Panel>
                   <ColorChipGroup

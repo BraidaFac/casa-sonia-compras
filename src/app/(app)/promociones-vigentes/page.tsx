@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CalendarClock, Clock, CreditCard, Percent, RotateCcw, Banknote } from "lucide-react";
+import { CalendarClock, Clock, CreditCard, Percent, RotateCcw, Banknote, AlertCircle } from "lucide-react";
 import { useConfigVigente } from "@/hooks/useConfigVigente";
 import { getBankIcon, BANK_ICON_VIEWBOX } from "@/lib/bankIcons";
 import type { PromoVigente } from "@/lib/configPricing";
@@ -23,6 +23,8 @@ const TIPO_CONFIG: Record<string, { label: string; color: string; icon: React.Re
   cuotas_con_interes: { label: "Con interés", color: "#f59e0b", icon: <CreditCard size={13} /> },
   reintegro: { label: "Reintegro", color: "#3b82f6", icon: <RotateCcw size={13} /> },
   descuento_directo: { label: "Descuento", color: "#a855f7", icon: <Percent size={13} /> },
+  cuotas_con_descuento: { label: "Cuotas + desc.", color: "#ec4899", icon: <CreditCard size={13} /> },
+  cuotas_con_reintegro: { label: "Cuotas + reintegro", color: "#06b6d4", icon: <CreditCard size={13} /> },
 };
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -41,6 +43,8 @@ function getBeneficioMain(promo: PromoVigente): string {
   switch (promo.tipoBeneficio) {
     case "cuotas_sin_interes":
     case "cuotas_con_interes":
+    case "cuotas_con_descuento":
+    case "cuotas_con_reintegro":
       return `${promo.cantidadCuotas}`;
     case "reintegro":
     case "descuento_directo":
@@ -59,6 +63,16 @@ function getBeneficioSub(promo: PromoVigente): string {
         ? `reintegro (tope $${Number(promo.topeReintegro).toLocaleString("es-AR")})`
         : "de reintegro";
     case "descuento_directo": return "de descuento";
+    case "cuotas_con_descuento": {
+      const pct = Number(promo.valorPorcentaje);
+      const tope = promo.topeReintegro ? ` · tope $${Number(promo.topeReintegro).toLocaleString("es-AR")}` : "";
+      return `cuotas sin interés · ${pct}% desc. en caja${tope}`;
+    }
+    case "cuotas_con_reintegro": {
+      const pct = Number(promo.valorPorcentaje);
+      const tope = promo.topeReintegro ? ` · tope $${Number(promo.topeReintegro).toLocaleString("es-AR")}` : "";
+      return `cuotas sin interés · ${pct}% reintegro${tope}`;
+    }
     default: return "";
   }
 }
@@ -282,6 +296,35 @@ function PromoCard({ promo, dimmed, accentOverride }: { promo: PromoVigente; dim
           {promo.titulo}
         </div>
       )}
+
+      {/* Condiciones especiales / Aplica siempre */}
+      <div
+        style={{
+          margin: "8px 16px 0",
+          padding: "5px 8px",
+          borderRadius: 6,
+          background: `color-mix(in srgb, ${accentColor} 8%, transparent)`,
+          border: `1px solid color-mix(in srgb, ${accentColor} 35%, transparent)`,
+          borderLeft: `3px solid ${accentColor}`,
+          display: "flex",
+          gap: 6,
+          alignItems: "center",
+        }}
+      >
+        <span style={{ color: accentColor, flexShrink: 0 }}>
+          <AlertCircle size={11} />
+        </span>
+        <div style={{ minWidth: 0, display: "flex", alignItems: "baseline", gap: 5, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 9, fontWeight: 800, color: accentColor, textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>
+            {promo.descripcion ? "Condiciones especiales" : "Aplica siempre"}
+          </span>
+          {promo.descripcion && (
+            <span style={{ fontSize: 10, color: "var(--text1)", lineHeight: 1.4 }}>
+              {promo.descripcion}
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* Footer row: days + dates */}
       <div

@@ -32,6 +32,7 @@ export interface PromoVigente {
   coeficienteInteres: string | number | null;
   valorPorcentaje: string | number | null;
   topeReintegro: string | number | null;
+  descripcion: string | null;
   diasAplicables: string | null; // JSON: '["lunes","martes"]' — null = todos
   vigenciaDesde: string;
   vigenciaHasta: string | null;
@@ -46,7 +47,9 @@ export interface PrecioMedioPago {
 
 export type PromoCalculo =
   | { tipo: "cuotas"; cuotas: number; cuotaMonto: number; total: number }
-  | { tipo: "reintegro_descuento"; precioFinal: number; reintegro: number };
+  | { tipo: "reintegro_descuento"; precioFinal: number; reintegro: number }
+  | { tipo: "cuotas_con_descuento"; cuotas: number; cuotaMonto: number; total: number; descuento: number }
+  | { tipo: "cuotas_con_reintegro"; cuotas: number; cuotaMonto: number; total: number; reintegro: number };
 
 // ---------------------------------------------------------------------------
 // Redondeo a la decena
@@ -221,6 +224,28 @@ export function calcularPreciosPromo(
       const reintegro = tope > 0 ? Math.min(reintegroBruto, tope) : reintegroBruto;
       const precioFinal = redondearDecena(Math.max(0, listPrice - reintegro));
       return { tipo: "reintegro_descuento", precioFinal, reintegro: Math.round(reintegro) };
+    }
+
+    case "cuotas_con_descuento": {
+      const cuotas = promo.cantidadCuotas ?? 1;
+      const pct = toNumber(promo.valorPorcentaje);
+      const descuentoBruto = listPrice * (pct / 100);
+      const tope = toNumber(promo.topeReintegro);
+      const descuento = tope > 0 ? Math.min(descuentoBruto, tope) : descuentoBruto;
+      const total = redondearDecena(Math.max(0, listPrice - descuento));
+      const cuotaMonto = redondearDecena(total / cuotas);
+      return { tipo: "cuotas_con_descuento", cuotas, cuotaMonto, total, descuento: Math.round(descuento) };
+    }
+
+    case "cuotas_con_reintegro": {
+      // Cuota sobre precio completo; el banco devuelve el reintegro después
+      const cuotas = promo.cantidadCuotas ?? 1;
+      const pct = toNumber(promo.valorPorcentaje);
+      const reintegroBruto = listPrice * (pct / 100);
+      const tope = toNumber(promo.topeReintegro);
+      const reintegro = tope > 0 ? Math.min(reintegroBruto, tope) : reintegroBruto;
+      const cuotaMonto = redondearDecena(listPrice / cuotas);
+      return { tipo: "cuotas_con_reintegro", cuotas, cuotaMonto, total: listPrice, reintegro: Math.round(reintegro) };
     }
 
     default:

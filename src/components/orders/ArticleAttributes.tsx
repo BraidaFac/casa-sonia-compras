@@ -48,7 +48,7 @@ import { REQUIRED_ATTR_FAMILIES } from "@/lib/required-attrs";
 // Flat list para uso interno
 const REQUIRED_ATTR_NAMES = REQUIRED_ATTR_FAMILIES.flatMap((f) => f.names);
 // Atributos que se pre-cargan pero se pueden eliminar (opcionales) — orden de visualización
-export const OPTIONAL_PRELOADED_NAMES = ["material", "temporada", "genero", "género", "corte", "cuello", "composicion", "composición", "tipo de producto"];
+export const OPTIONAL_PRELOADED_NAMES = ["material", "temporada", "genero", "género", "corte", "cuello", "composicion", "composición", "tipo de producto", "ocacion", "ocasión", "ocasion"];
 const ALL_PRELOADED_NAMES = [...REQUIRED_ATTR_NAMES, ...OPTIONAL_PRELOADED_NAMES];
 
 function isRequiredAttr(name: string): boolean {
