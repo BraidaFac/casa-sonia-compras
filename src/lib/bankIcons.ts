@@ -93,8 +93,12 @@ const CUSTOM_SVGS: Record<string, Omit<BankIconEntry, "key">> = {
   santafe: {
     nombre: "Santa Fe",
     color: "D20030",
-    svgPath:
-      "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm7 4a5 5 0 1 0 0 10A5 5 0 0 0 12 7zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6z",
+    svgSrc: "/icons/banks/santafe.png",
+  },
+  bica: {
+    nombre: "Bica",
+    color: "D20030",
+    svgSrc: "/icons/banks/bancobica.png",
   },
 };
 
