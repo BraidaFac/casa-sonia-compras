@@ -2,8 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal, Button, Text, Group, Loader, Tooltip, TextInput } from "@mantine/core";
-import { DatePickerInput } from "@mantine/dates";
-import "dayjs/locale/es";
+import { DateInput } from "@/components/ui/DateInput";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { CategoryPicker } from "@/components/inventario/CategoryPicker";
 import type { Warehouse } from "@/types";
@@ -117,13 +116,9 @@ export function NuevoInventarioModal({ opened, onClose }: NuevoInventarioModalPr
             >
               Fecha de Conteo
             </Text>
-            <DatePickerInput
+            <DateInput
               value={countDate ? new Date(countDate + "T12:00:00") : null}
-              onChange={(v) =>
-                setCountDate(v ? (v as unknown as Date).toISOString().slice(0, 10) : null)
-              }
-              valueFormat="DD/MM/YYYY"
-              locale="es"
+              onChange={(d) => setCountDate(d ? d.toISOString().slice(0, 10) : null)}
               clearable={false}
               size="sm"
             />
@@ -138,13 +133,9 @@ export function NuevoInventarioModal({ opened, onClose }: NuevoInventarioModalPr
             >
               Fecha Contable
             </Text>
-            <DatePickerInput
+            <DateInput
               value={accountingDate ? new Date(accountingDate + "T12:00:00") : null}
-              onChange={(v) =>
-                setAccountingDate(v ? (v as unknown as Date).toISOString().slice(0, 10) : null)
-              }
-              valueFormat="DD/MM/YYYY"
-              locale="es"
+              onChange={(d) => setAccountingDate(d ? d.toISOString().slice(0, 10) : null)}
               clearable={false}
               size="sm"
             />

@@ -16,8 +16,7 @@ import {
   useCombobox,
   ScrollArea,
 } from "@mantine/core";
-import { DatePickerInput } from "@mantine/dates";
-import "dayjs/locale/es";
+import { DateInput } from "@/components/ui/DateInput";
 import {
   Plus,
   Trash2,
@@ -1717,19 +1716,15 @@ function ArticleRow({
             {formatDate(local.lastPurchaseDate)}
           </span>
         ) : (
-          <DatePickerInput
+          <DateInput
             value={
               local.lastPurchaseDate
                 ? new Date(local.lastPurchaseDate.slice(0, 10) + "T12:00:00")
                 : null
             }
-            onChange={(v) =>
-              setField(
-                "lastPurchaseDate",
-                v ? (v as unknown as Date).toISOString().slice(0, 10) : null,
-              )
+            onChange={(d) =>
+              setField("lastPurchaseDate", d ? d.toISOString().slice(0, 10) : null)
             }
-            valueFormat="DD/MM/YYYY"
             locale="es"
             clearable
             size="xs"

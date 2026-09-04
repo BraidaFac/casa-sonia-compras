@@ -9,8 +9,7 @@ import {
   TextInput,
   CheckIcon,
 } from "@mantine/core";
-import { DatePickerInput } from "@mantine/dates";
-import "dayjs/locale/es";
+import { DateInput } from "@/components/ui/DateInput";
 import { SupplierSearch } from "./SupplierSearch";
 import { useBrands } from "@/hooks/useBrands";
 import { useWarehouses } from "@/hooks/useWarehouses";
@@ -200,16 +199,14 @@ export function DatosCabeceraOrden({
         </div>
 
         {/* Fecha */}
-        <DatePickerInput
+        <DateInput
           label={
             <Text size="xs" c="dark.0" fw={500}>
               Fecha
             </Text>
           }
           value={date}
-          onChange={(v) => onDateChange(v ? new Date(v) : null)}
-          valueFormat="DD/MM/YYYY"
-          locale="es"
+          onChange={onDateChange}
           w={180}
           readOnly={disabled}
         />

@@ -4,8 +4,7 @@ import {
   Modal, Stack, TextInput, Select, MultiSelect, NumberInput, Switch,
   Button, Group, Text, Checkbox, SimpleGrid, Tooltip,
 } from "@mantine/core";
-import { DatePickerInput } from "@mantine/dates";
-import "dayjs/locale/es";
+import { DateInput } from "@/components/ui/DateInput";
 import type { BancoRecord } from "./BancoModal";
 
 export interface PromocionRecord {
@@ -308,21 +307,15 @@ export function PromocionModal({ opened, onClose, onSave, item, bancos, saving, 
         </div>
 
         <Group grow>
-          <DatePickerInput
+          <DateInput
             label="Vigencia desde"
             value={vigenciaDesde}
-            onChange={(v) => {
-              const native = v ? new Date(v as unknown as string | number | Date) : null;
-              setVigenciaDesde(native && !isNaN(native.getTime()) ? native : null);
-              setVigenciaDesdeError(null);
-            }}
-            valueFormat="DD/MM/YYYY"
-            locale="es"
+            onChange={(d) => { setVigenciaDesde(d); setVigenciaDesdeError(null); }}
             clearable
             required
             error={vigenciaDesdeError}
           />
-          <DatePickerInput
+          <DateInput
             label={
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                 Vigencia hasta
@@ -332,9 +325,7 @@ export function PromocionModal({ opened, onClose, onSave, item, bancos, saving, 
               </span>
             }
             value={vigenciaHasta}
-            onChange={(v) => setVigenciaHasta(v as Date | null)}
-            valueFormat="DD/MM/YYYY"
-            locale="es"
+            onChange={setVigenciaHasta}
             clearable
           />
         </Group>

@@ -1,8 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Badge, Group, Select, Text } from "@mantine/core";
-import { DatePickerInput } from "@mantine/dates";
-import "dayjs/locale/es";
+import { DateInput } from "@/components/ui/DateInput";
 import { SupplierSearch } from "@/components/orders/SupplierSearch";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { PaginationControls } from "@/components/ui/PaginationControls";
@@ -78,22 +77,18 @@ export default function OdooOrdersPage() {
           w={160}
           size="sm"
         />
-        <DatePickerInput
+        <DateInput
           label={<Text size="xs" c="dimmed" fw={500}>Desde</Text>}
           value={dateFrom}
-          onChange={(v) => { setDateFrom(v as Date | null); pagination.reset(); }}
-          valueFormat="DD/MM/YYYY"
-          locale="es"
+          onChange={(d) => { setDateFrom(d); pagination.reset(); }}
           clearable
           w={150}
           size="sm"
         />
-        <DatePickerInput
+        <DateInput
           label={<Text size="xs" c="dimmed" fw={500}>Hasta</Text>}
           value={dateTo}
-          onChange={(v) => { setDateTo(v as Date | null); pagination.reset(); }}
-          valueFormat="DD/MM/YYYY"
-          locale="es"
+          onChange={(d) => { setDateTo(d); pagination.reset(); }}
           clearable
           w={150}
           size="sm"

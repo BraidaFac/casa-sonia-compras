@@ -1,8 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Modal, Stack, TextInput, Select, NumberInput, Switch, Button, Group, Text, Tooltip } from "@mantine/core";
-import { DatePickerInput } from "@mantine/dates";
-import "dayjs/locale/es";
+import { DateInput } from "@/components/ui/DateInput";
 import type { MedioPagoRecord } from "./MedioPagoModal";
 import type { ProductCategory } from "@/app/api/categories/route";
 
@@ -149,15 +148,13 @@ export function DescuentoModal({ opened, onClose, onSave, item, mediosPago, cate
           />
         )}
         <Group grow>
-          <DatePickerInput
+          <DateInput
             label="Vigencia desde"
             value={vigenciaDesde}
-            onChange={(v) => setVigenciaDesde(v as Date | null)}
-            valueFormat="DD/MM/YYYY"
-            locale="es"
+            onChange={setVigenciaDesde}
             clearable
           />
-          <DatePickerInput
+          <DateInput
             label={
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                 Vigencia hasta
@@ -167,9 +164,7 @@ export function DescuentoModal({ opened, onClose, onSave, item, mediosPago, cate
               </span>
             }
             value={vigenciaHasta}
-            onChange={(v) => setVigenciaHasta(v as Date | null)}
-            valueFormat="DD/MM/YYYY"
-            locale="es"
+            onChange={setVigenciaHasta}
             clearable
           />
         </Group>

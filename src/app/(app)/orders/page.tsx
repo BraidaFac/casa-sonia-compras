@@ -13,8 +13,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { DatePickerInput } from "@mantine/dates";
-import "dayjs/locale/es";
+import { DateInput } from "@/components/ui/DateInput";
 import {
   CirclePlus,
   Send,
@@ -203,30 +202,26 @@ export default function OrdersPage() {
           w={160}
           size="sm"
         />
-        <DatePickerInput
+        <DateInput
           label={
             <Text size="xs" c="dimmed" fw={500}>
               Desde
             </Text>
           }
           value={dateFrom}
-          onChange={(v) => setDateFrom(v as Date | null)}
-          valueFormat="DD/MM/YYYY"
-          locale="es"
+          onChange={setDateFrom}
           clearable
           w={150}
           size="sm"
         />
-        <DatePickerInput
+        <DateInput
           label={
             <Text size="xs" c="dimmed" fw={500}>
               Hasta
             </Text>
           }
           value={dateTo}
-          onChange={(v) => setDateTo(v as Date | null)}
-          valueFormat="DD/MM/YYYY"
-          locale="es"
+          onChange={setDateTo}
           clearable
           w={150}
           size="sm"
