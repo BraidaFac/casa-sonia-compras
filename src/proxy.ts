@@ -30,7 +30,7 @@ export async function proxy(request: NextRequest) {
       const { payload } = await jwtVerify(token, secret);
       // Guard para rol Empleado Básico (solo Existencias)
       if (payload.role === "EMPLEADO_BASICO") {
-        const allowed = ["/existencias", "/api/existencias", "/api/search-history", "/api/auth/"].some(
+        const allowed = ["/existencias", "/promociones-vigentes", "/api/existencias", "/api/config/vigentes", "/api/search-history", "/api/auth/"].some(
           (prefix) => pathname.startsWith(prefix)
         );
         if (!allowed) {
