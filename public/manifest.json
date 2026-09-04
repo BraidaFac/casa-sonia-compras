@@ -1,0 +1,33 @@
+{
+  "name": "Casa Sonia — Compras",
+  "short_name": "CS Compras",
+  "description": "Sistema de órdenes de compra Casa Sonia",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1b1e",
+  "theme_color": "#1a1b1e",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/desktop.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Órdenes de compra"
+    },
+    {
+      "src": "/screenshots/mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Órdenes de compra"
+    }
+  ]
+}

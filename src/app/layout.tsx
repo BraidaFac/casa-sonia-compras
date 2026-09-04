@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Syne, DM_Sans, DM_Mono } from "next/font/google";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { AppMantineProvider } from "@/providers/AppMantineProvider";
+import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import "@mantine/core/styles.css";
 import "@mantine/dates/styles.css";
 import "@mantine/notifications/styles.css";
@@ -29,6 +30,7 @@ export const metadata: Metadata = {
   title: "Casa Sonia — Compras",
   description: "Sistema de órdenes de compra Casa Sonia",
   icons: { icon: "/favicon.svg" },
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
@@ -45,6 +47,7 @@ export default function RootLayout({
         <AppMantineProvider>
           <QueryProvider>{children}</QueryProvider>
         </AppMantineProvider>
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );
