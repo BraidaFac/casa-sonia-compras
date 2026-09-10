@@ -40,6 +40,7 @@ interface Props {
   // Expose internal state to parent for ConfirmModal
   onPrintColumnsChange?: (cols: PrintColumn[]) => void;
   onPrintValuesChange?: (vals: PrintValues) => void;
+  coef?: number;
   showValidation?: boolean;
   readOnly?: boolean;
   onSaveArticle?: (article: Article) => Promise<void>;
@@ -83,7 +84,6 @@ function createEmptyArticle(
     colorImages: {},
     deletedOdooImageIds: [],
     clearedPrimaryColorNames: [],
-    maxCoeficiente: 0,
   };
 }
 
@@ -102,6 +102,7 @@ export function OrderGrid({
   selectedWarehouses: selectedWarehousesProp = [],
   onPrintColumnsChange,
   onPrintValuesChange,
+  coef: coefProp = 2.2,
   showValidation,
   readOnly = false,
   onSaveArticle,
@@ -608,6 +609,7 @@ export function OrderGrid({
           )}
           <ArticleRowContainer
             article={article}
+            coef={coefProp}
             updateArticle={updateArticle}
             removeArticle={removeArticle}
             duplicateArticle={duplicateArticle}

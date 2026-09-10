@@ -29,8 +29,13 @@ const dmMono = DM_Mono({
 export const metadata: Metadata = {
   title: "Casa Sonia — Compras",
   description: "Sistema de órdenes de compra Casa Sonia",
-  icons: { icon: "/favicon.svg" },
-  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/icon-180.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({

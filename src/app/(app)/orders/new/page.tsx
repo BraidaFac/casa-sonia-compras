@@ -89,6 +89,8 @@ export default function NewOrderPage() {
     open: false,
     warnings: [],
   });
+  const [coef, setCoef] = useState<number | string>(2.2);
+  const coefNum = typeof coef === "number" ? coef : parseFloat(String(coef)) || 2.2;
   const [totals, setTotals] = useState({ units: 0, amount: 0 });
   const skipFirstSaveRef = useRef(true);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -352,6 +354,8 @@ export default function NewOrderPage() {
           onCompradorasChange={setCompradoras}
           selectedWarehouses={selectedWarehouses}
           onSelectedWarehousesChange={setSelectedWarehouses}
+          coef={coef}
+          onCoefChange={setCoef}
         />
 
         {/* Order grid */}
@@ -364,6 +368,7 @@ export default function NewOrderPage() {
           onDraftCleared={() => setDraftBanner(false)}
           globalBrand={globalBrand}
           selectedWarehouses={selectedWarehouses}
+          coef={coefNum}
           onPrintColumnsChange={setPrintColumns}
           onPrintValuesChange={setPrintValues}
         />

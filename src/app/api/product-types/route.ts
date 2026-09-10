@@ -17,18 +17,16 @@ export const GET = withAuth(async () => {
     const values = await odoo.fetchAll<{
       id: number;
       name: string;
-      x_studio_coeficiente?: number;
     }>(
       "product.attribute.value",
       [["attribute_id", "=", typeAttr.id]],
-      ["id", "name", "x_studio_coeficiente"],
+      ["id", "name"],
     );
 
     return NextResponse.json(
       values.map((v) => ({
         id: v.id,
         name: v.name,
-        coeficiente: v.x_studio_coeficiente || 0,
       })),
     );
   } catch (error) {

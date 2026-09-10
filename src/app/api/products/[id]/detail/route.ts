@@ -12,7 +12,7 @@ export const GET = withAuth(async (req: NextRequest, _payload, ctx) => {
   }
 
   try {
-    const { colorAttrId, typeAttrId, sizeAttrIdSet, typeCoefMap } =
+    const { colorAttrId, typeAttrId, sizeAttrIdSet } =
       await getAttrMetadata();
 
     const lines = await odoo.searchRead(
@@ -74,7 +74,6 @@ export const GET = withAuth(async (req: NextRequest, _payload, ctx) => {
     const sizes: { id: number; name: string; equivalencia: string }[] = [];
     let sizeAttributeId: number | null = null;
     const extraAttributes: ProductAttribute[] = [];
-    let maxCoeficiente = 0;
 
     for (const line of lines) {
       const attrId = Array.isArray(line.attribute_id)
@@ -124,11 +123,6 @@ export const GET = withAuth(async (req: NextRequest, _payload, ctx) => {
         );
         if (!sizeAttributeId) sizeAttributeId = attrId;
       } else if (typeAttrId && attrId === typeAttrId) {
-        const coefs = (line.value_ids || []).map(
-          (vid: number) => typeCoefMap[vid] || 0,
-        );
-        const max = coefs.length > 0 ? Math.max(...coefs) : 0;
-        if (max > maxCoeficiente) maxCoeficiente = max;
         extraAttributes.push({
           attributeId: attrId,
           attributeName: attrName,
@@ -207,7 +201,6 @@ export const GET = withAuth(async (req: NextRequest, _payload, ctx) => {
       sizes,
       sizeAttributeId,
       extraAttributes,
-      maxCoeficiente,
       barcodeMap,
     });
   } catch (error) {

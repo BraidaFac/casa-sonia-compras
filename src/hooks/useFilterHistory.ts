@@ -11,7 +11,9 @@ function hashFilters(filters: FilterState): string {
     e: [...filters.equivalencias].sort(),
     b: [...filters.brandValueIds].sort(),
     k: [...filters.corteValueIds].sort(),
+    ca: [...filters.calceValueIds].sort(),
     m: [...filters.materialValueIds].sort(),
+    d: [...filters.disenoValueIds].sort(),
   });
 }
 
@@ -40,7 +42,9 @@ export function buildFilterLabel(
     talles: { equivalencia: string }[];
     brands: { id: number; name: string }[];
     cortes: { id: number; name: string }[];
+    calces: { id: number; name: string }[];
     materials: { id: number; name: string }[];
+    disenos: { id: number; name: string }[];
   },
 ): string {
   const parts: string[] = [];
@@ -77,9 +81,23 @@ export function buildFilterLabel(
     if (names.length > 0) parts.push(names.join(", "));
   }
 
+  if (filters.calceValueIds.length > 0) {
+    const names = filters.calceValueIds
+      .map((id) => options.calces.find((c) => c.id === id)?.name)
+      .filter(Boolean) as string[];
+    if (names.length > 0) parts.push(names.join(", "));
+  }
+
   if (filters.materialValueIds.length > 0) {
     const names = filters.materialValueIds
       .map((id) => options.materials.find((m) => m.id === id)?.name)
+      .filter(Boolean) as string[];
+    if (names.length > 0) parts.push(names.join(", "));
+  }
+
+  if (filters.disenoValueIds.length > 0) {
+    const names = filters.disenoValueIds
+      .map((id) => options.disenos.find((d) => d.id === id)?.name)
       .filter(Boolean) as string[];
     if (names.length > 0) parts.push(names.join(", "));
   }

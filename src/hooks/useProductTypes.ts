@@ -4,7 +4,6 @@ import { queryKeys } from "@/lib/queryKeys";
 export interface ProductType {
   id: number;
   name: string;
-  coeficiente: number;
 }
 
 async function fetchProductTypes() {

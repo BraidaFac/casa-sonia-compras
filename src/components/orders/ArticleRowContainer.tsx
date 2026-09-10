@@ -36,6 +36,7 @@ interface Props {
   onUpdatePrintColumnHeader: (id: string, header: string) => void;
   onRemovePrintColumn: (id: string) => void;
   selectedWarehouses: Warehouse[];
+  coef: number;
   missingRequiredKeys: string[];
   isFirstMissingArticle?: boolean;
   orderId?: number;

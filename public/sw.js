@@ -1,14 +1,35 @@
-const STATIC_CACHE = "cs-static-v1";
-const DYNAMIC_CACHE = "cs-dynamic-v1";
+// ─── Version ────────────────────────────────────────────────────────────────
+const SW_VERSION = "v2";
+const STATIC_CACHE = `cs-static-${SW_VERSION}`;
+const RUNTIME_CACHE = `cs-runtime-${SW_VERSION}`;
+const KNOWN_CACHES = [STATIC_CACHE, RUNTIME_CACHE];
 
-// Assets con hash de contenido — nunca cambian para la misma URL
-const IMMUTABLE_PATTERNS = [/\/_next\/static\//];
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function isNavigationRequest(req) {
+  return req.mode === "navigate";
+}
 
-// Assets públicos sin hash — cachear pero revalidar
-const STATIC_PATTERNS = [/\/fonts\//, /\.(?:png|svg|ico|webp)$/];
+function isStaticAsset(req) {
+  const url = new URL(req.url);
+  return /\.(js|css|png|jpg|jpeg|svg|ico|woff2?|ttf)$/.test(url.pathname);
+}
 
-self.addEventListener("install", () => self.skipWaiting());
+function isApiRequest(req) {
+  return new URL(req.url).pathname.startsWith("/api/");
+}
 
+async function cacheResponse(cacheName, req, res) {
+  if (!res || res.status !== 200 || res.type === "opaque") return;
+  const cache = await caches.open(cacheName);
+  cache.put(req, res.clone());
+}
+
+// ─── Install ─────────────────────────────────────────────────────────────────
+self.addEventListener("install", (e) => {
+  e.waitUntil(self.skipWaiting());
+});
+
+// ─── Activate ────────────────────────────────────────────────────────────────
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches
@@ -16,7 +37,7 @@ self.addEventListener("activate", (e) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((k) => k !== STATIC_CACHE && k !== DYNAMIC_CACHE)
+            .filter((k) => !KNOWN_CACHES.includes(k))
             .map((k) => caches.delete(k))
         )
       )
@@ -24,55 +45,49 @@ self.addEventListener("activate", (e) => {
   );
 });
 
+// ─── Fetch ───────────────────────────────────────────────────────────────────
 self.addEventListener("fetch", (e) => {
   const { request } = e;
-  const url = new URL(request.url);
 
-  // Solo GET, mismo origen
-  if (request.method !== "GET" || url.origin !== self.location.origin) return;
+  // Solo GET
+  if (request.method !== "GET") return;
 
-  // API y rutas de Next internos → siempre red
-  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/_next/data/")) return;
+  // Solo http/https — ignorar chrome-extension://, data:, etc.
+  if (!request.url.startsWith("http")) return;
 
-  // /_next/static/ → cache-first, inmutable (content-hashed)
-  if (IMMUTABLE_PATTERNS.some((p) => p.test(url.pathname))) {
-    e.respondWith(
-      caches.match(request).then(
-        (cached) =>
-          cached ||
-          fetch(request).then((res) => {
-            const clone = res.clone();
-            caches.open(STATIC_CACHE).then((c) => c.put(request, clone));
-            return res;
-          })
-      )
-    );
+  if (isNavigationRequest(request)) {
+    e.respondWith(networkFirstNavigation(request));
+  } else if (isStaticAsset(request)) {
+    e.respondWith(cacheFirstStatic(request));
+  } else if (isApiRequest(request)) {
+    // API siempre a red — nunca interceptar auth ni datos frescos
     return;
   }
-
-  // Fonts e imágenes → cache-first, stale-while-revalidate
-  if (STATIC_PATTERNS.some((p) => p.test(url.pathname))) {
-    e.respondWith(
-      caches.match(request).then((cached) => {
-        const fetchAndUpdate = fetch(request).then((res) => {
-          caches.open(STATIC_CACHE).then((c) => c.put(request, res.clone()));
-          return res;
-        });
-        return cached || fetchAndUpdate;
-      })
-    );
-    return;
-  }
-
-  // Páginas → network-first, fallback a caché
-  e.respondWith(
-    fetch(request)
-      .then((res) => {
-        if (res.ok) {
-          caches.open(DYNAMIC_CACHE).then((c) => c.put(request, res.clone()));
-        }
-        return res;
-      })
-      .catch(() => caches.match(request))
-  );
+  // Todo lo demás: deja pasar sin interceptar
 });
+
+// ─── Estrategias ─────────────────────────────────────────────────────────────
+
+async function networkFirstNavigation(request) {
+  try {
+    const res = await fetch(request);
+    return res;
+  } catch {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    return new Response("Sin conexión", { status: 503 });
+  }
+}
+
+async function cacheFirstStatic(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+
+  try {
+    const res = await fetch(request);
+    await cacheResponse(STATIC_CACHE, request, res);
+    return res;
+  } catch {
+    return new Response("Asset no disponible", { status: 503 });
+  }
+}

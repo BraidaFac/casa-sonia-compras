@@ -41,7 +41,9 @@ export const GET = withAuth(async (req: NextRequest) => {
   const equivalencias = parseStrings(searchParams.get("equivalencias"));
   const brandValueIds = parseIds(searchParams.get("brandValueIds"));
   const corteValueIds = parseIds(searchParams.get("corteValueIds"));
+  const calceValueIds = parseIds(searchParams.get("calceValueIds"));
   const materialValueIds = parseIds(searchParams.get("materialValueIds"));
+  const disenoValueIds = parseIds(searchParams.get("disenoValueIds"));
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
   const limit = Math.min(
     MAX_LIMIT,
@@ -54,7 +56,9 @@ export const GET = withAuth(async (req: NextRequest) => {
     equivalencias.length > 0 ||
     brandValueIds.length > 0 ||
     corteValueIds.length > 0 ||
-    materialValueIds.length > 0;
+    calceValueIds.length > 0 ||
+    materialValueIds.length > 0 ||
+    disenoValueIds.length > 0;
 
   if (!hasFilters) {
     return NextResponse.json({ items: [], total: 0, page: 1 });
@@ -100,8 +104,12 @@ export const GET = withAuth(async (req: NextRequest) => {
       domain.push(["attribute_line_ids.value_ids", "in", brandValueIds]);
     if (corteValueIds.length > 0)
       domain.push(["attribute_line_ids.value_ids", "in", corteValueIds]);
+    if (calceValueIds.length > 0)
+      domain.push(["attribute_line_ids.value_ids", "in", calceValueIds]);
     if (materialValueIds.length > 0)
       domain.push(["attribute_line_ids.value_ids", "in", materialValueIds]);
+    if (disenoValueIds.length > 0)
+      domain.push(["attribute_line_ids.value_ids", "in", disenoValueIds]);
 
     const offset = (page - 1) * limit;
 

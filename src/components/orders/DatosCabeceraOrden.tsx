@@ -7,6 +7,7 @@ import {
   useCombobox,
   InputBase,
   TextInput,
+  NumberInput,
   CheckIcon,
 } from "@mantine/core";
 import { DateInput } from "@/components/ui/DateInput";
@@ -58,6 +59,8 @@ interface Props {
   onSelectedWarehousesChange: (ws: Warehouse[]) => void;
   /** For edit mode: hydrate selectedWarehouses from stored IDs once warehouse list loads */
   initialWarehouseIds?: number[];
+  coef?: number | string;
+  onCoefChange?: (v: number | string) => void;
   disabled?: boolean;
   /** Extra content rendered at the end of the Group (e.g. units badge) */
   extraContent?: React.ReactNode;
@@ -76,6 +79,8 @@ export function DatosCabeceraOrden({
   selectedWarehouses,
   onSelectedWarehousesChange,
   initialWarehouseIds,
+  coef,
+  onCoefChange,
   disabled = false,
   extraContent,
 }: Props) {
@@ -413,17 +418,18 @@ export function DatosCabeceraOrden({
         {extraContent}
       </Group>
 
-      {/* Row 2: Sucursales — inline toggle chips, always visible, no dropdown */}
+      {/* Row 2: Sucursales + Coeficiente */}
       {allWarehouses.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <Text size="xs" c="dark.0" fw={500}>
-            Sucursales
-          </Text>
-          <div
-            role="group"
-            aria-label="Sucursales"
-            style={{ display: "flex", gap: 6, flexWrap: "wrap" }}
-          >
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 24, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <Text size="xs" c="dark.0" fw={500}>
+              Sucursales
+            </Text>
+            <div
+              role="group"
+              aria-label="Sucursales"
+              style={{ display: "flex", gap: 6, flexWrap: "wrap" }}
+            >
             {allWarehouses.map((w) => {
               const isSelected = selectedWarehouses.some((s) => s.id === w.id);
               return (
@@ -497,7 +503,27 @@ export function DatosCabeceraOrden({
                 </button>
               );
             })}
+            </div>
           </div>
+
+          {coef !== undefined && onCoefChange && !disabled && (
+            <NumberInput
+              label={<Text size="xs" c="dark.0" fw={500}>Coeficiente</Text>}
+              size="sm"
+              min={0.01}
+              step={0.1}
+              decimalScale={2}
+              value={coef}
+              onChange={onCoefChange}
+              onBlur={() => {
+                const n = typeof coef === "number" ? coef : parseFloat(String(coef));
+                if (!n || n <= 0) onCoefChange(2.2);
+              }}
+              decimalSeparator=","
+              hideControls={false}
+              w={130}
+            />
+          )}
         </div>
       )}
     </div>

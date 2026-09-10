@@ -3,7 +3,7 @@ import { jwtVerify } from "jose";
 
 const PUBLIC_PATHS = ["/login"];
 
-const SKIP_PATHS = ["/_next/", "/uploads/", "/favicon.", "/CS.png"];
+const SKIP_PATHS = ["/_next/", "/uploads/", "/favicon.", "/CS.png", "/manifest.webmanifest", "/icons/", "/screenshots/", "/sw.js"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

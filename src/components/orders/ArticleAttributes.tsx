@@ -16,18 +16,11 @@ import { X, Plus, RefreshCw } from "lucide-react";
 import { useAttributeValues } from "@/hooks/useAttributeValues";
 import type { Article, AttributeValue } from "@/types";
 
-interface ProductType {
-  id: number;
-  name: string;
-  coeficiente: number;
-}
-
 interface Props {
   article: Article;
   colorAttributeId: number;
   sizeAttributeId: number;
   allAttributes: { id: number; name: string }[];
-  productTypes: ProductType[];
   onChangeTab?: (tab: string) => void;
   onChange: (article: Article) => void;
   missingRequiredKeys?: string[];
@@ -48,7 +41,7 @@ import { REQUIRED_ATTR_FAMILIES } from "@/lib/required-attrs";
 // Flat list para uso interno
 const REQUIRED_ATTR_NAMES = REQUIRED_ATTR_FAMILIES.flatMap((f) => f.names);
 // Atributos que se pre-cargan pero se pueden eliminar (opcionales) — orden de visualización
-export const OPTIONAL_PRELOADED_NAMES = ["material", "temporada", "genero", "género", "corte", "cuello", "composicion", "composición", "tipo de producto", "ocacion", "ocasión", "ocasion"];
+export const OPTIONAL_PRELOADED_NAMES = ["material", "temporada", "genero", "género", "corte", "modelo", "calce", "fit", "cuello", "composicion", "composición", "tipo de producto", "ocacion", "ocasión", "ocasion", "diseño", "diseno"];
 const ALL_PRELOADED_NAMES = [...REQUIRED_ATTR_NAMES, ...OPTIONAL_PRELOADED_NAMES];
 
 function isRequiredAttr(name: string): boolean {
@@ -106,7 +99,6 @@ export function ArticleAttributes({
   colorAttributeId,
   sizeAttributeId,
   allAttributes,
-  productTypes,
   onChangeTab,
   onChange,
   missingRequiredKeys = [],
@@ -200,7 +192,6 @@ export function ArticleAttributes({
 
     let updatedRows = article.rows;
     let updatedSizes = article.sizes;
-    let maxCoeficiente = article.maxCoeficiente;
 
     if (isColor) {
       const existingColorIds = new Set(article.rows.map((r) => r.color?.id));
@@ -229,20 +220,11 @@ export function ArticleAttributes({
       }));
     }
 
-    if (attr.attributeName.toLowerCase().includes("tipo de producto")) {
-      const coefs = values.map((v) => {
-        const pt = productTypes.find((t) => t.id === v.id);
-        return pt?.coeficiente || 0;
-      });
-      maxCoeficiente = coefs.length > 0 ? Math.max(...coefs) : 0;
-    }
-
     onChange({
       ...article,
       attributes: updatedAttributes,
       rows: updatedRows,
       sizes: updatedSizes,
-      maxCoeficiente,
     });
   }
 
@@ -287,7 +269,7 @@ export function ArticleAttributes({
 
   // Sync color/size from quantities grid as read-only rows
   const colorRow = article.rows.some((r) => r.color !== null)
-    ? { attributeId: colorAttributeId, attributeName: "Color o Diseño", values: Array.from(new Map(article.rows.filter((r) => r.color).map((r) => [r.color!.id ?? r.color!.name, r.color!])).values()), generatesVariants: true }
+    ? { attributeId: colorAttributeId, attributeName: "Color", values: Array.from(new Map(article.rows.filter((r) => r.color).map((r) => [r.color!.id ?? r.color!.name, r.color!])).values()), generatesVariants: true }
     : null;
   const sizeAttrName = article.sizeAttributeId
     ? (allAttributes.find((a) => a.id === article.sizeAttributeId)?.name ?? "Talle")

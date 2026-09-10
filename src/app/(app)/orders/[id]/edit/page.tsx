@@ -60,6 +60,8 @@ export default function EditOrderPage({
   const [printColumns, setPrintColumns] = useState<PrintColumn[]>([]);
   const [printValues, setPrintValues] = useState<PrintValues>({});
   const [selectedWarehouses, setSelectedWarehouses] = useState<Warehouse[]>([]);
+  const [coef, setCoef] = useState<number | string>(2.2);
+  const coefNum = typeof coef === "number" ? coef : parseFloat(String(coef)) || 2.2;
   const [globalBrand, setGlobalBrand] = useState<AttributeValue | null>(null);
   const [compradoras, setCompradoras] = useState<
     { id: number; name: string }[]
@@ -369,6 +371,8 @@ export default function EditOrderPage({
           selectedWarehouses={selectedWarehouses}
           onSelectedWarehousesChange={setSelectedWarehouses}
           initialWarehouseIds={order.warehouseIds as number[]}
+          coef={coef}
+          onCoefChange={setCoef}
           disabled={isConfirmed}
           extraContent={
             totals.units > 0 ? (
@@ -394,6 +398,7 @@ export default function EditOrderPage({
           onArticlesChange={setArticles}
           globalBrand={globalBrand}
           selectedWarehouses={selectedWarehouses}
+          coef={coefNum}
           onPrintColumnsChange={setPrintColumns}
           onPrintValuesChange={setPrintValues}
           showValidation={true}

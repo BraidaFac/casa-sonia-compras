@@ -475,7 +475,6 @@ export const GET = withAuth(async (_req: NextRequest, _payload, ctx) => {
         colorImages,
         deletedOdooImageIds: [],
         clearedPrimaryColorNames: [],
-        maxCoeficiente: 0,
         originalSizeIds: sizes.map((s) => s.id),
       });
     }

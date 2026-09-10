@@ -29,7 +29,9 @@ function hasActiveFilters(f: FilterState): boolean {
     f.equivalencias.length > 0 ||
     f.brandValueIds.length > 0 ||
     f.corteValueIds.length > 0 ||
-    f.materialValueIds.length > 0
+    f.calceValueIds.length > 0 ||
+    f.materialValueIds.length > 0 ||
+    f.disenoValueIds.length > 0
   );
 }
 
@@ -202,7 +204,7 @@ export function FilterPanel({
             styles={{
               item: { borderBottom: "1px solid var(--border)" },
               control: { padding: "10px 16px" },
-              panel: { padding: "0 16px 12px" },
+              panel: { padding: "0 8px 12px" },
               chevron: { color: "var(--text3)" },
             }}
           >
@@ -238,7 +240,7 @@ export function FilterPanel({
             {options.colors.length > 0 && (
               <Accordion.Item value="color">
                 <Accordion.Control>
-                  <AccordionLabel label="Color y Diseño" count={filters.colorBases.length} />
+                  <AccordionLabel label="Color" count={filters.colorBases.length} />
                 </Accordion.Control>
                 <Accordion.Panel>
                   <ColorChipGroup
@@ -272,14 +274,31 @@ export function FilterPanel({
             {options.cortes.length > 0 && (
               <Accordion.Item value="corte">
                 <Accordion.Control>
-                  <AccordionLabel label="Corte" count={filters.corteValueIds.length} />
+                  <AccordionLabel label="Corte o Modelo" count={filters.corteValueIds.length} />
                 </Accordion.Control>
                 <Accordion.Panel>
                   <ChipFilterGroup
-                    label="Corte"
+                    label="Corte o Modelo"
                     options={options.cortes}
                     selected={filters.corteValueIds}
                     onChange={(ids) => set("corteValueIds", ids)}
+                    showLabel={false}
+                  />
+                </Accordion.Panel>
+              </Accordion.Item>
+            )}
+
+            {options.calces.length > 0 && (
+              <Accordion.Item value="calce">
+                <Accordion.Control>
+                  <AccordionLabel label="Calce o Fit" count={filters.calceValueIds.length} />
+                </Accordion.Control>
+                <Accordion.Panel>
+                  <ChipFilterGroup
+                    label="Calce o Fit"
+                    options={options.calces}
+                    selected={filters.calceValueIds}
+                    onChange={(ids) => set("calceValueIds", ids)}
                     showLabel={false}
                   />
                 </Accordion.Panel>
@@ -297,6 +316,23 @@ export function FilterPanel({
                     options={options.materials}
                     selected={filters.materialValueIds}
                     onChange={(ids) => set("materialValueIds", ids)}
+                    showLabel={false}
+                  />
+                </Accordion.Panel>
+              </Accordion.Item>
+            )}
+
+            {options.disenos.length > 0 && (
+              <Accordion.Item value="diseno">
+                <Accordion.Control>
+                  <AccordionLabel label="Diseño" count={filters.disenoValueIds.length} />
+                </Accordion.Control>
+                <Accordion.Panel>
+                  <ChipFilterGroup
+                    label="Diseño"
+                    options={options.disenos}
+                    selected={filters.disenoValueIds}
+                    onChange={(ids) => set("disenoValueIds", ids)}
                     showLabel={false}
                   />
                 </Accordion.Panel>

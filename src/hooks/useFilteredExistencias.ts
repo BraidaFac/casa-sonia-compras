@@ -18,8 +18,12 @@ async function fetchFilteredExistencias(
     params.set("brandValueIds", filters.brandValueIds.join(","));
   if (filters.corteValueIds.length > 0)
     params.set("corteValueIds", filters.corteValueIds.join(","));
+  if (filters.calceValueIds.length > 0)
+    params.set("calceValueIds", filters.calceValueIds.join(","));
   if (filters.materialValueIds.length > 0)
     params.set("materialValueIds", filters.materialValueIds.join(","));
+  if (filters.disenoValueIds.length > 0)
+    params.set("disenoValueIds", filters.disenoValueIds.join(","));
 
   params.set("page", String(page));
   params.set("limit", String(limit));
@@ -39,7 +43,9 @@ function hasActiveFilters(filters: FilterState): boolean {
     filters.equivalencias.length > 0 ||
     filters.brandValueIds.length > 0 ||
     filters.corteValueIds.length > 0 ||
-    filters.materialValueIds.length > 0
+    filters.calceValueIds.length > 0 ||
+    filters.materialValueIds.length > 0 ||
+    filters.disenoValueIds.length > 0
   );
 }
 

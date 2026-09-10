@@ -39,7 +39,9 @@ export interface FilterOptions {
   talles: TalleOption[];       // unique equivalencias, sorted
   brands: { id: number; name: string }[];
   cortes: { id: number; name: string }[];
+  calces: { id: number; name: string }[];
   materials: { id: number; name: string }[];
+  disenos: { id: number; name: string }[];
   isLoading: boolean;
   isError: boolean;
 }
@@ -58,9 +60,33 @@ export function useFilterOptions(): FilterOptions {
     staleTime: Infinity,
   });
 
+  const modeloQ = useQuery({
+    queryKey: queryKeys.attributes.modelo(),
+    queryFn: () => fetchByName("Modelo"),
+    staleTime: Infinity,
+  });
+
+  const calceQ = useQuery({
+    queryKey: queryKeys.attributes.calce(),
+    queryFn: () => fetchByName("Calce"),
+    staleTime: Infinity,
+  });
+
+  const fitQ = useQuery({
+    queryKey: queryKeys.attributes.fit(),
+    queryFn: () => fetchByName("Fit"),
+    staleTime: Infinity,
+  });
+
   const materialQ = useQuery({
     queryKey: queryKeys.attributes.material(),
     queryFn: () => fetchByName("Material principal"),
+    staleTime: Infinity,
+  });
+
+  const disenoQ = useQuery({
+    queryKey: queryKeys.attributes.diseno(),
+    queryFn: () => fetchByName("Diseño"),
     staleTime: Infinity,
   });
 
@@ -84,7 +110,11 @@ export function useFilterOptions(): FilterOptions {
     sizeAttrsQ.isLoading ||
     brandsQ.isLoading ||
     corteQ.isLoading ||
-    materialQ.isLoading;
+    modeloQ.isLoading ||
+    calceQ.isLoading ||
+    fitQ.isLoading ||
+    materialQ.isLoading ||
+    disenoQ.isLoading;
 
   const isError =
     categoriesQ.isError ||
@@ -92,7 +122,11 @@ export function useFilterOptions(): FilterOptions {
     sizeAttrsQ.isError ||
     brandsQ.isError ||
     corteQ.isError ||
-    materialQ.isError;
+    modeloQ.isError ||
+    calceQ.isError ||
+    fitQ.isError ||
+    materialQ.isError ||
+    disenoQ.isError;
 
   // Derive unique color bases with representative hex
   const colors: ColorOption[] = (() => {
@@ -112,13 +146,33 @@ export function useFilterOptions(): FilterOptions {
       }));
   })();
 
+  // Merge Corte + Modelo values, deduplicate by ID
+  const cortes = (() => {
+    const all = [...(corteQ.data?.values ?? []), ...(modeloQ.data?.values ?? [])];
+    const seen = new Set<number>();
+    return all
+      .filter((v) => { if (seen.has(v.id)) return false; seen.add(v.id); return true; })
+      .sort((a, b) => a.name.localeCompare(b.name, "es"));
+  })();
+
+  // Merge Calce + Fit values, deduplicate by ID
+  const calces = (() => {
+    const all = [...(calceQ.data?.values ?? []), ...(fitQ.data?.values ?? [])];
+    const seen = new Set<number>();
+    return all
+      .filter((v) => { if (seen.has(v.id)) return false; seen.add(v.id); return true; })
+      .sort((a, b) => a.name.localeCompare(b.name, "es"));
+  })();
+
   return {
     categories: categoriesQ.data ?? [],
     colors,
     talles,
     brands: brandsQ.data?.brands ?? [],
-    cortes: corteQ.data?.values ?? [],
+    cortes,
+    calces,
     materials: materialQ.data?.values ?? [],
+    disenos: disenoQ.data?.values ?? [],
     isLoading,
     isError,
   };

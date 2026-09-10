@@ -28,7 +28,6 @@ import { useAllAttributes } from "@/hooks/useAllAttributes";
 import { useCategories } from "@/hooks/useCategories";
 import { useColorBaseOptions } from "@/hooks/useColorBaseOptions";
 import { useSizeAttributes } from "@/hooks/useSizeAttributes";
-import { useProductTypes } from "@/hooks/useProductTypes";
 import type { Article, ArticleRow, ProductImage, ColorImages } from "@/types";
 import type { ProductCategory } from "@/types";
 
@@ -68,8 +67,6 @@ export function ArticleEditorDrawer({
   const { data: categories = [] } = useCategories();
   const { data: colorBaseOptions = [] } = useColorBaseOptions();
   const { data: sizeAttributes = [] } = useSizeAttributes();
-  const { data: productTypes = [] } = useProductTypes();
-
   const colorAttributeId = attrData?.colorAttributeId ?? 0;
   const sizeAttributeId = attrData?.sizeAttributeId ?? 0;
   const allColors = attrData?.colors ?? [];
@@ -369,7 +366,6 @@ export function ArticleEditorDrawer({
               colorAttributeId={colorAttributeId}
               sizeAttributeId={sizeAttributeId}
               allAttributes={allAttributes}
-              productTypes={productTypes}
               onChange={(updated) => setLocal(updated)}
             />
           </Tabs.Panel>

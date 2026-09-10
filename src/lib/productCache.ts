@@ -7,7 +7,6 @@ interface AttrMetadata {
   typeAttrId: number | null;
   brandAttrId: number | null;
   sizeAttrIds: number[];
-  typeCoefMap: Record<number, number>;
   exp: number;
 }
 
@@ -20,7 +19,6 @@ export async function getAttrMetadata() {
       typeAttrId: _cache.typeAttrId,
       brandAttrId: _cache.brandAttrId,
       sizeAttrIdSet: new Set(_cache.sizeAttrIds),
-      typeCoefMap: _cache.typeCoefMap,
     };
   }
 
@@ -48,24 +46,11 @@ export async function getAttrMetadata() {
     .filter((a: { create_variant: string }) => a.create_variant === "always")
     .map((a: { id: number }) => a.id);
 
-  const typeCoefMap: Record<number, number> = {};
-  if (typeAttr) {
-    const typeValues = await odoo.searchRead(
-      "product.attribute.value",
-      [["attribute_id", "=", typeAttr.id]],
-      ["id", "x_studio_coeficiente"],
-    );
-    for (const tv of typeValues) {
-      typeCoefMap[tv.id] = tv.x_studio_coeficiente || 0;
-    }
-  }
-
   _cache = {
     colorAttrId: colorAttr?.id ?? null,
     typeAttrId: typeAttr?.id ?? null,
     brandAttrId: brandAttr?.id ?? null,
     sizeAttrIds,
-    typeCoefMap,
     exp: Date.now() + TTL_MS,
   };
 
@@ -74,7 +59,6 @@ export async function getAttrMetadata() {
     typeAttrId: _cache.typeAttrId,
     brandAttrId: _cache.brandAttrId,
     sizeAttrIdSet: new Set(sizeAttrIds),
-    typeCoefMap: _cache.typeCoefMap,
   };
 }
 

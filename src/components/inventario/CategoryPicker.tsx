@@ -151,6 +151,9 @@ function TreeRow({
           cursor: "pointer",
           userSelect: "none",
           transition: "background 100ms ease",
+          width: "100%",
+          boxSizing: "border-box",
+          minWidth: 0,
         }}
         onMouseEnter={(e) => {
           (e.currentTarget as HTMLElement).style.background =
@@ -293,7 +296,7 @@ export function CategoryPicker({ value, onChange }: CategoryPickerProps) {
   const isSearching = query.trim().length > 0;
 
   return (
-    <div>
+    <div style={{ width: "100%", boxSizing: "border-box", minWidth: 0 }}>
       {/* Header row */}
       <div
         style={{
@@ -389,12 +392,15 @@ export function CategoryPicker({ value, onChange }: CategoryPickerProps) {
           borderRadius: 6,
           background: "var(--mantine-color-dark-7)",
           overflow: "hidden",
+          width: "100%",
+          boxSizing: "border-box",
         }}
       >
         <div
           style={{
             maxHeight: 240,
             overflowY: "auto",
+            overflowX: "hidden",
             padding: "4px 4px",
           }}
         >
@@ -468,6 +474,9 @@ export function CategoryPicker({ value, onChange }: CategoryPickerProps) {
                         cursor: "pointer",
                         userSelect: "none",
                         transition: "background 100ms ease",
+                        width: "100%",
+                        boxSizing: "border-box",
+                        minWidth: 0,
                       }}
                       onMouseEnter={(e) => {
                         (e.currentTarget as HTMLElement).style.background =

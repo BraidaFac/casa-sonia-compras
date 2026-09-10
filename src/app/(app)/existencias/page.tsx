@@ -48,7 +48,9 @@ const EMPTY_FILTERS: FilterState = {
   equivalencias: [],
   brandValueIds: [],
   corteValueIds: [],
+  calceValueIds: [],
   materialValueIds: [],
+  disenoValueIds: [],
 };
 
 function hasActiveFilters(f: FilterState): boolean {
@@ -58,7 +60,9 @@ function hasActiveFilters(f: FilterState): boolean {
     f.equivalencias.length > 0 ||
     f.brandValueIds.length > 0 ||
     f.corteValueIds.length > 0 ||
-    f.materialValueIds.length > 0
+    f.calceValueIds.length > 0 ||
+    f.materialValueIds.length > 0 ||
+    f.disenoValueIds.length > 0
   );
 }
 
@@ -255,7 +259,7 @@ export default function ExistenciasPage() {
       onChange={setPendingFilters}
       onSearch={handleSearch}
       onClear={handleClear}
-      onCollapse={isMobile ? undefined : () => setFilterPanelCollapsed(true)}
+      onCollapse={isMobile ? () => setFilterDrawerOpen(false) : () => setFilterPanelCollapsed(true)}
       options={filterOptions}
       history={filterHistory}
       onApplyHistory={handleApplyHistory}
@@ -611,7 +615,7 @@ export default function ExistenciasPage() {
         opened={filterDrawerOpen}
         onClose={() => setFilterDrawerOpen(false)}
         position="left"
-        size={300}
+        size="100%"
         title={null}
         padding={0}
         withCloseButton={false}

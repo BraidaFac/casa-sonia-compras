@@ -98,7 +98,6 @@ export interface Article {
   colorImages: ColorImages; // imágenes por variante de color
   deletedOdooImageIds: number[];       // IDs de product.image a eliminar en Odoo al guardar
   clearedPrimaryColorNames: string[];  // colores cuya imagen primaria fue borrada (limpiar image_variant_1920)
-  maxCoeficiente: number; // 0 if new article or no Tipo de Producto
   originalSizeIds?: number[]; // IDs de talles que ya existían en Odoo al cargar producto existente (no se pueden eliminar)
   referenciaExistsInOdoo?: boolean; // true si el default_code ya existe en Odoo (bloquea confirmación)
 }
@@ -130,7 +129,6 @@ export interface OdooProductLite {
 }
 
 export interface OdooProduct extends OdooProductLite {
-  maxCoeficiente: number;
   colors: ColorValue[];
   sizes: SizeValue[];
   sizeAttributeId: number | null;
@@ -339,8 +337,10 @@ export interface FilterState {
   colorBases: string[];        // x_studio_color_base values (e.g. "rojo", "azul")
   equivalencias: string[];     // normalized size values (e.g. "M", "L")
   brandValueIds: number[];     // product.attribute.value IDs
-  corteValueIds: number[];     // product.attribute.value IDs
+  corteValueIds: number[];     // product.attribute.value IDs (Corte o Modelo)
+  calceValueIds: number[];     // product.attribute.value IDs (Calce o Fit)
   materialValueIds: number[];  // product.attribute.value IDs
+  disenoValueIds: number[];    // product.attribute.value IDs
 }
 
 // Existencias filter panel — history entry persisted in localStorage
