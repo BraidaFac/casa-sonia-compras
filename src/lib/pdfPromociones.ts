@@ -284,7 +284,7 @@ function drawSectionLabel(
   page.drawRectangle({
     x: pillX, y: y - 1,
     width: countPillW, height: 13,
-    color: C.accent, borderRadius: 6,
+    color: C.accent,
   });
   page.drawText(`${count}`, {
     x: pillX + 5, y: y + 3,
@@ -419,7 +419,7 @@ async function drawCard(
   const bX = MARGIN + CONTENT_W - bW - 8;
   const bY = bottomY + CARD_H - bH - 6;
 
-  page.drawRectangle({ x: bX, y: bY, width: bW, height: bH, color: C.accent, borderRadius: 4 });
+  page.drawRectangle({ x: bX, y: bY, width: bW, height: bH, color: C.accent });
   page.drawText(bLabel, {
     x: bX + bPadX, y: bY + bPadY,
     size: bSize, font: fonts.bold, color: C.white,
