@@ -229,10 +229,8 @@ export default function OrdersPage() {
       </Group>
 
       {loading ? (
-        <div style={{ display: "flex", gap: 8, padding: 48, justifyContent: "center", color: "var(--text2)" }}>
-          <LoadingSpinner size={20} /> Cargando...
-        </div>
-      ) : orders.length === 0 ? (
+        <LoadingSpinner size={20} label="Cargando..." />
+      ) :orders.length === 0 ? (
         <div
           style={{
             textAlign: "center",
@@ -250,7 +248,7 @@ export default function OrdersPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: "var(--font-sans)" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["Creada", "Proveedor", "Estado", "Artículos", "Fecha OC", "N° Odoo", "Creado por", "Acciones"].map((h) => (
+                  {["Creada", "N° Borrador", "Proveedor", "Estado", "Artículos", "Fecha OC", "N° Odoo", "Creado por", "Acciones"].map((h) => (
                     <th
                       key={h}
                       style={{
@@ -281,6 +279,9 @@ export default function OrdersPage() {
                     >
                       <td style={{ padding: "12px 12px", color: "var(--text3)", whiteSpace: "nowrap" }}>
                         {formatDate(row.createdAt)}
+                      </td>
+                      <td style={{ padding: "12px 12px", color: "var(--text2)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                        #{row.id}
                       </td>
                       <td style={{ padding: "12px 12px", color: "var(--text)" }}>
                         {row.supplierName}

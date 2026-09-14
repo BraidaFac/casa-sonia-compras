@@ -454,6 +454,7 @@ export const GET = withAuth(async (_req: NextRequest, _payload, ctx) => {
             id: categId,
             name: categFullName.split(" / ").pop() || categFullName,
             completeName: categFullName,
+            isLeaf: true,
           };
         }
       }

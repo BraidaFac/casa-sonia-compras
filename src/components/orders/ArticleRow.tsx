@@ -30,6 +30,7 @@ import {
   Copy,
 } from "lucide-react";
 import { SizePickerModal } from "@/components/orders/SizePickerModal";
+import { CategoryCombobox } from "@/components/orders/CategoryCombobox";
 import {
   ArticleAttributes,
   REQUIRED_ATTR_FAMILIES,
@@ -186,39 +187,16 @@ export function ArticleRow({
   const queryClient = useQueryClient();
   const { data: products, isFetching: isFetchingProducts } =
     useProducts(debouncedNameQuery);
-  const { data: allAttributes = [], refetch: refetchAttributes } =
-    useAllAttributes();
+  const { data: allAttributes = [] } = useAllAttributes();
 
   const handleRefreshAttributes = useCallback(async () => {
-    await refetchAttributes();
-    await queryClient.invalidateQueries({ queryKey: ["attribute-values"] });
-    await queryClient.invalidateQueries({ queryKey: ["brands"] });
-  }, [refetchAttributes, queryClient]);
+    await queryClient.invalidateQueries({ queryKey: ["ref", "attr"] });
+  }, [queryClient]);
 
   const nameCombobox = useCombobox({
     onDropdownClose: () => nameCombobox.resetSelectedOption(),
   });
 
-  const categoryCombobox = useCombobox({
-    onDropdownClose: () => categoryCombobox.resetSelectedOption(),
-  });
-
-  const [categorySearch, setCategorySearch] = useState(
-    article.category?.name || "",
-  );
-
-  const normStr = (s: string) =>
-    s
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
-  const filteredCategories = categories.filter((cat) => {
-    const haystack = normStr(cat.completeName);
-    const words = categorySearch.trim().split(/\s+/).filter(Boolean);
-    return (
-      words.length === 0 || words.every((w) => haystack.includes(normStr(w)))
-    );
-  });
 
   useEffect(() => {
     if (nameTimerRef.current) clearTimeout(nameTimerRef.current);
@@ -370,10 +348,6 @@ export function ArticleRow({
     };
 
     onChange(newArticle);
-
-    if (p.category) {
-      setCategorySearch(p.category.name);
-    }
 
     // Fetch variant images from Odoo asynchronously
     if (p.id) {
@@ -730,7 +704,6 @@ export function ArticleRow({
         deletedOdooImageIds: [],
         clearedPrimaryColorNames: [],
       });
-      setCategorySearch(newCategory.name);
     }
 
     setPendingChange(null);
@@ -991,7 +964,6 @@ export function ArticleRow({
         onClose={() => {
           if (pendingChange?.type === "category") {
             onChange({ ...article, category: pendingChange.previousCategory });
-            setCategorySearch(pendingChange.previousCategory?.name || "");
           }
           setPendingChange(null);
         }}
@@ -1040,9 +1012,6 @@ export function ArticleRow({
               variant="subtle"
               color="gray"
               onClick={() => {
-                if (pendingChange?.type === "category") {
-                  setCategorySearch(article.category?.name || "");
-                }
                 setPendingChange(null);
               }}
             >
@@ -1313,132 +1282,24 @@ export function ArticleRow({
           </div>
 
           {/* Categoría */}
-          <Combobox
-            store={categoryCombobox}
-            onOptionSubmit={(val) => {
-              const cat = filteredCategories.find((c) => String(c.id) === val);
-              if (cat) {
-                const isSameCategory = cat.id === article.category?.id;
-                const hasImages = Object.values(article.colorImages).some(
-                  (imgs) => imgs.some((i) => !i.error && i.base64),
-                );
-                if (!isSameCategory && hasImages) {
-                  setPendingChange({
-                    type: "category",
-                    newCategory: cat,
-                    previousCategory: lastConfirmedCategoryRef.current,
-                  });
-                } else {
-                  onChange({ ...article, category: cat });
-                  setCategorySearch(cat.name);
-                }
-              }
-              categoryCombobox.closeDropdown();
-            }}
-            withinPortal
-          >
-            <Combobox.Target>
-              <Tooltip
-                label={article.category?.completeName}
-                disabled={!article.category}
-                withArrow
-                position="top"
-              >
-                <TextInput
-                  label="Categoría"
-                  placeholder="Buscar categoría..."
-                  size="xs"
-                  w={220}
-                  value={categorySearch}
-                  error={articleHasQty && !article.category}
-                  onChange={(e) => {
-                    setCategorySearch(e.currentTarget.value);
-                    if (
-                      article.category &&
-                      e.currentTarget.value !== article.category.name
-                    ) {
-                      onChange({ ...article, category: null });
-                    }
-                    categoryCombobox.openDropdown();
-                  }}
-                  onFocus={() => categoryCombobox.openDropdown()}
-                  onKeyDown={(e) => {
-                    if (!categoryCombobox.dropdownOpened) return;
-                    if (
-                      (e.key === "Tab" || e.key === "ArrowDown") &&
-                      filteredCategories.length > 0
-                    ) {
-                      e.preventDefault();
-                      categoryCombobox.selectNextOption();
-                    } else if (
-                      e.key === "ArrowUp" &&
-                      filteredCategories.length > 0
-                    ) {
-                      e.preventDefault();
-                      categoryCombobox.selectPreviousOption();
-                    } else if (
-                      e.key === "Enter" &&
-                      filteredCategories.length > 0
-                    ) {
-                      e.preventDefault();
-                      if (filteredCategories.length === 1) {
-                        const cat = filteredCategories[0];
-                        const isSameCategory = cat.id === article.category?.id;
-                        const hasImages = Object.values(
-                          article.colorImages,
-                        ).some((imgs) =>
-                          imgs.some((i) => !i.error && i.base64),
-                        );
-                        if (!isSameCategory && hasImages) {
-                          setPendingChange({
-                            type: "category",
-                            newCategory: cat,
-                            previousCategory: lastConfirmedCategoryRef.current,
-                          });
-                        } else {
-                          onChange({ ...article, category: cat });
-                          setCategorySearch(cat.name);
-                        }
-                        categoryCombobox.closeDropdown();
-                      } else {
-                        categoryCombobox.clickSelectedOption();
-                      }
-                    }
-                  }}
-                  onBlur={() => {
-                    categoryCombobox.closeDropdown();
-                    if (!article.category) {
-                      setCategorySearch("");
-                    } else {
-                      setCategorySearch(article.category.name);
-                    }
-                  }}
-                />
-              </Tooltip>
-            </Combobox.Target>
-            <Combobox.Dropdown style={{ minWidth: 320 }}>
-              <Combobox.Options mah={240} style={{ overflowY: "auto" }}>
-                {filteredCategories.length > 0 ? (
-                  filteredCategories.map((cat) => (
-                    <Combobox.Option key={cat.id} value={String(cat.id)}>
-                      <div>
-                        <span style={{ fontWeight: 600, fontSize: 13 }}>
-                          {cat.name}
-                        </span>
-                        {cat.completeName !== cat.name && (
-                          <div style={{ color: "var(--text3)", fontSize: 11 }}>
-                            {cat.completeName}
-                          </div>
-                        )}
-                      </div>
-                    </Combobox.Option>
-                  ))
-                ) : (
-                  <Combobox.Empty>Sin resultados</Combobox.Empty>
-                )}
-              </Combobox.Options>
-            </Combobox.Dropdown>
-          </Combobox>
+          <CategoryCombobox
+            categories={categories}
+            value={article.category}
+            onChange={(cat) => onChange({ ...article, category: cat })}
+            onImageWarning={(cat) =>
+              setPendingChange({
+                type: "category",
+                newCategory: cat,
+                previousCategory: lastConfirmedCategoryRef.current,
+              })
+            }
+            hasImages={Object.values(article.colorImages).some((imgs) =>
+              imgs.some((i) => !i.error && i.base64),
+            )}
+            error={articleHasQty && !article.category}
+            size="xs"
+            w={220}
+          />
 
           {/* Costo Neto */}
           <NumberInput

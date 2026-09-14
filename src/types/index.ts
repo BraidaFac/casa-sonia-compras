@@ -7,6 +7,7 @@ export interface ProductCategory {
   id: number;
   name: string;
   completeName: string;
+  isLeaf: boolean;
 }
 
 export interface AttributeValue {

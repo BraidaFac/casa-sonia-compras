@@ -11,7 +11,6 @@ import {
   TextInput,
   Textarea,
   NumberInput,
-  Select,
   Alert,
   ScrollArea,
   ActionIcon,
@@ -26,10 +25,10 @@ import { ColorProveedorCell } from "@/components/orders/ColorProveedorCell";
 import { useAttributes } from "@/hooks/useAttributes";
 import { useAllAttributes } from "@/hooks/useAllAttributes";
 import { useCategories } from "@/hooks/useCategories";
+import { CategoryCombobox } from "@/components/orders/CategoryCombobox";
 import { useColorBaseOptions } from "@/hooks/useColorBaseOptions";
 import { useSizeAttributes } from "@/hooks/useSizeAttributes";
 import type { Article, ArticleRow, ProductImage, ColorImages } from "@/types";
-import type { ProductCategory } from "@/types";
 
 interface Props {
   orderId: number;
@@ -102,10 +101,6 @@ export function ArticleEditorDrawer({
     }
   }
 
-  const categoryOptions = (categories as ProductCategory[]).map((c) => ({
-    value: String(c.id),
-    label: c.name,
-  }));
 
   return (
     <Drawer
@@ -146,18 +141,10 @@ export function ArticleEditorDrawer({
                 value={local.name}
                 onChange={(e) => setLocal((p) => ({ ...p, name: e.currentTarget.value }))}
               />
-              <Select
-                label="Categoría"
-                data={categoryOptions}
-                value={local.category ? String(local.category.id) : null}
-                onChange={(val) => {
-                  const cat = (categories as ProductCategory[]).find(
-                    (c) => String(c.id) === val,
-                  );
-                  setLocal((p) => ({ ...p, category: cat ?? null }));
-                }}
-                searchable
-                clearable
+              <CategoryCombobox
+                categories={categories}
+                value={local.category}
+                onChange={(cat) => setLocal((p) => ({ ...p, category: cat }))}
               />
               <Group grow>
                 <NumberInput

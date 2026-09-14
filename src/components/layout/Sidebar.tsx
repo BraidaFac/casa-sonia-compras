@@ -3,8 +3,7 @@ import React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Tooltip } from "@mantine/core";
-import { useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Store, Package, Search, ChevronLeft, ChevronRight, RefreshCw, Users, LogOut, Settings, Tag } from "lucide-react";
+import { ClipboardList, Store, Package, Search, ChevronLeft, ChevronRight, Users, LogOut, Settings, Tag } from "lucide-react";
 import { ROLE_LABELS } from "@/lib/auth";
 
 const NAV_ITEMS_TOP = [
@@ -33,12 +32,10 @@ function readStoredCollapsed(): boolean {
 export function Sidebar({ initialRole, initialName }: { initialRole?: string; initialName?: string }) {
   const pathname = usePathname();
   const router = useRouter();
-  const queryClient = useQueryClient();
   const [collapsed, setCollapsed] = useState<boolean>(
     () => window.matchMedia("(max-width: 1023px)").matches || readStoredCollapsed(),
   );
   const [showText, setShowText] = useState<boolean>(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
   async function handleLogout() {
@@ -53,16 +50,6 @@ export function Sidebar({ initialRole, initialName }: { initialRole?: string; in
   }
   const role = initialRole;
   const canManageEmployees = role === "ADMIN" || role === "MANAGER";
-
-  async function handleRefreshCache() {
-    setIsRefreshing(true);
-    try {
-      await fetch("/api/cache/clear", { method: "POST" });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-    } finally {
-      setIsRefreshing(false);
-    }
-  }
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
@@ -504,47 +491,6 @@ export function Sidebar({ initialRole, initialName }: { initialRole?: string; in
             </div>
           )
         )}
-        <Tooltip
-          label={
-            exp
-              ? "Actualiza los datos de artículos, colores y talles desde Odoo. Útil si agregaste productos nuevos o modificaste atributos."
-              : "Refrescar catálogo"
-          }
-          position="right"
-          withArrow
-          multiline
-          w={220}
-        >
-          <button
-            onClick={handleRefreshCache}
-            disabled={isRefreshing}
-            style={{
-              width: "100%",
-              background: "none",
-              border: "none",
-              borderRadius: 6,
-              padding: exp ? "8px 12px" : "8px",
-              cursor: isRefreshing ? "default" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: exp ? "flex-start" : "center",
-              gap: 8,
-              color: "var(--text3)",
-              fontSize: 12,
-              fontFamily: "var(--font-sans)",
-              opacity: isRefreshing ? 0.5 : 1,
-            }}
-          >
-            <RefreshCw
-              size={14}
-              style={{
-                animation: isRefreshing ? "spin 1s linear infinite" : "none",
-              }}
-            />
-            {exp && (isRefreshing ? "Refrescando..." : "Refrescar")}
-          </button>
-        </Tooltip>
-
         <Tooltip label="Cerrar sesión" position="right" withArrow disabled={exp}>
           <button
             onClick={handleLogout}

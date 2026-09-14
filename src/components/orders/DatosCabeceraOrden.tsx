@@ -441,7 +441,7 @@ export function DatosCabeceraOrden({
                   onClick={() => {
                     const next = isSelected
                       ? selectedWarehouses.filter((s) => s.id !== w.id)
-                      : [...selectedWarehouses, w];
+                      : [...selectedWarehouses, w].sort((a, b) => a.name.localeCompare(b.name, "es"));
                     onSelectedWarehousesChange(next);
                   }}
                   style={{
