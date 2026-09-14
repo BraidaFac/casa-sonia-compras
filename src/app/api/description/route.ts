@@ -1,37 +1,104 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/withAuth";
 
+type Sucursal = "Ruta" | "Centro" | "El Estribo" | "Quiver";
+
 interface DescriptionRequest {
-  productName: string;
-  brand: string;
-  colors: string[];
-  userHint: string;
+  name: string;
+  sku?: string;
+  barcode?: string;
+  brand?: string;
+  season?: string;
+  gender?: string;
+  design?: string;
+  cut?: string;
+  material?: string;
+  composition?: string;
+  colorProveedor?: string;
+  warehouseIds: number[];
+  userHint?: string;
 }
 
-const SYSTEM_PROMPT = `Sos un experto en marketing digital y redacción de contenido para e-commerce argentino.
-Tu trabajo es escribir descripciones de productos atractivas, persuasivas y con buen tono de venta online.
+// Odoo warehouse IDs (confirmed from stock.warehouse)
+const WAREHOUSE_ID: Record<Sucursal, number> = {
+  Ruta: 1,
+  Centro: 2,
+  Quiver: 3,
+  "El Estribo": 5,
+};
 
-Reglas:
-- Escribí en español rioplatense (Argentina), usando "vos" en lugar de "tú"
-- Usá emojis relevantes para hacer el texto más visual y atractivo
-- El tono debe ser amigable, entusiasta y enfocado en los beneficios del producto
-- La descripción debe tener entre 3 y 5 párrafos cortos
-- Incluí una llamada a la acción al final (ej: "¡No te lo pierdas!", "Sumalo a tu carrito")
-- Si hay colores disponibles, mencionalos de forma natural en el texto
-- Si el usuario da una sugerencia o contexto, incorporala naturalmente en la descripción
-- No uses frases genéricas vacías como "producto de alta calidad"
-- No menciones precios ni talles en la descripción
-- Devolvé SOLO la descripción, sin títulos, sin comillas, sin explicaciones extra
-- No abras con saludos, exclamaciones tipo "¡Che!" ni frases dirigidas al lector
-- La primera oración debe ser una declaración del producto o una imagen evocadora`;
+// Priority order for tone resolution when multiple sucursales selected
+const SUCURSAL_PRIORITY: Sucursal[] = ["Ruta", "Centro", "El Estribo", "Quiver"];
+
+const TONE_MAP: Record<Sucursal, string> = {
+  Ruta: "Cálido y familiar — dirigite al cliente con calidez, como si fuera un conocido de confianza.",
+  Centro: "Cálido y familiar — dirigite al cliente con calidez, como si fuera un conocido de confianza.",
+  "El Estribo": "Elegante y formal — usá un registro sofisticado, evitá coloquialismos, transmití exclusividad.",
+  Quiver: "Dinámico y moderno — usá un tono fresco, energético y actual, apuntá a un público joven.",
+};
+
+function resolveTone(ids: number[]): string {
+  for (const s of SUCURSAL_PRIORITY) {
+    if (ids.includes(WAREHOUSE_ID[s])) return TONE_MAP[s];
+  }
+  return TONE_MAP["Ruta"]; // fallback
+}
+
+function buildSystemPrompt(tone: string): string {
+  return `Sos un copywriter experto en e-commerce de indumentaria y especialista en SEO.
+Tu objetivo es redactar una descripción de producto persuasiva que ayude a los clientes a encontrar el artículo en Google y los motive a comprarlo online.
+
+Tono: ${tone}
+
+Idioma: Español rioplatense (Argentina), usando "vos" en lugar de "tú".
+
+Estructura obligatoria (usar HTML):
+1. Título atractivo: <h1>...</h1>
+2. Párrafo descriptivo emocional (máx. 4 líneas) en <p>...</p> que conecte los datos del producto para impulsar la venta. NO incluyas el SKU en este párrafo.
+3. Ficha técnica en lista: <ul><li>Corte: ...</li><li>Material: ...</li>...</ul> usando los datos provistos.
+4. Call to Action en <p><strong>...</strong></p> que invite a añadir el producto al carrito.
+
+Reglas SEO: Integrá palabras clave naturales relacionadas con la compra de ropa online.
+
+Búsqueda web (condicional): Si conocés con 100% de certeza información adicional sobre exactamente este artículo en la web, podés incorporarla. Si hay alguna duda, limitarte estrictamente a los datos provistos.
+
+Formato de salida: Solo el HTML de la descripción. Sin markdown, sin bloques de código, sin comillas externas, sin explicaciones.`;
+}
+
+function buildUserMessage(data: DescriptionRequest): string {
+  const lines: string[] = ["Datos del Producto:"];
+
+  lines.push(`Nombre: ${data.name}`);
+  if (data.sku) lines.push(`Código referencia/SKU: ${data.sku}`);
+  if (data.barcode) lines.push(`Código de barra: ${data.barcode}`);
+  if (data.brand) lines.push(`Marca: ${data.brand}`);
+  if (data.season) lines.push(`Temporada: ${data.season}`);
+  if (data.gender) lines.push(`Género: ${data.gender}`);
+  if (data.design) lines.push(`Diseño: ${data.design}`);
+  if (data.cut) lines.push(`Corte: ${data.cut}`);
+  if (data.material) lines.push(`Material: ${data.material}`);
+  if (data.composition) lines.push(`Composición: ${data.composition}`);
+  if (data.colorProveedor) lines.push(`Color proveedor: ${data.colorProveedor}`);
+  if (data.userHint?.trim()) lines.push(`Contexto adicional del vendedor: ${data.userHint.trim()}`);
+
+  lines.push("\nGenerá la descripción siguiendo la estructura indicada.");
+
+  return lines.join("\n");
+}
 
 export const POST = withAuth(async (req: NextRequest) => {
-  const body: DescriptionRequest = await req.json();
-  const { productName, brand, colors, userHint } = body;
+  let body: DescriptionRequest;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Request body inválido" }, { status: 400 });
+  }
 
-  const model = process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001";
+  const tone = resolveTone(body.warehouseIds ?? []);
+  const systemPrompt = buildSystemPrompt(tone);
+  const userMessage = buildUserMessage(body);
 
-  const userMessage = buildUserMessage({ productName, brand, colors, userHint });
+  const model = process.env.OPENROUTER_MODEL || "openai/gpt-4.1-nano";
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -45,11 +112,11 @@ export const POST = withAuth(async (req: NextRequest) => {
       body: JSON.stringify({
         model,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: systemPrompt },
           { role: "user", content: userMessage },
         ],
-        max_tokens: 600,
-        temperature: 0.8,
+        max_tokens: 700,
+        temperature: 0.75,
       }),
     });
 
@@ -72,34 +139,8 @@ export const POST = withAuth(async (req: NextRequest) => {
     return NextResponse.json({ description });
   } catch (error) {
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Error generando descripción",
-      },
+      { error: error instanceof Error ? error.message : "Error generando descripción" },
       { status: 500 },
     );
   }
 }, { roles: ["ADMIN", "MANAGER"] });
-
-function buildUserMessage(data: DescriptionRequest): string {
-  const { productName, brand, colors, userHint } = data;
-  const lines: string[] = [];
-
-  lines.push(`Producto: ${productName}`);
-
-  if (brand) {
-    lines.push(`Marca: ${brand}`);
-  }
-
-  if (colors.length > 0) {
-    lines.push(`Colores disponibles: ${colors.join(", ")}`);
-  }
-
-  if (userHint.trim()) {
-    lines.push(`Contexto adicional del vendedor: ${userHint.trim()}`);
-  }
-
-  lines.push("\nGenerá una descripción atractiva para este producto.");
-
-  return lines.join("\n");
-}

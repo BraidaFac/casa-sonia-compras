@@ -597,14 +597,18 @@ export function ArticleRow({
 
 
   async function handleGenerateDescription() {
-    const brandAttr = article.attributes.find((attr) =>
-      attr.attributeName.toLowerCase().includes("marca"),
-    );
-    const brand = brandAttr?.values?.[0]?.name || "";
+    const getAttr = (keyword: string) => {
+      const attr = article.attributes.find((a) =>
+        a.attributeName.toLowerCase().includes(keyword),
+      );
+      return attr?.values.map((v) => v.name).join(", ") || undefined;
+    };
 
-    const colors = article.rows
-      .map((r) => r.color?.name)
-      .filter((c): c is string => !!c);
+    const colorProveedor = [
+      ...new Set(
+        article.rows.map((r) => r.color?.name).filter((c): c is string => !!c),
+      ),
+    ].join(", ");
 
     setIsGenerating(true);
     setGenerateError(null);
@@ -614,17 +618,25 @@ export function ArticleRow({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          productName: article.name,
-          brand,
-          colors,
-          userHint: article.description,
+          name: article.name,
+          sku: article.referencia || undefined,
+          brand: getAttr("marca"),
+          season: getAttr("temporada"),
+          gender: getAttr("genero") ?? getAttr("género"),
+          design: getAttr("diseño") ?? getAttr("diseno"),
+          cut: getAttr("corte"),
+          material: getAttr("material"),
+          composition: getAttr("composici"),
+          colorProveedor: colorProveedor || undefined,
+          warehouseIds: selectedWarehouses.map((w) => w.id),
+          userHint: article.description || undefined,
         }),
       });
 
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(
-          (err as { error?: string }).error || "Error generando descripción",
+          (err as { error?: string }).error || `Error generando descripción (${res.status})`,
         );
       }
 
