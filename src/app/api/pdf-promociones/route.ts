@@ -36,7 +36,7 @@ export const GET = withAuth(async () => {
     const [yyyy, mm, dd] = todayStr.split("-");
     const filename = `promos-bancarias-${dd}-${mm}-${yyyy}.pdf`;
 
-    return new Response(pdfBytes, {
+    return new Response(Buffer.from(pdfBytes), {
       status: 200,
       headers: {
         "Content-Type":        "application/pdf",
