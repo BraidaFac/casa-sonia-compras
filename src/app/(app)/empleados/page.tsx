@@ -5,6 +5,7 @@ import { Button, Badge, Tooltip, Text, Group } from "@mantine/core";
 import { Plus, Pencil, ToggleLeft, ToggleRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { EmployeeModal } from "@/components/empleados/EmployeeModal";
 import type { EmployeeFormData, EmployeeRecord } from "@/components/empleados/EmployeeModal";
 
@@ -113,11 +114,7 @@ export default function EmpleadosPage() {
   }
 
   if (loadingMe || isLoading) {
-    return (
-      <div style={{ padding: 32, color: "var(--text2)", fontFamily: "var(--font-sans)" }}>
-        Cargando...
-      </div>
-    );
+    return <LoadingSpinner size={20} label="Cargando..." />;
   }
 
   if (!currentEmployee || currentEmployee.role === "EMPLEADO" || currentEmployee.role === "EMPLEADO_BASICO") return null;

@@ -6,6 +6,7 @@ import { Tabs, Button, Badge, Group, Text, Tooltip } from "@mantine/core";
 import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { MedioPagoModal } from "@/components/config/MedioPagoModal";
 import { BancoModal, BancoIcono } from "@/components/config/BancoModal";
 import { DescuentoModal } from "@/components/config/DescuentoModal";
@@ -239,7 +240,7 @@ export default function ConfiguracionPage() {
   });
 
   if (loadingMe || !me) {
-    return <div style={{ padding: 32, color: "var(--text2)", fontFamily: "var(--font-sans)" }}>Cargando...</div>;
+    return <LoadingSpinner size={20} label="Cargando..." />;
   }
   if (me.role !== "ADMIN" && me.role !== "MANAGER") return null;
 

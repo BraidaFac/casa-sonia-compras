@@ -272,20 +272,7 @@ export default function EditOrderPage({
   }
 
   if (loading) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "60vh",
-          gap: 12,
-          color: "var(--text2)",
-        }}
-      >
-        <LoadingSpinner size={24} /> Cargando orden...
-      </div>
-    );
+    return <LoadingSpinner size={20} label="Cargando orden..." />;
   }
 
   if (loadError) {

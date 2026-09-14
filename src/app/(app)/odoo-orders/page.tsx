@@ -96,10 +96,8 @@ export default function OdooOrdersPage() {
       </Group>
 
       {isLoading ? (
-        <div style={{ display: "flex", gap: 8, padding: 48, justifyContent: "center", color: "var(--text2)" }}>
-          <LoadingSpinner size={20} /> Cargando desde Odoo...
-        </div>
-      ) : orders.length === 0 ? (
+        <LoadingSpinner size={20} label="Cargando desde Odoo..." />
+      ) :orders.length === 0 ? (
         <div
           style={{
             textAlign: "center",

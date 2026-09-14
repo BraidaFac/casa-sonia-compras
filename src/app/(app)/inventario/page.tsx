@@ -100,10 +100,8 @@ export default function InventarioPage() {
 
       {/* Table */}
       {isLoading ? (
-        <div style={{ display: "flex", gap: 8, padding: 48, justifyContent: "center", color: "var(--text2)" }}>
-          <LoadingSpinner size={20} /> Cargando...
-        </div>
-      ) : inventories.length === 0 ? (
+        <LoadingSpinner size={20} label="Cargando..." />
+      ) :inventories.length === 0 ? (
         <div
           style={{
             textAlign: "center",

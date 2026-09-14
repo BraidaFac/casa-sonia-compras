@@ -1,5 +1,5 @@
 "use client";
-import { Accordion, Button, Loader, Tooltip } from "@mantine/core";
+import { Accordion, Button, Loader, Skeleton, Tooltip } from "@mantine/core";
 import { ChevronDown, PanelLeftClose, Search, X } from "lucide-react";
 import type { FilterState, FilterHistoryEntry } from "@/types";
 import type { FilterOptions } from "@/hooks/useFilterOptions";
@@ -194,8 +194,22 @@ export function FilterPanel({
         </div>
 
         {options.isLoading ? (
-          <div style={{ display: "flex", justifyContent: "center", paddingTop: 32 }}>
-            <Loader size="sm" color="amber" />
+          <div style={{ padding: "4px 0" }}>
+            {([55, 42, 38, 48, 65] as const).map((w, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 16px",
+                  borderBottom: "1px solid var(--border)",
+                }}
+              >
+                <Skeleton height={12} width={`${w}%`} radius="sm" />
+                <Skeleton height={12} width={12} radius="sm" />
+              </div>
+            ))}
           </div>
         ) : (
           <Accordion

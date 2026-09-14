@@ -84,17 +84,7 @@ export default function InventarioCargarPage({
 
   if (isLoading) {
     return (
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          padding: 48,
-          justifyContent: "center",
-          color: "var(--text2)",
-        }}
-      >
-        <LoadingSpinner size={20} /> Cargando inventario...
-      </div>
+      <LoadingSpinner size={20} label="Cargando inventario..." />
     );
   }
   if (!inventory) {
