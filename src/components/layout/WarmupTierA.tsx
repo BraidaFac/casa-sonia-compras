@@ -22,6 +22,7 @@ import { useProductTypes } from "@/hooks/useProductTypes";
 import { useCompradora } from "@/hooks/useCompradora";
 import { useConfigVigente } from "@/hooks/useConfigVigente";
 import { useCategoriasFlat } from "@/hooks/useCategoriasFlat";
+import { useFilterOptions } from "@/hooks/useFilterOptions";
 
 export function WarmupTierA() {
   useSuppliers();
@@ -37,6 +38,7 @@ export function WarmupTierA() {
   useCompradora();
   useConfigVigente();
   useCategoriasFlat();
+  useFilterOptions(); // pre-carga atributos de filtros (corte, calce, material, diseño)
 
   return null;
 }

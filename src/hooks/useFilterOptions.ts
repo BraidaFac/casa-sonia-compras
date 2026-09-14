@@ -104,17 +104,12 @@ export function useFilterOptions(): FilterOptions {
       .map((eq) => ({ equivalencia: eq }));
   })();
 
+  // Only gate on the fast/warm queries — attribute sections render progressively
   const isLoading =
     categoriesQ.isLoading ||
     colorAttrsQ.isLoading ||
     sizeAttrsQ.isLoading ||
-    brandsQ.isLoading ||
-    corteQ.isLoading ||
-    modeloQ.isLoading ||
-    calceQ.isLoading ||
-    fitQ.isLoading ||
-    materialQ.isLoading ||
-    disenoQ.isLoading;
+    brandsQ.isLoading;
 
   const isError =
     categoriesQ.isError ||
