@@ -90,7 +90,7 @@ export const POST = withAuth(async (req: NextRequest) => {
     )];
     const catNombres = new Map<number, string>();
     if (catIds.length > 0) {
-      const cats = await odoo.read<{ id: number; complete_name: string }>("product.category", catIds, ["id", "complete_name"]);
+      const cats = (await odoo.read("product.category", catIds, ["id", "complete_name"])) as { id: number; complete_name: string }[];
       for (const c of cats) catNombres.set(c.id, c.complete_name);
     }
     for (const item of orderedItems) {
