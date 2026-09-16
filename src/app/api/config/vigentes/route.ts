@@ -62,7 +62,7 @@ export const GET = withAuth(async () => {
   )];
   const categNombres = new Map<number, string>();
   if (categIds.length > 0) {
-    const cats = await odoo.read<{ id: number; complete_name: string }>("product.category", categIds, ["id", "complete_name"]);
+    const cats = (await odoo.read("product.category", categIds, ["id", "complete_name"])) as { id: number; complete_name: string }[];
     for (const c of cats) categNombres.set(c.id, c.complete_name);
   }
 
