@@ -10,6 +10,7 @@ import { useConfigVigente } from "@/hooks/useConfigVigente";
 import { getBankIcon, BANK_ICON_VIEWBOX } from "@/lib/bankIcons";
 import { PROMO_TOKENS_PAGE } from "@/lib/promoTokens";
 import { GenerarPdfPromoModal } from "@/components/config/GenerarPdfPromoModal";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import type { PromoVigente } from "@/lib/configPricing";
 
 const T = PROMO_TOKENS_PAGE;
@@ -536,9 +537,7 @@ export default function PromocionesVigentesPage() {
         </Button>
       </Group>
 
-      {isLoading && (
-        <div style={{ color: T.text3, fontSize: 13 }}>Cargando...</div>
-      )}
+      {isLoading && <LoadingSpinner size={20} label="Cargando..." />}
       {error && (
         <div style={{ color: "#EF4444", fontSize: 13 }}>
           Error al cargar las promociones.

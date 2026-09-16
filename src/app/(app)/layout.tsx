@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
 import { SidebarClient } from "@/components/layout/SidebarClient";
 import { WarmupTierA } from "@/components/layout/WarmupTierA";
+import { AppInitGate } from "@/components/layout/AppInitGate";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   let initialRole: string | undefined;
@@ -29,7 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           minWidth: 0,
         }}
       >
-        {children}
+        <AppInitGate>{children}</AppInitGate>
       </main>
     </div>
   );
