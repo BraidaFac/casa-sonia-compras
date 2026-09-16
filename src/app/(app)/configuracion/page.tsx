@@ -253,7 +253,8 @@ export default function ConfiguracionPage() {
 
   function formatFecha(iso: string | null) {
     if (!iso) return "—";
-    return iso.slice(0, 10);
+    const [y, m, d] = iso.slice(0, 10).split("-");
+    return `${d}/${m}/${y}`;
   }
 
   function parseDias(diasJson: string | null): string {

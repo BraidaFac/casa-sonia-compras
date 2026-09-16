@@ -3,13 +3,13 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CalendarClock, Clock, CreditCard, Percent, RotateCcw,
-  Banknote, FileDown, Loader2,
+  Banknote, FileDown,
 } from "lucide-react";
 import { Group, Text, Button } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import { useConfigVigente } from "@/hooks/useConfigVigente";
 import { getBankIcon, BANK_ICON_VIEWBOX } from "@/lib/bankIcons";
 import { PROMO_TOKENS_PAGE } from "@/lib/promoTokens";
+import { GenerarPdfPromoModal } from "@/components/config/GenerarPdfPromoModal";
 import type { PromoVigente } from "@/lib/configPricing";
 
 const T = PROMO_TOKENS_PAGE;
@@ -220,6 +220,7 @@ function PromoCard({ promo, dimmed }: { promo: PromoVigente; dimmed?: boolean })
         overflow: "hidden",
         display: "flex",
         flexDirection: "row",
+        width: "100%",
         boxShadow: dimmed ? "none" : "0 1px 4px rgba(0,0,0,0.06)",
       }}
     >
@@ -305,7 +306,8 @@ function PromoCard({ promo, dimmed }: { promo: PromoVigente; dimmed?: boolean })
             fontWeight: 500,
             color: T.text2,
             lineHeight: 1.4,
-            maxWidth: 140,
+            flex: 1,
+            minWidth: 0,
           }}>
             {beneficioSub}
           </span>
@@ -403,14 +405,20 @@ function PromoGrid({ promos, dimmed }: { promos: PromoVigente[]; dimmed?: boolea
       initial="hidden"
       animate="visible"
       style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+        display: "flex",
+        alignItems: "stretch",
         gap: 12,
+        overflowX: "auto",
+        scrollSnapType: "x mandatory",
+        paddingBottom: 8,
+        WebkitOverflowScrolling: "touch",
       }}
     >
       <AnimatePresence>
         {promos.map((p) => (
-          <PromoCard key={p.id} promo={p} dimmed={dimmed} />
+          <div key={p.id} style={{ flex: "0 0 280px", scrollSnapAlign: "start", display: "flex" }}>
+            <PromoCard promo={p} dimmed={dimmed} />
+          </div>
         ))}
       </AnimatePresence>
     </motion.div>
@@ -495,39 +503,10 @@ function EmptyState() {
 
 export default function PromocionesVigentesPage() {
   const { data: config, isLoading, error } = useConfigVigente();
-  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
 
-  async function handleGenerarPDF() {
-    if (pdfLoading) return;
-    setPdfLoading(true);
-    try {
-      const res = await fetch("/api/pdf-promociones");
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        if (body.error === "sin_promos") {
-          notifications.show({ color: "yellow", message: "No hay promociones vigentes hoy." });
-        } else {
-          notifications.show({ color: "red", message: "Error al generar el PDF. Intentá de nuevo." });
-        }
-        return;
-      }
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      const cd   = res.headers.get("Content-Disposition") ?? "";
-      const fnMatch = cd.match(/filename="([^"]+)"/);
-      a.href     = url;
-      a.download = fnMatch?.[1] ?? "promos-bancarias.pdf";
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      notifications.show({ color: "red", message: "Error al generar el PDF. Intentá de nuevo." });
-    } finally {
-      setPdfLoading(false);
-    }
-  }
-
-  const groups = config ? groupPromosByDays(config.promos.hoy) : [];
+  const promosHoy = config?.promos.hoy ?? [];
+  const otrosDiasGroups = config ? groupPromosByDays(config.promos.otrosDias) : [];
   const proximasGroups = config ? groupPromosByDays(config.promos.proximas) : [];
 
   return (
@@ -549,12 +528,11 @@ export default function PromocionesVigentesPage() {
           color="amber"
           variant="filled"
           size="sm"
-          leftSection={pdfLoading ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <FileDown size={14} />}
-          disabled
-          title={!config || config.promos.hoy.length === 0 ? "No hay promociones vigentes hoy" : "Generar PDF para imprimir"}
-          onClick={handleGenerarPDF}
+          leftSection={<FileDown size={14} />}
+          disabled={!config}
+          onClick={() => setPdfModalOpen(true)}
         >
-          {pdfLoading ? "Generando..." : "Generar PDF"}
+          Generar PDF
         </Button>
       </Group>
 
@@ -570,20 +548,35 @@ export default function PromocionesVigentesPage() {
       {config && (
           <div style={{ display: "flex", flexDirection: "column", gap: 36 }}>
 
-            {/* ── VIGENTES HOY grouped by day pattern ── */}
-            {groups.length === 0 ? (
+            {/* ── HOY ── */}
+            {promosHoy.length === 0 && otrosDiasGroups.length === 0 ? (
               <EmptyState />
             ) : (
-              groups.map((group) => (
-                <DayGroupSection
-                  key={group.key}
-                  label={group.label}
-                  promos={group.promos}
-                />
-              ))
+              <>
+                {promosHoy.length > 0 && (
+                  <DayGroupSection
+                    key="hoy"
+                    label="Hoy"
+                    promos={promosHoy}
+                  />
+                )}
+
+                {/* ── VIGENTES OTROS DÍAS ── */}
+                {otrosDiasGroups.length > 0 && (
+                  <>
+                    {otrosDiasGroups.map((group) => (
+                      <DayGroupSection
+                        key={group.key}
+                        label={group.label}
+                        promos={group.promos}
+                      />
+                    ))}
+                  </>
+                )}
+              </>
             )}
 
-            {/* ── PRÓXIMAS ── */}
+            {/* ── PRÓXIMAS (vigenciaDesde futuro) ── */}
             {proximasGroups.length > 0 && (
               <>
                 <div style={{
@@ -619,6 +612,17 @@ export default function PromocionesVigentesPage() {
 
           </div>
         )}
+
+      {config && (
+        <GenerarPdfPromoModal
+          opened={pdfModalOpen}
+          onClose={() => setPdfModalOpen(false)}
+          promosHoy={config.promos.hoy}
+          promosOtrosDias={config.promos.otrosDias}
+          promosProximas={config.promos.proximas}
+          descuentos={config.descuentos}
+        />
+      )}
     </div>
   );
 }

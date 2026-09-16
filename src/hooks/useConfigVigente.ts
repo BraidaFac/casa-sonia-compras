@@ -6,6 +6,7 @@ interface ConfigVigenteResponse {
   descuentos: DescuentoVigente[];
   promos: {
     hoy: PromoVigente[];
+    otrosDias: PromoVigente[];
     proximas: PromoVigente[];
   };
 }

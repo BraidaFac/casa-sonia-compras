@@ -20,6 +20,7 @@ export interface DescuentoVigente {
   valor: string | number; // Prisma Decimal serializa a string
   alcance: string; // "global" | "categoria"
   categoriaOdooId: number | null;
+  categoriaNombre: string | null;
 }
 
 export interface PromoVigente {
