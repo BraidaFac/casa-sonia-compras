@@ -199,7 +199,7 @@ function buildRowData(item: PdfItemInput): RowData {
 function renderRow(row: RowData): string {
   const logoHtml = row.logoDataUri
     ? `<img src="${row.logoDataUri}" alt="${esc(row.bank)}" height="${row.logoHeight}" style="width:auto; max-width:148px; display:block; object-fit:contain; object-position:center; flex-shrink:0">`
-    : `<span style="font-family:var(--font-body); font-weight:700; font-size:21px; line-height:1; letter-spacing:-0.02em; color:var(--color-accent-700)">${esc(row.bank)}</span>`;
+    : `<span style="font-family:var(--font-body); font-weight:700; font-size:15px; line-height:1.2; letter-spacing:0; color:var(--color-accent-700); text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%">${esc(row.bank)}</span>`;
 
   // Tag de categoría: orejita superior amber, solo para descuentos por categoría
   const categoryTagHtml = row.categoryTag
@@ -227,7 +227,7 @@ function renderRow(row: RowData): string {
 
     <div style="position:relative; z-index:1; flex:1 1 auto; min-width:0; display:grid; grid-template-columns:162px minmax(0,1fr); align-items:center; gap:var(--space-3) var(--space-4); padding:var(--space-3) var(--space-4); background:var(--color-neutral-100); border-radius:var(--radius-lg); box-shadow:var(--shadow-md)">
 
-      <span style="grid-row:1 / -1; display:flex; align-items:center; justify-content:center; height:56px; min-width:0; overflow:hidden">
+      <span style="grid-row:1 / -1; display:flex; align-items:center; justify-content:center; min-height:56px; min-width:0">
         ${logoHtml}
       </span>
 
