@@ -37,27 +37,49 @@ export type PdfItemInput = PromoInput | DescuentoInput;
 // ── Day label ─────────────────────────────────────────────────────────────────
 
 const DIA_ES: Record<string, string> = {
-  lunes: "lunes", martes: "martes", miercoles: "miércoles",
-  jueves: "jueves", viernes: "viernes", sabado: "sábado", domingo: "domingo",
+  lunes: "lunes",
+  martes: "martes",
+  miercoles: "miércoles",
+  jueves: "jueves",
+  viernes: "viernes",
+  sabado: "sábado",
+  domingo: "domingo",
 };
-const DIAS_ORDER = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"];
+const DIAS_ORDER = [
+  "lunes",
+  "martes",
+  "miercoles",
+  "jueves",
+  "viernes",
+  "sabado",
+  "domingo",
+];
 
 function parseDias(j: string | null): string[] {
   if (!j) return [];
-  try { return JSON.parse(j); } catch { return []; }
+  try {
+    return JSON.parse(j);
+  } catch {
+    return [];
+  }
 }
 
-function cap(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
+function cap(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 function getDayLabel(diasJson: string | null): string {
   const dias = parseDias(diasJson);
   if (dias.length === 0 || dias.length === 7) return "Todos los días";
   if (dias.length === 1) return `Todos los ${DIA_ES[dias[0]] ?? dias[0]}s`;
   const indices = dias.map((d) => DIAS_ORDER.indexOf(d)).sort((a, b) => a - b);
-  const consecutive = indices.every((v, i) => i === 0 || v === indices[i - 1] + 1);
+  const consecutive = indices.every(
+    (v, i) => i === 0 || v === indices[i - 1] + 1,
+  );
   if (consecutive) {
     const first = DIA_ES[DIAS_ORDER[indices[0]]] ?? DIAS_ORDER[indices[0]];
-    const last  = DIA_ES[DIAS_ORDER[indices.at(-1)!]] ?? DIAS_ORDER[indices.at(-1)!];
+    const last =
+      DIA_ES[DIAS_ORDER[indices.at(-1)!]] ?? DIAS_ORDER[indices.at(-1)!];
     return `${cap(first)} a ${last}`;
   }
   if (dias.length === 2) {
@@ -79,19 +101,27 @@ function getPromoStat(p: PromoInput): string {
     case "reintegro":
     case "descuento_directo":
       return p.valorPorcentaje ? `${Number(p.valorPorcentaje)}%` : "-";
-    default: return "-";
+    default:
+      return "-";
   }
 }
 
 function getPromoStatNote(p: PromoInput): string {
   switch (p.tipoBeneficio) {
-    case "cuotas_sin_interes":   return "cuotas sin interés";
-    case "cuotas_con_interes":   return `cuotas (coef. ${Number(p.coeficienteInteres).toFixed(2)})`;
-    case "reintegro":            return "de reintegro";
-    case "descuento_directo":    return "de descuento";
-    case "cuotas_con_descuento": return `cuotas + ${Number(p.valorPorcentaje)}% desc.`;
-    case "cuotas_con_reintegro": return `cuotas + ${Number(p.valorPorcentaje)}% reintegro`;
-    default: return "";
+    case "cuotas_sin_interes":
+      return "cuotas sin interés";
+    case "cuotas_con_interes":
+      return `cuotas (coef. ${Number(p.coeficienteInteres).toFixed(2)})`;
+    case "reintegro":
+      return "de reintegro";
+    case "descuento_directo":
+      return "de descuento";
+    case "cuotas_con_descuento":
+      return `cuotas + ${Number(p.valorPorcentaje)}% desc.`;
+    case "cuotas_con_reintegro":
+      return `cuotas + ${Number(p.valorPorcentaje)}% reintegro`;
+    default:
+      return "";
   }
 }
 
@@ -99,10 +129,19 @@ function getPromoStatNote(p: PromoInput): string {
 
 function getLogoDataUri(svgSrc: string): string | null {
   try {
-    const absPath = path.join(process.cwd(), "public", svgSrc.replace(/^\//, ""));
+    const absPath = path.join(
+      process.cwd(),
+      "public",
+      svgSrc.replace(/^\//, ""),
+    );
     const data = fs.readFileSync(absPath);
     const ext = path.extname(absPath).toLowerCase();
-    const mime = ext === ".svg" ? "image/svg+xml" : ext === ".png" ? "image/png" : "image/jpeg";
+    const mime =
+      ext === ".svg"
+        ? "image/svg+xml"
+        : ext === ".png"
+          ? "image/png"
+          : "image/jpeg";
     return `data:${mime};base64,${data.toString("base64")}`;
   } catch {
     return null;
@@ -152,13 +191,14 @@ function buildRowData(item: PdfItemInput): RowData {
       const icon = getBankIcon(p.bancos[0].icono);
       if (icon?.svgSrc) {
         logoDataUri = getLogoDataUri(icon.svgSrc);
-        if (icon.scale && icon.scale > 1) logoHeight = Math.min(Math.round(44 * icon.scale), 68);
+        if (icon.scale && icon.scale > 1)
+          logoHeight = Math.min(Math.round(44 * icon.scale), 68);
       }
     }
 
     const chips: string[] = [];
     if (p.topeReintegro) chips.push(`Tope $${formatCurrency(p.topeReintegro)}`);
-    if (p.descripcion)   chips.push(p.descripcion);
+    if (p.descripcion) chips.push(p.descripcion);
 
     return {
       dayLabel: getDayLabel(p.diasAplicables),
@@ -173,13 +213,16 @@ function buildRowData(item: PdfItemInput): RowData {
     };
   } else {
     const d = item as DescuentoInput;
-    const stat = d.tipo === "porcentaje"
-      ? `${Number(d.valor)}%`
-      : `$${formatCurrency(d.valor)}`;
-    const statNote = d.tipo === "porcentaje" ? "de descuento" : "descuento fijo";
-    const categoryTag = d.alcance === "categoria" && d.categoriaNombre
-      ? d.categoriaNombre.split(" / ").at(-1)!
-      : null;
+    const stat =
+      d.tipo === "porcentaje"
+        ? `${Number(d.valor)}%`
+        : `$${formatCurrency(d.valor)}`;
+    const statNote =
+      d.tipo === "porcentaje" ? "de descuento" : "descuento fijo";
+    const categoryTag =
+      d.alcance === "categoria" && d.categoriaNombre
+        ? d.categoriaNombre.split(" / ").at(-1)!
+        : null;
     return {
       dayLabel: "Todos los días",
       bank: d.medioPago.nombre,
@@ -211,14 +254,19 @@ function renderRow(row: RowData): string {
     : "";
 
   // Orejitas: chips posicionados absolutamente colgando del borde inferior del card
-  const chipsHtml = row.chips.length > 0
-    ? `<div style="position:absolute; bottom:-15px; left:calc(162px + var(--space-8)); display:flex; flex-wrap:wrap; gap:var(--space-2); z-index:2">
-        ${row.chips.map((chip) => `
+  const chipsHtml =
+    row.chips.length > 0
+      ? `<div style="position:absolute; bottom:-15px; left:calc(162px + var(--space-8)); display:flex; flex-wrap:wrap; gap:var(--space-2); z-index:2">
+        ${row.chips
+          .map(
+            (chip) => `
           <span style="display:inline-flex; align-items:center; gap:7px; padding:4px 13px 5px; border-radius:999px; background:var(--color-accent-2-100); border:1px solid var(--color-accent-2-300); font-family:var(--font-body); font-weight:700; font-size:14px; letter-spacing:0.01em; color:var(--color-accent-2-800); white-space:nowrap; box-shadow:var(--shadow-sm)">
             <span style="width:6px; height:6px; border-radius:999px; background:var(--color-accent-2-600); flex:0 0 auto"></span>${esc(chip)}
-          </span>`).join("")}
+          </span>`,
+          )
+          .join("")}
       </div>`
-    : "";
+      : "";
 
   return `
   <div class="promo-row" style="display:flex; align-items:center; padding-left:var(--space-1)">
@@ -247,7 +295,10 @@ function renderRow(row: RowData): string {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export function generatePromosHTML(items: PdfItemInput[], todayStr: string): string {
+export function generatePromosHTML(
+  items: PdfItemInput[],
+  todayStr: string,
+): string {
   const rows = items.map(buildRowData);
   const [yyyy, mm, dd] = todayStr.split("-");
   const dateShort = `${dd}/${mm}/${yyyy}`;
@@ -257,7 +308,7 @@ export function generatePromosHTML(items: PdfItemInput[], todayStr: string): str
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=794, initial-scale=1">
-<title>Promociones bancarias — ${dateShort}</title>
+<title>Promociones Bancarias — ${dateShort}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Figtree:wght@400;600;700&display=swap" rel="stylesheet">
