@@ -425,6 +425,22 @@ export function ArticleRow({
     newSizes: SizeValue[],
     newSizeAttributeId: number,
   ) {
+    // Cambio de tipo de talle: los talles anteriores pertenecen a otro atributo
+    // y no existen en el nuevo, así que se reemplazan en vez de sumarse.
+    if (article.sizeAttributeId && newSizeAttributeId !== article.sizeAttributeId) {
+      onChange({
+        ...article,
+        sizes: newSizes,
+        sizeAttributeId: newSizeAttributeId,
+        rows: article.rows.map((r) => ({
+          ...r,
+          quantities: Object.fromEntries(newSizes.map((s) => [s.name, r.quantities[s.name] ?? ""])),
+        })),
+      });
+      setSizePickerOpen(false);
+      return;
+    }
+
     const existingIds = new Set(article.sizes.map((s) => s.id));
     const toAdd = newSizes.filter((s) => !existingIds.has(s.id));
 

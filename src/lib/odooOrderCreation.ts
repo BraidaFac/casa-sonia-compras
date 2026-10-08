@@ -36,6 +36,7 @@ interface ValidationError {
   articleName: string;
   type: "color" | "size";
   value: string;
+  sizeAttributeId?: number;
 }
 
 export class OdooValidationError extends Error {
@@ -187,6 +188,7 @@ export async function createOrderInOdoo(params: {
         articleName: article.name,
         type: "size" as const,
         value: name,
+        sizeAttributeId: article.sizeAttributeId!,
       })),
     );
 
@@ -194,8 +196,22 @@ export async function createOrderInOdoo(params: {
   }
 
   if (allValidationErrors.length > 0) {
+    const sizeAttrIds = [
+      ...new Set(allValidationErrors.flatMap((e) => (e.sizeAttributeId ? [e.sizeAttributeId] : []))),
+    ];
+    const sizeAttrNames = new Map<number, string>(
+      sizeAttrIds.length
+        ? (await odoo.read("product.attribute", sizeAttrIds, ["name"])).map(
+            (a: { id: number; name: string }) => [a.id, a.name],
+          )
+        : [],
+    );
     const detail = allValidationErrors
-      .map((e) => `Artículo "${e.articleName}": ${e.type === "color" ? "color" : "talle"} "${e.value}"`)
+      .map((e) =>
+        e.type === "color"
+          ? `Artículo "${e.articleName}": color "${e.value}"`
+          : `Artículo "${e.articleName}": talle "${e.value}" no existe en el tipo de talle "${sizeAttrNames.get(e.sizeAttributeId!) ?? e.sizeAttributeId}"`,
+      )
       .join("; ");
     throw new OdooValidationError(
       `Algunos atributos no existen en Odoo — ${detail}`,
