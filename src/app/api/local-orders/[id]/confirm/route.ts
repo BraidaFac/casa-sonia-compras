@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/withAuth";
 import { prisma } from "@/lib/prisma";
-import { odoo } from "@/lib/odoo";
+import { odoo, articleLabel } from "@/lib/odoo";
 import { restorePreviewUrls, stripImagesForDB } from "@/lib/localOrders";
 import { validateForConfirm } from "@/lib/orderValidation";
 import { createOrderInOdoo } from "@/lib/odooOrderCreation";
@@ -109,7 +109,10 @@ export const POST = withAuth(async (
           new Map(entry.variantMap),
         );
       } catch (imgErr) {
-        console.error("Image sync error (non-fatal):", imgErr);
+        console.error(
+          `Image sync error (non-fatal) — ${articleLabel(article)}, template ${entry.templateId}:`,
+          imgErr,
+        );
       }
     }
 

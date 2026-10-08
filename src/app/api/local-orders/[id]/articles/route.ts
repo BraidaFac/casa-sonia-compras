@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/withAuth";
 import { prisma } from "@/lib/prisma";
 import { updateArticleInOdoo } from "@/lib/odooArticleUpdate";
+import { addErrorContext, articleLabel } from "@/lib/odoo";
 import { stripImagesForDB } from "@/lib/localOrders";
 import type { Article } from "@/types";
 
@@ -65,7 +66,11 @@ export const PATCH = withAuth(
     try {
       await updateArticleInOdoo(article, colorAttributeId, sizeAttributeId);
     } catch (err) {
-      console.error("Error actualizando artículo en Odoo:", err);
+      addErrorContext(err, articleLabel(article));
+      console.error(
+        `Error actualizando artículo en Odoo (orden ${orderId}, índice ${articleIndex}, template ${article.existingProductId}):`,
+        err,
+      );
       return NextResponse.json(
         {
           error:

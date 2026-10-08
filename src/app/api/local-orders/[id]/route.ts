@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { stripImagesForDB, restorePreviewUrls } from "@/lib/localOrders";
 import { deleteTempFolder } from "@/lib/imageStorage";
 import { syncConfirmedArticleToOdoo } from "@/lib/odooArticleUpdate";
+import { addErrorContext, articleLabel } from "@/lib/odoo";
 import type { Article, LocalArticle, PrintColumn, PrintValues } from "@/types";
 
 async function getOrder(id: number) {
@@ -109,7 +110,11 @@ export const PUT = withAuth(async (
         body.warehouseIds ?? (order.warehouseIds as number[] | null) ?? [],
       );
     } catch (err) {
-      console.error("[PUT /local-orders] Odoo sync failed:", err);
+      addErrorContext(err, articleLabel(body.editedArticle));
+      console.error(
+        `[PUT /local-orders] Odoo sync failed (orden ${orderId}, Odoo PO ${order.odooOrderId}, template ${body.editedArticle.existingProductId}):`,
+        err,
+      );
       return NextResponse.json(
         { error: err instanceof Error ? err.message : "Error al sincronizar con Odoo" },
         { status: 502 },

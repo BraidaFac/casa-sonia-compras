@@ -1,3 +1,5 @@
+import type { Article } from "@/types";
+
 const BASE_URL = `${process.env.ODOO_URL}/json/2`;
 const ODOO_API_KEY = process.env.ODOO_API_KEY!;
 
@@ -18,12 +20,30 @@ async function request(model: string, method: string, body: object = {}) {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    console.log(error?.message);
+    const ids = "ids" in body ? (body as { ids: unknown }).ids : undefined;
+    const message = error?.message || `Odoo error: ${response.status}`;
+    console.error(`[odoo] ${model}.${method} falló (HTTP ${response.status})`, { ids, message });
 
-    throw new Error(error?.message || `Odoo error: ${response.status}`);
+    throw Object.assign(new Error(message), { odooModel: model, odooMethod: method, odooIds: ids });
   }
 
   return response.json();
+}
+
+/** Describe un artículo para mensajes de error: nombre, referencia y categoría. */
+export function articleLabel(article: Article): string {
+  const parts = [
+    article.referencia && `ref ${article.referencia}`,
+    article.category &&
+      `categoría "${article.category.completeName || article.category.name}" (id ${article.category.id})`,
+  ].filter(Boolean);
+  return `Artículo "${article.name}"${parts.length ? ` [${parts.join(", ")}]` : ""}`;
+}
+
+/** Antepone contexto al mensaje del error, conservando su clase y propiedades. */
+export function addErrorContext(err: unknown, context: string): unknown {
+  if (err instanceof Error) err.message = `${context}: ${err.message}`;
+  return err;
 }
 
 const FETCH_ALL_PAGE_SIZE = 100;

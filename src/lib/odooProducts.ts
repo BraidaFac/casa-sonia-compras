@@ -1,4 +1,4 @@
-import { odoo } from "@/lib/odoo";
+import { odoo, articleLabel } from "@/lib/odoo";
 import type { Article, ArticleRow, AttributeValue, ColorValue } from "@/types";
 
 export interface ResolvedAttributeValue {
@@ -409,13 +409,14 @@ export async function syncProductImages(
   resolvedColors: ResolvedAttributeValue[],
   variantMap: Map<string, number>,
 ): Promise<void> {
+  const ctx = `${articleLabel(article)}, template ${templateId}`;
   // ── ELIMINAR imágenes adicionales borradas por el usuario ─────────────────
   const deletedIds = article.deletedOdooImageIds ?? [];
   if (deletedIds.length > 0) {
     try {
       await odoo.unlink("product.image", deletedIds);
     } catch (err) {
-      console.error("Error eliminando imágenes de Odoo:", err);
+      console.error(`Error eliminando imágenes de Odoo (${ctx}, ids ${deletedIds.join(",")}):`, err);
     }
   }
 
@@ -434,7 +435,7 @@ export async function syncProductImages(
       try {
         await odoo.write("product.product", variantIdsForColor, { image_variant_1920: false });
       } catch (err) {
-        console.error(`Error limpiando imagen primaria para color ${colorName}:`, err);
+        console.error(`Error limpiando imagen primaria para color ${colorName} (${ctx}):`, err);
       }
     }
   }
@@ -466,7 +467,7 @@ export async function syncProductImages(
           image_variant_1920: primaryImage.base64,
         });
       } catch (err) {
-        console.error(`Error seteando imagen principal para color ${colorName}:`, err);
+        console.error(`Error seteando imagen principal para color ${colorName} (${ctx}):`, err);
       }
 
       // ── IMAGEN PRINCIPAL DEL TEMPLATE (primera imagen nueva que aparezca) ───
@@ -478,7 +479,7 @@ export async function syncProductImages(
           });
           templateImageWritten = true;
         } catch (err) {
-          console.error(`Error seteando image_1920 en template ${templateId}:`, err);
+          console.error(`Error seteando image_1920 (${ctx}):`, err);
         }
       }
     }
@@ -494,7 +495,7 @@ export async function syncProductImages(
           image_1920: img.base64,
         });
       } catch (err) {
-        console.error(`Error agregando imagen adicional para color ${colorName}:`, err);
+        console.error(`Error agregando imagen adicional para color ${colorName} (${ctx}, ${img.fileName}):`, err);
       }
     }
   }

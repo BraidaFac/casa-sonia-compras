@@ -1,4 +1,4 @@
-import { odoo } from "@/lib/odoo";
+import { odoo, addErrorContext, articleLabel } from "@/lib/odoo";
 import { generateGridPDF } from "@/lib/pdf";
 import type {
   Article,
@@ -242,9 +242,12 @@ export async function createOrderInOdoo(params: {
 
   // Tracked outside try so the outer catch can cancel/delete it if needed
   let createdPurchaseOrderId: number | undefined;
+  // Artículo en proceso, para dar contexto al error si falla dentro del loop
+  let currentArticle: Article | undefined;
 
   try {
     for (const { article, resolvedColors, resolvedSizes } of resolvedArticles) {
+      currentArticle = article;
       console.log(
         "[odooOrderCreation] processing article:",
         article.name,
@@ -346,7 +349,7 @@ export async function createOrderInOdoo(params: {
             await odoo.write("product.product", [variantId], { barcode });
           } catch (err) {
             console.warn(
-              `[odooOrderCreation] barcode write failed for variant ${variantId}:`,
+              `[odooOrderCreation] barcode write failed for variant ${variantId} (${articleLabel(article)}, ${row.color.name}/${size.name}):`,
               err,
             );
           }
@@ -405,6 +408,7 @@ export async function createOrderInOdoo(params: {
         }
       }
     }
+    currentArticle = undefined;
 
     if (allOrderLines.length === 0) {
       throw new Error(
@@ -526,6 +530,7 @@ export async function createOrderInOdoo(params: {
       imageSyncData,
     };
   } catch (error) {
+    if (currentArticle) addErrorContext(error, articleLabel(currentArticle));
     console.error(
       "[odooOrderCreation] outer catch — triggering rollback. Original error:",
       error,

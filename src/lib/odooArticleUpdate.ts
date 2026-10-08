@@ -1,4 +1,4 @@
-import { odoo } from "@/lib/odoo";
+import { odoo, articleLabel } from "@/lib/odoo";
 import {
   resolveOrCreateColors,
   syncExtraAttributes,
@@ -117,7 +117,10 @@ export async function syncConfirmedArticleToOdoo(
             price_unit: price,
           });
         } catch (err) {
-          console.error("[syncConfirmedArticle] Failed to create PO line for variant", variantId, err);
+          console.error(
+            `[syncConfirmedArticle] Failed to create PO line for variant ${variantId} (${articleLabel(article)}, PO ${odooOrderId}):`,
+            err,
+          );
         }
       }
     }
@@ -313,7 +316,7 @@ export async function updateArticleInOdoo(
         await odoo.write("product.product", [variantId], { barcode });
       } catch (err) {
         console.error(
-          `Error actualizando barcode ${row.color.name}/${sizeName}:`,
+          `Error actualizando barcode ${row.color.name}/${sizeName} (${articleLabel(article)}, variante ${variantId}):`,
           err,
         );
       }
