@@ -194,8 +194,11 @@ export async function createOrderInOdoo(params: {
   }
 
   if (allValidationErrors.length > 0) {
+    const detail = allValidationErrors
+      .map((e) => `Artículo "${e.articleName}": ${e.type === "color" ? "color" : "talle"} "${e.value}"`)
+      .join("; ");
     throw new OdooValidationError(
-      "Algunos atributos no existen en Odoo",
+      `Algunos atributos no existen en Odoo — ${detail}`,
       allValidationErrors,
       422,
     );
