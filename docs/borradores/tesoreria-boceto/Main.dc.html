@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Tesorería · Vista General</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&amp;family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#141517}
+a{color:#ffc14d}a:hover{color:#ffd88a}
+.ts *{box-sizing:border-box}
+.ts button{font-family:inherit;cursor:pointer}
+.ts button:focus-visible,.ts input:focus-visible,.ts select:focus-visible{outline:2px solid #f59f00;outline-offset:1px}
+.lbl{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:#a3a5ad}
+.inp{background:#141517;border:1px solid #373a40;border-radius:5px;color:#e9ecef;font:inherit;font-size:13px;padding:6px 8px;min-height:34px;width:100%}
+.inp.num{font-family:'DM Mono',ui-monospace,monospace;text-align:right}
+.inp.neg{color:#ff8f87}.inp.pos{color:#7ed69f}.inp.pend{color:#ffc14d;font-style:italic}
+.btn{border:1px solid #373a40;background:#25262b;color:#e9ecef;border-radius:6px;padding:7px 12px;font-size:13px;min-height:34px;white-space:nowrap}
+.btn:hover{background:#2c2e33}
+.btn.pri{background:#f59f00;border-color:#f59f00;color:#1a1300;font-weight:600}
+.btn.ghost{background:transparent;border-color:transparent;color:#a3a5ad}
+.btn.ghost:hover{color:#e9ecef;background:#25262b}
+.btn.danger{border-color:#7a2b2b;color:#ff8f87;background:transparent}
+.btn.mini{padding:2px 7px;min-height:24px;font-size:11.5px;font-family:'DM Mono',monospace}
+.btn.mini.on{border-color:#f59f00;color:#ffc14d;background:#2a2410}
+.popbtn{width:100%;min-height:34px;border:1px dashed #5c5f66;border-radius:5px;background:#141517;color:#ffc14d;font-family:'DM Mono',monospace;font-size:12.5px;text-align:right;padding:6px 8px}
+.popbtn:hover{border-color:#f59f00}
+.chip{display:inline-flex;align-items:center;gap:4px;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;padding:1px 8px;border-radius:999px;white-space:nowrap}
+.st-ok{background:#16301f;color:#7ed69f}
+.st-proceso{background:#2e2610;color:#ffc14d}
+.st-atencion{background:#3a1d18;color:#ff9a7a}
+.st-anulada{background:#25262b;color:#8c8f96;text-decoration:line-through}
+.st-externo{background:#1a2638;color:#8fb6ea}
+.st-borrador{background:#25262b;color:#c1c2c5}
+.st-nueva{background:#f59f00;color:#1a1300}
+.cell{font-family:'DM Mono',ui-monospace,monospace;font-size:13px;text-align:right;padding:9px 10px;border-left:1px solid #25262b;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tcell{padding:9px 10px;border-left:1px solid #25262b;font-size:13px;color:#c1c2c5;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ecell{padding:6px;border-left:1px solid #3d3420;display:flex;flex-direction:column;gap:4px;min-width:0}
+.c-neg{color:#ff8f87}.c-pos{color:#7ed69f}.c-pend{color:#a3a5ad;font-style:italic}.c-zero{color:#4a4d55}
+.mrow{display:grid;grid-template-columns:minmax(270px,2fr) 160px 200px repeat(10,minmax(116px,1fr));border-bottom:1px solid #25262b}
+.mrow.hl{background:#2a2410}
+.mrow.anul .cell{text-decoration:line-through;opacity:.5}
+.mrow.borr{background:#17181b}
+.mrow.edit{background:#211d12;border-top:2px solid #f59f00;border-bottom:0}
+.sub{background:#17181b;border-bottom:1px solid #25262b;padding:12px 16px;display:flex;flex-direction:column;gap:10px}
+.sub.edit{background:#211d12;border-bottom:2px solid #f59f00}
+.backdrop{position:fixed;inset:0;z-index:59;background:rgba(0,0,0,.6)}
+.pop{position:fixed;z-index:60;left:50%;top:50%;transform:translate(-50%,-50%);width:min(540px,calc(100vw - 32px));max-height:85vh;overflow-y:auto;background:#1f2024;border:1px solid #373a40;border-radius:10px;box-shadow:0 18px 48px rgba(0,0,0,.6);padding:18px 20px;display:flex;flex-direction:column;gap:10px;font-size:13.5px}
+.pop .check{font-size:13.5px;padding:8px 10px}
+@media (max-width:600px){.pop{left:0;top:0;transform:none;width:100%;max-height:100%;height:100%;border-radius:0}}
+.check{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 8px;border-radius:5px;border:1px solid #2c2e33;background:#141517;font-size:12.5px}
+.check.on{border-color:#f59f00;background:#211d12}
+.err{background:#3a1d18;border:1px solid #7a2b2b;color:#ffb4a6;border-radius:6px;padding:8px 12px;font-size:13px}
+.warn{background:#2e2610;border:1px solid #6b5212;color:#ffd88a;border-radius:6px;padding:8px 12px;font-size:13px}
+.tot{display:flex;justify-content:space-between;gap:12px;font-size:13px}
+.tot b{font-family:'DM Mono',ui-monospace,monospace;font-weight:500}
+</style>
+</helmet>
+
+<div class="ts" style="min-height: 100vh; background: #141517; color: #e9ecef; font-family: 'DM Sans', 'Segoe UI', system-ui, sans-serif; font-size: 14px; display: flex; flex-wrap: wrap;">
+
+  <aside style="flex: 1 1 200px; max-width: 100%; background: #1c1d21; border-right: 1px solid #2c2e33; padding: 16px 12px; display: flex; flex-direction: column; gap: 4px;">
+    <div style="display: flex; flex-direction: column; gap: 2px; padding: 4px 8px 16px;">
+      <span style="font-family: 'Syne', sans-serif; font-weight: 700; font-size: 18px;">Casa Sonia</span>
+      <span class="lbl" style="color: #f59f00;">Tesorería</span>
+    </div>
+    <a href="#" style="display: block; padding: 10px 12px; border-radius: 0 6px 6px 0; border-left: 2px solid #f59f00; background: #2a2410; color: #ffc14d; text-decoration: none; font-weight: 600;">Vista General</a>
+    <a href="#" style="display: block; padding: 10px 12px; color: #a3a5ad; text-decoration: none;">Vista Extracto</a>
+    <a href="#" style="display: block; padding: 10px 12px; color: #a3a5ad; text-decoration: none;">Pendientes de conciliación</a>
+    <a href="#" style="display: block; padding: 10px 12px; color: #a3a5ad; text-decoration: none;">Historial</a>
+    <a href="#" style="display: block; padding: 10px 12px; color: #a3a5ad; text-decoration: none;">Configuración</a>
+    <div style="margin-top: auto; padding: 10px 12px; border: 1px solid #2c2e33; border-radius: 6px; display: flex; flex-direction: column; gap: 2px;">
+      <span style="font-weight: 600;">Mariano</span>
+      <span style="font-size: 12px; color: #ffc14d;">Tesorero</span>
+    </div>
+  </aside>
+
+  <main style="flex: 999 1 560px; min-width: 0; padding: 24px clamp(16px, 3vw, 32px) 48px; display: flex; flex-direction: column; gap: 18px;">
+
+    <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: #1a2638; border: 1px solid #2b4466; color: #b9d2f2; border-radius: 6px; padding: 8px 12px; font-size: 13px;">
+      <span class="chip st-externo">Boceto</span>
+      <span>Datos de ejemplo de las reuniones del 22 y 24/10. Nada se guarda ni se envía a Odoo.</span>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="margin: 0; font-family: 'Syne', sans-serif; font-size: 28px;">Vista General</h1>
+        <span style="color: #a3a5ad;">Los movimientos se cargan y se ven en la misma grilla.</span>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 4px; border: 1px solid #373a40; border-radius: 6px; padding: 2px;">
+          <button class="btn ghost" aria-label="Período anterior">‹</button>
+          <span style="padding: 0 8px; font-weight: 600; white-space: nowrap;">{{periodLabel}}</span>
+          <button class="btn ghost" aria-label="Período siguiente">›</button>
+        </div>
+        <div role="group" aria-label="Período" style="display: flex; border: 1px solid #373a40; border-radius: 6px; overflow: hidden;">
+          <button class="{{tabDia}}" onClick="{{setDia}}">Día</button>
+          <button class="{{tabMes}}" onClick="{{setMes}}">Mes</button>
+          <button class="{{tabAnio}}" onClick="{{setAnio}}">Año</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+      <label for="nueva-op" class="lbl" style="color: #e9ecef;">Nueva operación</label>
+      <select id="nueva-op" class="inp" style="width: 300px; max-width: 100%; font-size: 14px; min-height: 40px;" value="{{comboVal}}" onChange="{{onCombo}}">
+        <option value="">Elegí una operación…</option>
+        <option value="pago">Pago a proveedor</option>
+        <option value="cobro">Cobro de cliente</option>
+        <option value="gasto">Gasto</option>
+        <option value="ingreso">Ingreso</option>
+        <option value="mov">Movimiento entre diarios</option>
+        <option value="socios">Retiro / Depósito de socios</option>
+        <option value="chqp">Pago de cheques propios</option>
+        <option value="cambioR">Cambio de cheque (recibo cheque)</option>
+        <option value="cambioE">Cambio de cheque (entrego cheque)</option>
+      </select>
+      <span style="color: #a3a5ad; font-size: 13px;">Aparece una fila nueva arriba de la grilla. Importes siempre en positivo: la operación define si entra o sale.</span>
+    </div>
+
+    <section style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: #a3a5ad; align-items: center;">
+        <span class="chip st-ok">Completada</span>
+        <span class="chip st-proceso">Pendiente de débito</span>
+        <span class="chip st-atencion">Requiere atención</span>
+        <span class="chip st-externo">Cargado en Odoo</span>
+        <span class="chip st-borrador">Borrador</span>
+        <span><span class="c-pend">(−150.000,00)</span> = cheque propio a debitar · celda punteada = se completa en un diálogo</span>
+      </div>
+
+      <div style="overflow-x: auto; border: 1px solid #2c2e33; border-radius: 8px; background: #1c1d21;">
+        <div style="min-width: 1800px;">
+          <div class="mrow" style="background: #25262b;">
+            <div class="lbl" style="padding: 10px 12px;">Concepto</div>
+            <div class="lbl" style="padding: 10px; border-left: 1px solid #2c2e33;">Contacto</div>
+            <div class="lbl" style="padding: 10px; border-left: 1px solid #2c2e33;">Cuenta / detalle</div>
+            <sc-for list="{{diarios}}" as="d" hint-placeholder-count="10">
+              <div class="lbl" style="padding: 10px; text-align: right; border-left: 1px solid #2c2e33; white-space: normal;">{{d}}</div>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{editing}}" hint-placeholder-val="{{ false }}">
+            <div class="mrow edit">
+              <div style="padding: 6px 10px; display: flex; flex-direction: column; gap: 5px;">
+                <div style="display: flex; gap: 6px; align-items: center;"><span class="chip st-nueva">Nueva</span><span style="font-size: 12px; font-weight: 600;">{{e.typeLabel}}</span></div>
+                <input class="inp" value="{{e.obs}}" onChange="{{on.obs}}" placeholder="{{e.obsPh}}" aria-label="Observación">
+                <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+                  <sc-if value="{{e.isSocios}}" hint-placeholder-val="{{ false }}">
+                    <button class="{{e.retiroCls}}" onClick="{{setRetiro}}">Retiro</button>
+                    <button class="{{e.depositoCls}}" onClick="{{setDeposito}}">Depósito</button>
+                  </sc-if>
+                  <sc-if value="{{e.isGasto}}" hint-placeholder-val="{{ false }}">
+                    <button class="{{e.facturaCls}}" onClick="{{openFactura}}">{{e.facturaLabel}}</button>
+                  </sc-if>
+                </div>
+              </div>
+
+              <div class="ecell">
+                <sc-if value="{{e.contactoPago}}" hint-placeholder-val="{{ false }}">
+                  <select class="inp" value="{{e.contacto}}" onChange="{{on.contacto}}" aria-label="Proveedor"><option value="Todo Color">Todo Color</option><option value="Megaban">Megaban</option><option value="Costa Walter">Costa Walter</option><option value="+ Alta rápida…">+ Alta rápida…</option></select>
+                </sc-if>
+                <sc-if value="{{e.contactoCobro}}" hint-placeholder-val="{{ false }}">
+                  <select class="inp" value="{{e.contacto}}" onChange="{{on.contacto}}" aria-label="Cliente"><option value="Traída Máximo">Traída Máximo</option><option value="Red De Atención Integral">Red De Atención Integral</option><option value="+ Alta rápida…">+ Alta rápida…</option></select>
+                </sc-if>
+                <sc-if value="{{e.contactoLibre}}" hint-placeholder-val="{{ false }}">
+                  <input class="inp" value="{{e.contacto}}" onChange="{{on.contacto}}" placeholder="{{e.contactoPh}}" aria-label="Contacto">
+                </sc-if>
+                <sc-if value="{{e.contactoNo}}" hint-placeholder-val="{{ false }}"><span class="c-zero" style="padding: 8px 4px;">—</span></sc-if>
+              </div>
+
+              <div class="ecell">
+                <sc-if value="{{e.cuentaGasto}}" hint-placeholder-val="{{ false }}">
+                  <select class="inp" value="{{e.cuenta}}" onChange="{{on.cuenta}}" aria-label="Cuenta"><option value="">Elegir cuenta…</option><option value="5.2.7 Servicios">5.2.7 Servicios</option><option value="1.4.9 Retenciones y percepciones varias">1.4.9 Retenciones y percepciones varias</option><option value="Gastos generales">Gastos generales</option><option value="Inversiones en locales">Inversiones en locales</option><option value="5.2.8 Sistema y Software">5.2.8 Sistema y Software</option></select>
+                </sc-if>
+                <sc-if value="{{e.cuentaIngreso}}" hint-placeholder-val="{{ false }}">
+                  <select class="inp" value="{{e.cuenta}}" onChange="{{on.cuenta}}" aria-label="Cuenta"><option value="">Elegir cuenta…</option><option value="4.2.3 Intereses ganados">4.2.3 Intereses ganados</option><option value="4.2.2 Descuentos obtenidos">4.2.2 Descuentos obtenidos</option><option value="1.4.8 Recibos pendientes">1.4.8 Recibos pendientes</option></select>
+                </sc-if>
+                <sc-if value="{{e.cuentaSocios}}" hint-placeholder-val="{{ false }}">
+                  <select class="inp" value="{{e.cuentaSocio}}" onChange="{{on.cuentaSocio}}" aria-label="Cuenta del socio"><option value="3.3.1 Retiro Maximo">3.3.1 Retiro Maximo</option><option value="3.3.2 Retiro Mariano">3.3.2 Retiro Mariano</option></select>
+                </sc-if>
+                <sc-if value="{{e.cuentaMov}}" hint-placeholder-val="{{ false }}">
+                  <select class="inp" value="{{e.origen}}" onChange="{{on.origen}}" aria-label="Sale de"><option value="Efectivo Admin.">Sale de: Efectivo Admin.</option><option value="Bica">Sale de: Bica</option><option value="ICBC">Sale de: ICBC</option><option value="Mercado Pago">Sale de: Mercado Pago</option><option value="Cuenta Vale">Sale de: Cuenta Vale</option><option value="Maxi MP">Sale de: Maxi MP</option><option value="Vale MP">Sale de: Vale MP</option><option value="Andre Bica">Sale de: Andre Bica</option><option value="Mili Bica">Sale de: Mili Bica</option></select>
+                  <select class="inp" value="{{e.destino}}" onChange="{{on.destino}}" aria-label="Entra en"><option value="Efectivo Admin.">Entra en: Efectivo Admin.</option><option value="Bica">Entra en: Bica</option><option value="ICBC">Entra en: ICBC</option><option value="Mercado Pago">Entra en: Mercado Pago</option><option value="Cuenta Vale">Entra en: Cuenta Vale</option><option value="Maxi MP">Entra en: Maxi MP</option><option value="Vale MP">Entra en: Vale MP</option><option value="Andre Bica">Entra en: Andre Bica</option><option value="Mili Bica">Entra en: Mili Bica</option></select>
+                </sc-if>
+                <sc-if value="{{e.cuentaTexto}}" hint-placeholder-val="{{ false }}"><span class="{{e.cuentaTextoCls}}" style="padding: 8px 4px; font-size: 12.5px; white-space: normal;">{{e.cuentaTxt}}</span></sc-if>
+              </div>
+
+              <sc-for list="{{editCells}}" as="c" hint-placeholder-count="10">
+                <div class="ecell">
+                  <sc-if value="{{c.isInput}}" hint-placeholder-val="{{ false }}">
+                    <input class="{{c.inpCls}}" value="{{c.value}}" onChange="{{c.onChange}}" placeholder="0,00" aria-label="Importe {{c.diario}}">
+                  </sc-if>
+                  <sc-if value="{{c.hasChq}}" hint-placeholder-val="{{ false }}">
+                    <button class="{{c.chqCls}}" onClick="{{c.openChq}}" style="align-self: flex-end;">{{c.chqLabel}}</button>
+                  </sc-if>
+                  <sc-if value="{{c.hasSplit}}" hint-placeholder-val="{{ false }}">
+                    <button class="btn mini" onClick="{{c.openSplit}}" style="align-self: flex-end;">{{c.splitLabel}}</button>
+                  </sc-if>
+                  <sc-if value="{{c.isPop}}" hint-placeholder-val="{{ false }}">
+                    <button class="popbtn" onClick="{{c.openPop}}">{{c.popLabel}}</button>
+                  </sc-if>
+                  <sc-if value="{{c.isText}}" hint-placeholder-val="{{ false }}">
+                    <span class="{{c.textCls}}" style="font-family: 'DM Mono', monospace; text-align: right; padding: 8px 4px;">{{c.text}}</span>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+            <div class="sub edit">
+              <sc-if value="{{hasErr}}" hint-placeholder-val="{{ false }}"><div class="err">{{err}}</div></sc-if>
+              <sc-if value="{{hasDup}}" hint-placeholder-val="{{ false }}"><div class="warn">Posible duplicado: ya hay una operación igual hoy ({{dupText}}). Si es correcta, tocá Confirmar de nuevo.</div></sc-if>
+              <div style="display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: space-between;">
+                <div style="display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: #c1c2c5; align-items: center;">
+                  <sc-if value="{{confirming}}" hint-placeholder-val="{{ false }}">
+                    <span class="chip st-proceso">Registrando en Odoo · paso {{stepNum}} de {{stepTotal}}</span>
+                    <span>{{stepText}}</span>
+                  </sc-if>
+                  <sc-if value="{{notConfirming}}" hint-placeholder-val="{{ true }}">
+                    <span>{{e.resumen}}</span>
+                  </sc-if>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <button class="btn ghost" onClick="{{cancelEdit}}">Cancelar</button>
+                  <button class="btn" onClick="{{saveDraft}}">Guardar borrador</button>
+                  <button class="btn pri" onClick="{{confirm}}">Confirmar</button>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{isDia}}" hint-placeholder-val="{{ true }}">
+            <sc-for list="{{rowsView}}" as="r" hint-placeholder-count="8">
+              <div>
+                <div class="{{r.rowCls}}">
+                  <div style="padding: 7px 12px; display: flex; flex-direction: column; gap: 3px; min-width: 0;">
+                    <button onClick="{{r.open}}" style="background: none; border: 0; padding: 0; color: #e9ecef; text-align: left; font-size: 13.5px; font-weight: 500;">{{r.icon}} {{r.concepto}}</button>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+                      <span style="font-size: 11.5px; color: #a3a5ad;">{{r.tipo}}</span>
+                      <span class="{{r.chipCls}}">{{r.estadoLabel}}</span>
+                    </div>
+                  </div>
+                  <div class="tcell">{{r.contacto}}</div>
+                  <div class="tcell">{{r.cuenta}}</div>
+                  <sc-for list="{{r.cells}}" as="c" hint-placeholder-count="10">
+                    <div class="{{c.cls}}">{{c.txt}}</div>
+                  </sc-for>
+                </div>
+                <sc-if value="{{r.expanded}}" hint-placeholder-val="{{ false }}">
+                  <div class="sub">
+                    <div style="display: flex; flex-wrap: wrap; gap: 24px;">
+                      <div style="display: flex; flex-direction: column; gap: 6px; min-width: 260px; flex: 1;">
+                        <span class="lbl">Pasos en Odoo</span>
+                        <sc-for list="{{r.pasos}}" as="p" hint-placeholder-count="3">
+                          <div style="display: flex; gap: 8px; align-items: baseline; font-size: 13px;">
+                            <span class="{{p.cls}}" style="width: 18px; font-family: 'DM Mono', monospace;">{{p.mark}}</span>
+                            <span>{{p.texto}}</span>
+                            <span style="font-size: 11.5px; color: #6c6e75; font-family: 'DM Mono', monospace;">{{p.ref}}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                      <div style="display: flex; flex-direction: column; gap: 6px; min-width: 200px;">
+                        <span class="lbl">Datos</span>
+                        <span style="font-size: 13px;">Registrado por: {{r.registrado}}</span>
+                        <span style="font-size: 13px;">Fecha contable: 24/10/2026</span>
+                      </div>
+                    </div>
+                    <sc-if value="{{r.isAtencion}}" hint-placeholder-val="{{ false }}">
+                      <div class="err">Odoo no respondió al crear el cobro en efectivo (paso 3). Los pasos 1 y 2 quedaron hechos. Reanudar sigue desde el paso 3 sin duplicar.</div>
+                    </sc-if>
+                    <sc-if value="{{r.askAnular}}" hint-placeholder-val="{{ false }}">
+                      <div class="warn">Se revierten en Odoo todos los registros de esta operación, en orden inverso. Queda en el historial como Anulada.</div>
+                    </sc-if>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center;">
+                      <sc-if value="{{r.isExterno}}" hint-placeholder-val="{{ false }}"><span style="color: #a3a5ad; font-size: 13px;">Cargado directamente en Odoo: suma en los totales, pero no se anula desde la app.</span></sc-if>
+                      <sc-if value="{{r.isBorrador}}" hint-placeholder-val="{{ false }}">
+                        <button class="btn ghost" onClick="{{r.borrar}}">Eliminar borrador</button>
+                        <button class="btn pri" onClick="{{r.seguir}}">Seguir cargando</button>
+                      </sc-if>
+                      <sc-if value="{{r.canReanudar}}" hint-placeholder-val="{{ false }}"><button class="btn pri" onClick="{{r.reanudar}}">Reanudar</button></sc-if>
+                      <sc-if value="{{r.canAnular}}" hint-placeholder-val="{{ false }}">
+                        <sc-if value="{{r.askAnular}}" hint-placeholder-val="{{ false }}">
+                          <button class="btn" onClick="{{r.noAnular}}">No</button>
+                          <button class="btn danger" onClick="{{r.siAnular}}">Sí, anular</button>
+                        </sc-if>
+                        <sc-if value="{{r.noAsk}}" hint-placeholder-val="{{ true }}"><button class="btn danger" onClick="{{r.pedirAnular}}">Anular</button></sc-if>
+                      </sc-if>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </sc-if>
+
+          <sc-if value="{{isAgrupado}}" hint-placeholder-val="{{ false }}">
+            <sc-for list="{{grupos}}" as="g" hint-placeholder-count="6">
+              <div>
+                <div class="mrow">
+                  <div style="padding: 8px 12px; display: flex; gap: 8px; align-items: center;">
+                    <button onClick="{{g.toggle}}" aria-label="Desplegar {{g.grupo}}" style="background: #25262b; border: 1px solid #373a40; color: #e9ecef; border-radius: 4px; width: 26px; height: 26px;">{{g.icon}}</button>
+                    <span style="font-weight: 600;">{{g.grupo}}</span>
+                    <span style="font-size: 12px; color: #a3a5ad;">{{g.count}} op.</span>
+                  </div>
+                  <div class="tcell"></div>
+                  <div class="tcell"></div>
+                  <sc-for list="{{g.cells}}" as="c" hint-placeholder-count="10">
+                    <div class="{{c.cls}}">{{c.txt}}</div>
+                  </sc-for>
+                </div>
+                <sc-if value="{{g.expanded}}" hint-placeholder-val="{{ false }}">
+                  <sc-for list="{{g.rows}}" as="r" hint-placeholder-count="2">
+                    <div class="mrow" style="background: #17181b;">
+                      <div style="padding: 7px 12px 7px 46px; display: flex; flex-direction: column; gap: 2px;">
+                        <span style="color: #c1c2c5; font-size: 13px;">{{r.concepto}}</span>
+                        <span style="font-size: 11.5px; color: #a3a5ad;">24/10 · {{r.tipo}}</span>
+                      </div>
+                      <div class="tcell">{{r.contacto}}</div>
+                      <div class="tcell">{{r.cuenta}}</div>
+                      <sc-for list="{{r.cells}}" as="c" hint-placeholder-count="10">
+                        <div class="{{c.cls}}">{{c.txt}}</div>
+                      </sc-for>
+                    </div>
+                  </sc-for>
+                </sc-if>
+              </div>
+            </sc-for>
+          </sc-if>
+
+          <div class="mrow" style="background: #25262b; border-bottom: 0;">
+            <div style="padding: 10px 12px; font-family: 'Syne', sans-serif; font-weight: 700;">TOTAL</div>
+            <div class="tcell"></div>
+            <div class="tcell"></div>
+            <sc-for list="{{totales}}" as="c" hint-placeholder-count="10">
+              <div class="{{c.cls}}" style="font-weight: 600;">{{c.txt}}</div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <span style="color: #a3a5ad; font-size: 12.5px;">Un clic en el concepto despliega el detalle debajo de la fila. Las operaciones confirmadas no se editan: se anulan y se cargan de nuevo.</span>
+    </section>
+  </main>
+
+  <sc-if value="{{popOpen}}" hint-placeholder-val="{{ false }}">
+    <div class="backdrop" onClick="{{cancelPop}}"></div>
+    <div class="pop" role="dialog" aria-modal="true" aria-label="{{pop.title}}">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; border-bottom: 1px solid #2c2e33; padding-bottom: 10px;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <span class="lbl" style="color: #f59f00;">{{pop.context}}</span>
+          <span style="font-family: 'Syne', sans-serif; font-weight: 700; font-size: 18px;">{{pop.title}}</span>
+        </div>
+        <button class="btn ghost" onClick="{{cancelPop}}" aria-label="Cerrar sin guardar">✕</button>
+      </div>
+
+      <sc-if value="{{pop.isCartera}}" hint-placeholder-val="{{ false }}">
+        <span style="font-size: 12.5px; color: #a3a5ad;">Cheques de terceros en cartera. No se tipea importe: se suman los elegidos.</span>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px;">
+          <select class="inp" aria-label="Filtrar por banco"><option>Todos los bancos</option><option>Credicoop</option><option>Banco Macro</option><option>Galicia</option></select>
+          <select class="inp" aria-label="Filtrar por fecha de pago"><option>Cualquier fecha</option><option>Próximos 30 días</option><option>Más de 30 días</option></select>
+          <input class="inp" placeholder="Librador o importe" aria-label="Buscar">
+        </div>
+        <sc-for list="{{carteraView}}" as="c" hint-placeholder-count="3">
+          <div class="{{c.cls}}">
+            <input type="checkbox" checked="{{c.sel}}" onChange="{{c.toggle}}" aria-label="Elegir cheque {{c.nro}}">
+            <div style="display: flex; flex-direction: column; min-width: 0;"><span>N° {{c.nro}} · {{c.banco}}</span><span style="color: #a3a5ad; font-size: 11.5px;">{{c.librador}} · paga {{c.fecha}}</span></div>
+            <span style="font-family: 'DM Mono', monospace;">{{c.importeTxt}}</span>
+          </div>
+        </sc-for>
+        <div class="tot"><span>Total elegido</span><b>{{carteraTotal}}</b></div>
+      </sc-if>
+
+      <sc-if value="{{pop.isChqRec}}" hint-placeholder-val="{{ false }}">
+        <sc-for list="{{chqRecView}}" as="q" hint-placeholder-count="1">
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 8px; border: 1px dashed #373a40; border-radius: 6px;">
+            <input class="inp" value="{{q.nro}}" onChange="{{q.setNro}}" placeholder="N° cheque" aria-label="Número">
+            <input class="inp" value="{{q.banco}}" onChange="{{q.setBanco}}" placeholder="Banco" aria-label="Banco">
+            <input class="inp" value="{{q.cuit}}" onChange="{{q.setCuit}}" placeholder="CUIT librador" aria-label="CUIT del librador">
+            <input class="inp" type="date" value="{{q.fecha}}" onChange="{{q.setFecha}}" aria-label="Fecha de pago">
+            <input class="inp num" value="{{q.importe}}" onChange="{{q.setImporte}}" placeholder="Importe" aria-label="Importe">
+            <select class="inp" aria-label="Tipo"><option>Físico</option><option>E-cheq</option></select>
+          </div>
+        </sc-for>
+        <button class="btn ghost mini" style="align-self: flex-start;" onClick="{{addChqRec}}">+ Otro cheque</button>
+        <div class="tot"><span>Total cheques</span><b>{{recTotal}}</b></div>
+      </sc-if>
+
+      <sc-if value="{{pop.isChqp}}" hint-placeholder-val="{{ false }}">
+        <span style="font-size: 12px; color: #a3a5ad;">El importe de la celda se paga con cheque propio de {{pop.key}}. Queda pendiente hasta el débito.</span>
+        <label style="display: flex; gap: 8px; align-items: center; font-size: 13px;"><input type="checkbox" checked="{{chqpOn}}" onChange="{{toggleChqp}}"> Pagar con cheque propio</label>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;">
+          <input class="inp" value="{{chqpData.nro}}" onChange="{{chqpData.setNro}}" aria-label="Número de cheque">
+          <input class="inp" type="date" value="{{chqpData.fecha}}" onChange="{{chqpData.setFecha}}" aria-label="Fecha de pago">
+          <select class="inp" aria-label="Tipo"><option>Físico</option><option>E-cheq</option></select>
+        </div>
+        <span style="font-size: 11.5px; color: #a3a5ad;">Número sugerido: el último emitido en {{pop.key}} + 1.</span>
+      </sc-if>
+
+      <sc-if value="{{pop.isEmitidos}}" hint-placeholder-val="{{ false }}">
+        <span style="font-size: 12px; color: #a3a5ad;">Cheques propios de {{pop.key}} emitidos sin debitar.</span>
+        <sc-for list="{{emitidosView}}" as="x" hint-placeholder-count="2">
+          <div class="{{x.cls}}">
+            <input type="checkbox" checked="{{x.sel}}" onChange="{{x.toggle}}" aria-label="Debitar cheque {{x.nro}}">
+            <div style="display: flex; flex-direction: column; min-width: 0;"><span>N° {{x.nro}} · {{x.proveedor}}</span><span style="color: #a3a5ad; font-size: 11.5px;">Paga {{x.fecha}} {{x.aviso}}</span></div>
+            <span style="font-family: 'DM Mono', monospace;">{{x.importeTxt}}</span>
+          </div>
+        </sc-for>
+        <div class="tot"><span>Total a debitar</span><b>{{emitidosTotalTxt}}</b></div>
+      </sc-if>
+
+      <sc-if value="{{pop.isSplit}}" hint-placeholder-val="{{ false }}">
+        <span style="font-size: 12px; color: #a3a5ad;">Repartir el importe de {{pop.key}} en varias cuentas. En Odoo se crea una línea por cuenta.</span>
+        <sc-for list="{{splitView}}" as="l" hint-placeholder-count="2">
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 100px auto; gap: 6px; align-items: center;">
+            <input class="inp" value="{{l.cuenta}}" onChange="{{l.setCuenta}}" aria-label="Cuenta">
+            <input class="inp num" value="{{l.importe}}" onChange="{{l.setImporte}}" aria-label="Importe">
+            <button class="btn ghost mini" onClick="{{l.remove}}" aria-label="Quitar">✕</button>
+          </div>
+        </sc-for>
+        <button class="btn ghost mini" style="align-self: flex-start;" onClick="{{addSplit}}">+ Otra cuenta</button>
+        <div class="tot"><span>Total del diario</span><b>{{splitTotal}}</b></div>
+      </sc-if>
+
+      <sc-if value="{{pop.isFactura}}" hint-placeholder-val="{{ false }}">
+        <label style="display: flex; gap: 8px; align-items: center; font-size: 13px;"><input type="checkbox" checked="{{facturaOn}}" onChange="{{toggleFactura}}"> ¿Lleva factura fiscal?</label>
+        <span style="font-size: 12px; color: #a3a5ad;">La app crea la factura de compra en Odoo con la cuenta del gasto y la paga en el acto. El proveedor pasa a ser obligatorio.</span>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;">
+          <select class="inp" value="{{fac.tipo}}" onChange="{{fac.setTipo}}" aria-label="Tipo de comprobante"><option value="A">Factura A</option><option value="B">Factura B</option><option value="C">Factura C</option></select>
+          <input class="inp" value="{{fac.nro}}" onChange="{{fac.setNro}}" placeholder="00008-12345678" aria-label="Punto de venta y número">
+          <input class="inp" type="date" value="{{fac.fecha}}" onChange="{{fac.setFecha}}" aria-label="Fecha del comprobante">
+          <select class="inp" value="{{fac.iva}}" onChange="{{fac.setIva}}" aria-label="Alícuota de IVA"><option value="21">IVA 21%</option><option value="10.5">IVA 10,5%</option><option value="27">IVA 27%</option><option value="0">Exento</option></select>
+        </div>
+        <div class="tot"><span>Neto</span><b>{{fac.neto}}</b></div>
+        <div class="tot"><span>IVA</span><b>{{fac.ivaTxt}}</b></div>
+        <div class="tot"><span>Total (= importe pagado)</span><b>{{fac.total}}</b></div>
+      </sc-if>
+
+      <div style="display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid #2c2e33; padding-top: 12px; margin-top: auto;">
+        <button class="btn" onClick="{{cancelPop}}">Cancelar</button>
+        <button class="btn pri" onClick="{{closePop}}">Aceptar</button>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1300}}'>
+var DIARIOS = ['Efectivo Admin.', 'Bica', 'ICBC', 'Mercado Pago', 'Cheques de Terceros', 'Cuenta Vale', 'Maxi MP', 'Vale MP', 'Andre Bica', 'Mili Bica'];
+var CHQ = 'Cheques de Terceros';
+var BANCOS = ['Bica', 'ICBC'];
+var EFECTIVOS = ['Efectivo Admin.', 'Mercado Pago', 'Maxi MP', 'Vale MP'];
+var NF = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function num(v) {
+  if (typeof v === 'number') return v;
+  var s = String(v == null ? '' : v).replace(/[$\s−-]/g, '');
+  if (!s) return 0;
+  var n = Number(s.indexOf(',') >= 0 ? s.replace(/\./g, '').replace(',', '.') : (/^\d{1,3}(\.\d{3})+$/.test(s) ? s.replace(/\./g, '') : s));
+  return isNaN(n) ? 0 : n;
+}
+function money(n) { return (n < 0 ? '−' : '') + NF.format(Math.abs(n)); }
+function sgnCls(n) { return n < 0 ? 'c-neg' : (n > 0 ? 'c-pos' : 'c-zero'); }
+function clone(x) { return JSON.parse(JSON.stringify(x)); }
+
+var META = {
+  pago: { label: 'Pago a proveedor', grupo: 'Proveedores' }, cobro: { label: 'Cobro de cliente', grupo: 'Clientes' },
+  gasto: { label: 'Gasto', grupo: 'Gastos' }, ingreso: { label: 'Ingreso', grupo: 'Ingresos' },
+  mov: { label: 'Movimiento entre diarios', grupo: 'Movimientos entre diarios' }, socios: { label: 'Retiro / Depósito de socios', grupo: 'Retiros socios' },
+  chqp: { label: 'Pago de cheques propios', grupo: 'Cheques propios' }, cambioR: { label: 'Cambio de cheque (recibo)', grupo: 'Cambio de cheques' },
+  cambioE: { label: 'Cambio de cheque (entrego)', grupo: 'Cambio de cheques' }, externo: { label: 'Cargado en Odoo', grupo: 'Cargado fuera de la app' }
+};
+var PASOS = {
+  pago: ['Crear un pago por cada medio y confirmarlo', 'Línea de extracto en cada diario y conciliación', 'Nota "Registrado por" en Odoo'],
+  cobro: ['Crear un cobro por cada medio y confirmarlo', 'Cheques recibidos a la cartera', 'Línea de extracto en cada diario y conciliación'],
+  gasto: ['Crear y publicar la factura de compra (si lleva)', 'Línea de extracto por cada cuenta en cada diario', 'Establecer cuenta (o pagar la factura) y conciliar'],
+  ingreso: ['Línea de extracto por cada cuenta en cada diario', 'Establecer la cuenta y conciliar'],
+  mov: ['Línea en el diario de origen contra 6.1 Movimiento entre Bancos', 'Línea en el diario de destino contra 6.1', 'Verificar que la cuenta puente quede en 0'],
+  socios: ['Línea de extracto en el diario', 'Establecer la cuenta del socio y conciliar'],
+  chqp: ['Línea de extracto en el banco por cada cheque', 'Conciliar cada línea con su pago "En proceso"'],
+  cambioR: ['Cobro al contacto con los cheques', 'Línea en Cheques de Terceros y conciliación', 'Pago al contacto en efectivo', 'Línea en efectivo y conciliación', 'Diferencia contra Resultados financieros'],
+  cambioE: ['Pago al contacto con los cheques de cartera', 'Línea en Cheques de Terceros y conciliación', 'Cobro del contacto en efectivo', 'Línea en efectivo y conciliación', 'Diferencia contra Resultados financieros'],
+  externo: ['Línea cargada directamente en Odoo por otro usuario']
+};
+var CARTERA = [
+  { id: 'c1', nro: '85931937', banco: 'Credicoop', librador: 'Manelo Benvenutti', fecha: '27/11/2026', importe: 200000 },
+  { id: 'c2', nro: '85931938', banco: 'Credicoop', librador: 'Manelo Benvenutti', fecha: '27/12/2026', importe: 200000 },
+  { id: 'c3', nro: '67565493', banco: 'Banco Macro', librador: 'Red De Atención Integral', fecha: '28/10/2026', importe: 596600 },
+  { id: 'c4', nro: '40112233', banco: 'Galicia', librador: 'Cheque de Julio', fecha: '15/11/2026', importe: 542840 }
+];
+var EMITIDOS = [
+  { id: 'e1', banco: 'ICBC', nro: '00012339', proveedor: 'Luminar SA', fecha: '22/10/2026', importe: 80000, vencido: true },
+  { id: 'e2', banco: 'ICBC', nro: '00012345', proveedor: 'Todo Color', fecha: '28/11/2026', importe: 150000 },
+  { id: 'e3', banco: 'ICBC', nro: '00012346', proveedor: 'Todo Color', fecha: '30/12/2026', importe: 150000 },
+  { id: 'e4', banco: 'Bica', nro: '00003321', proveedor: 'Costa Walter', fecha: '24/10/2026', importe: 250000, vencido: true }
+];
+var ROWS = [
+  { id: 'b1', tipo: 'gasto', concepto: 'Pintura de centros (con factura)', contacto: 'Costa Walter', cuenta: 'Inversiones en locales', estado: 'borrador', encargado: 'Máximo', mov: {}, pend: {} },
+  { id: 1, tipo: 'pago', concepto: 'Pago Megaban', contacto: 'Megaban', cuenta: '—', estado: 'ok', encargado: 'Máximo', mov: { 'Bica': -1500 }, pend: {} },
+  { id: 2, tipo: 'pago', concepto: 'Pago Todo Color (2 cheques propios)', contacto: 'Todo Color', cuenta: 'ICBC N° 00012345 / 46', estado: 'proceso', encargado: 'Máximo', mov: {}, pend: { 'ICBC': -300000 } },
+  { id: 3, tipo: 'cobro', concepto: 'Cobro Traída Máximo', contacto: 'Traída Máximo', cuenta: '—', estado: 'ok', encargado: 'Máximo', mov: { 'Efectivo Admin.': 100 }, pend: {} },
+  { id: 4, tipo: 'gasto', concepto: 'Hierba', contacto: '—', cuenta: 'Gastos generales', estado: 'ok', encargado: 'Mariano', mov: { 'Efectivo Admin.': -3500 }, pend: {} },
+  { id: 5, tipo: 'gasto', concepto: 'Luz octubre', contacto: 'Edenor', cuenta: '5.2.7 Servicios + 1.4.9', estado: 'ok', encargado: 'Máximo', mov: { 'Bica': -50000 }, pend: {} },
+  { id: 6, tipo: 'ingreso', concepto: 'Ingreso en efectivo', contacto: '—', cuenta: '4.2.3 Intereses ganados', estado: 'ok', encargado: 'Máximo', mov: { 'Efectivo Admin.': 500000 }, pend: {} },
+  { id: 7, tipo: 'mov', concepto: 'Mov. ICBC → Efectivo Admin.', contacto: '—', cuenta: '6.1 Puente (queda en 0)', estado: 'ok', encargado: 'Máximo', mov: { 'ICBC': -100000, 'Efectivo Admin.': 100000 }, pend: {} },
+  { id: 8, tipo: 'socios', concepto: 'Retiro Maximo', contacto: '—', cuenta: '3.3.1 Retiro Maximo', estado: 'ok', encargado: 'Máximo', mov: { 'Efectivo Admin.': -200000 }, pend: {} },
+  { id: 9, tipo: 'socios', concepto: 'Depósito Maximo', contacto: '—', cuenta: '3.3.1 Retiro Maximo', estado: 'ok', encargado: 'Máximo', mov: { 'Efectivo Admin.': 40000 }, pend: {} },
+  { id: 10, tipo: 'cambioR', concepto: 'Cambio de cheque Manelo', contacto: 'Manelo Benvenutti', cuenta: 'Ganancia 10.000,00', estado: 'ok', encargado: 'Máximo', mov: { 'Cheques de Terceros': 100000, 'Efectivo Admin.': -90000 }, pend: {} },
+  { id: 11, tipo: 'cambioE', concepto: 'Cambio de cheque Valentín', contacto: 'Valentín Braida', cuenta: 'Interés −42.840,00', estado: 'atencion', encargado: 'Máximo', mov: { 'Cheques de Terceros': -542840, 'Efectivo Admin.': 500000 }, pend: {} },
+  { id: 12, tipo: 'chqp', concepto: 'Débito cheque Armavir', contacto: 'Armavir', cuenta: 'ICBC N° 00012320', estado: 'ok', encargado: 'Mariano', mov: { 'ICBC': -1000000 }, pend: {} },
+  { id: 13, tipo: 'externo', concepto: 'Comisión Mercado Pago', contacto: '—', cuenta: '—', estado: 'externo', encargado: '—', mov: { 'Maxi MP': -12000 }, pend: {} }
+];
+var ESTADOS = { ok: 'Completada', proceso: 'Pendiente de débito', atencion: 'Requiere atención', anulada: 'Anulada', externo: 'Cargado en Odoo', borrador: 'Borrador' };
+var SIGNO = { pago: -1, cobro: 1, gasto: -1, ingreso: 1, socios: -1, chqp: -1, mov: 1, cambioR: 1, cambioE: -1 };
+
+function newEdit(type) {
+  var e = { type: type, obs: '', contacto: '', cuenta: '', encargado: 'Máximo', amounts: {}, chqp: {}, carteraSel: {}, chqRec: [{ nro: '', banco: '', cuit: '', fecha: '', importe: '' }],
+    emSel: {}, splits: {}, factura: { on: false, tipo: 'A', nro: '', fecha: '2026-10-24', iva: '21' }, origen: 'ICBC', destino: 'Efectivo Admin.', importeMov: '', sentido: 'retiro', cuentaSocio: '3.3.1 Retiro Maximo' };
+  if (type === 'pago') { e.contacto = 'Todo Color'; e.amounts = { 'Bica': '150000', 'ICBC': '150000' }; e.chqp = { 'ICBC': { on: true, nro: '00012347', fecha: '2026-11-28' } }; }
+  if (type === 'cobro') { e.contacto = 'Traída Máximo'; e.amounts = { 'Efectivo Admin.': '100' }; }
+  if (type === 'gasto') { e.obs = 'Luz octubre'; e.contacto = 'Edenor'; e.cuenta = '5.2.7 Servicios'; e.amounts = { 'Bica': '50000' }; e.splits = { 'Bica': [{ cuenta: '5.2.7 Servicios', importe: '49500' }, { cuenta: '1.4.9 Retenciones y percepciones varias', importe: '500' }] }; }
+  if (type === 'ingreso') { e.obs = 'Ingreso en efectivo'; e.cuenta = '4.2.3 Intereses ganados'; e.amounts = { 'Efectivo Admin.': '500000' }; }
+  if (type === 'mov') { e.importeMov = '100000'; }
+  if (type === 'socios') { e.amounts = { 'Efectivo Admin.': '200000' }; }
+  if (type === 'chqp') { e.emSel = { e1: true }; }
+  if (type === 'cambioR') { e.contacto = 'Manelo Benvenutti'; e.obs = 'Cambio de cheque Manelo'; e.amounts = { 'Efectivo Admin.': '90000' }; e.chqRec = [{ nro: '85931939', banco: 'Credicoop', cuit: '20-40912345-3', fecha: '2026-11-28', importe: '50000' }, { nro: '85931940', banco: 'Credicoop', cuit: '20-40912345-3', fecha: '2026-12-29', importe: '50000' }]; }
+  if (type === 'cambioE') { e.contacto = 'Valentín Braida'; e.obs = 'Cambio de cheque Valentín'; e.amounts = { 'Efectivo Admin.': '500000' }; e.carteraSel = { c4: true }; }
+  return e;
+}
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { period: 'dia', expanded: {}, rows: clone(ROWS), nextId: 100, edit: null, pop: null, err: '', dupOk: false, dupText: '',
+      confirming: false, step: 0, open: null, askAnular: null, highlight: null };
+  }
+  componentWillUnmount() { if (this.timer) clearInterval(this.timer); }
+  upd(fn) { var e = clone(this.state.edit); fn(e); this.setState({ edit: e, err: '', dupOk: false }); }
+
+  carteraTotal(e) { return CARTERA.filter(function (c) { return e.carteraSel[c.id]; }).reduce(function (a, c) { return a + c.importe; }, 0); }
+  recTotal(e) { return e.chqRec.reduce(function (a, q) { return a + num(q.importe); }, 0); }
+  emTotal(e, banco) { return EMITIDOS.filter(function (x) { return e.emSel[x.id] && (!banco || x.banco === banco); }).reduce(function (a, x) { return a + x.importe; }, 0); }
+  splitTotal(e, d) { return (e.splits[d] || []).reduce(function (a, l) { return a + num(l.importe); }, 0); }
+  amount(e, d) { return e.splits[d] && e.splits[d].length ? this.splitTotal(e, d) : num(e.amounts[d]); }
+
+  effect(e) {
+    var mov = {}, pend = {}, self = this, t = e.type, sg = SIGNO[t];
+    function add(d, v) { if (v) mov[d] = (mov[d] || 0) + v; }
+    if (t === 'pago' || t === 'cobro' || t === 'gasto' || t === 'ingreso' || t === 'socios') {
+      var s2 = t === 'socios' ? (e.sentido === 'retiro' ? -1 : 1) : sg;
+      DIARIOS.forEach(function (d) {
+        if (d === CHQ) return;
+        var v = self.amount(e, d);
+        if (!v) return;
+        if (t === 'pago' && e.chqp[d] && e.chqp[d].on) pend[d] = (pend[d] || 0) - v; else add(d, s2 * v);
+      });
+      if (t === 'pago') add(CHQ, -this.carteraTotal(e));
+      if (t === 'cobro') add(CHQ, this.recTotal(e));
+    }
+    if (t === 'mov') { add(e.origen, -num(e.importeMov)); add(e.destino, num(e.importeMov)); }
+    if (t === 'chqp') BANCOS.forEach(function (b) { add(b, -self.emTotal(e, b)); });
+    if (t === 'cambioR' || t === 'cambioE') {
+      add(CHQ, (t === 'cambioR' ? 1 : -1) * (t === 'cambioR' ? this.recTotal(e) : this.carteraTotal(e)));
+      EFECTIVOS.forEach(function (d) { add(d, (t === 'cambioR' ? -1 : 1) * num(e.amounts[d])); });
+    }
+    return { mov: mov, pend: pend };
+  }
+
+  validate(e) {
+    var t = e.type, eff = this.effect(e);
+    if (['gasto', 'ingreso', 'cambioR', 'cambioE'].indexOf(t) >= 0 && !e.obs.trim()) return 'La observación es obligatoria en Gasto, Ingreso y Cambio de cheques.';
+    if ((t === 'pago' || t === 'cobro' || t === 'cambioR' || t === 'cambioE' || (t === 'gasto' && e.factura.on)) && !e.contacto.trim()) return 'Falta el contacto.';
+    if ((t === 'gasto' || t === 'ingreso') && !e.cuenta && !Object.keys(e.splits).length) return 'Falta elegir la cuenta.';
+    if (t === 'gasto' && e.factura.on && !e.factura.nro.trim()) return 'Falta el número de la factura.';
+    if (t === 'mov' && e.origen === e.destino) return 'El diario de origen y el de destino tienen que ser distintos.';
+    if (!Object.keys(eff.mov).length && !Object.keys(eff.pend).length) return 'Cargá al menos un importe en alguna columna.';
+    if ((t === 'cambioR' || t === 'cambioE') && (!eff.mov[CHQ] || EFECTIVOS.every(function (d) { return !num(e.amounts[d]); }))) return 'Faltan los cheques o el efectivo.';
+    return '';
+  }
+
+  diff(e) {
+    var chq = e.type === 'cambioR' ? this.recTotal(e) : this.carteraTotal(e);
+    var ef = EFECTIVOS.reduce(function (a, d) { return a + num(e.amounts[d]); }, 0);
+    return { chq: chq, ef: ef, dif: chq - ef };
+  }
+
+  buildRow(e) {
+    var eff = this.effect(e), t = e.type, concepto = e.obs.trim(), cuenta = '—', estado = Object.keys(eff.pend).length ? 'proceso' : 'ok';
+    if (!concepto) {
+      if (t === 'pago') concepto = 'Pago ' + e.contacto;
+      else if (t === 'cobro') concepto = 'Cobro ' + e.contacto;
+      else if (t === 'mov') concepto = 'Mov. ' + e.origen + ' → ' + e.destino;
+      else if (t === 'socios') concepto = (e.sentido === 'retiro' ? 'Retiro ' : 'Depósito ') + e.cuentaSocio.replace(/^[\d.]+ Retiro /, '');
+      else if (t === 'chqp') concepto = 'Débito ' + EMITIDOS.filter(function (x) { return e.emSel[x.id]; }).map(function (x) { return 'cheque ' + x.nro + ' ' + x.proveedor; }).join(', ');
+      else concepto = META[t].label;
+    }
+    if (t === 'gasto' || t === 'ingreso') { var sp = Object.keys(e.splits); cuenta = sp.length ? e.splits[sp[0]].map(function (l) { return l.cuenta.split(' ')[0]; }).join(' + ') : e.cuenta; if (e.factura.on) cuenta += ' · FC ' + e.factura.tipo; }
+    if (t === 'socios') cuenta = e.cuentaSocio;
+    if (t === 'mov') cuenta = '6.1 Puente (queda en 0)';
+    if (t === 'cambioR' || t === 'cambioE') { var d = this.diff(e); cuenta = (d.dif * (t === 'cambioR' ? 1 : -1) >= 0 ? 'Ganancia ' : 'Interés ') + money(t === 'cambioR' ? d.dif : -d.dif); }
+    if (t === 'pago') { var ch = Object.keys(e.chqp).filter(function (k) { return e.chqp[k].on; }); if (ch.length) cuenta = ch.map(function (k) { return k + ' N° ' + e.chqp[k].nro; }).join(', '); }
+    return { id: this.state.nextId, tipo: t, concepto: concepto, contacto: e.contacto || '—', cuenta: cuenta, estado: estado, encargado: e.encargado, mov: eff.mov, pend: eff.pend };
+  }
+
+  confirm() {
+    var s = this.state, e = s.edit, err = this.validate(e);
+    if (err) { this.setState({ err: err }); return; }
+    var row = this.buildRow(e);
+    if (!s.dupOk) {
+      var dup = s.rows.filter(function (r) { return r.tipo === row.tipo && r.contacto === row.contacto && r.contacto !== '—' && r.estado !== 'anulada' && Object.keys(r.mov).length && JSON.stringify(r.mov) === JSON.stringify(row.mov); })[0];
+      if (dup) { this.setState({ dupOk: true, dupText: dup.concepto }); return; }
+    }
+    var self = this, n = PASOS[e.type].length;
+    this.setState({ confirming: true, step: 0, pop: null });
+    this.timer = setInterval(function () {
+      var st = self.state.step + 1;
+      if (st >= n) {
+        clearInterval(self.timer); self.timer = null;
+        var rows = self.state.rows.filter(function (r) { return r.id !== self.state.fromDraft; });
+        self.setState({ rows: [row].concat(rows), nextId: self.state.nextId + 1, confirming: false, edit: null, highlight: row.id, fromDraft: null });
+      } else self.setState({ step: st });
+    }, 700);
+  }
+
+  popHandler(type, key, before) {
+    var self = this;
+    return function () {
+      self.setState({ pop: { type: type, key: key }, popSnap: clone(before || self.state.edit) });
+    };
+  }
+
+  renderVals() {
+    var self = this, s = this.state, e = s.edit, t = e ? e.type : null;
+    var live = s.rows.filter(function (r) { return r.estado !== 'anulada' && r.estado !== 'borrador'; });
+    var cellsFor = function (mov, pend) {
+      return DIARIOS.map(function (d) {
+        if (mov && mov[d]) return { txt: money(mov[d]), cls: 'cell ' + sgnCls(mov[d]) };
+        if (pend && pend[d]) return { txt: '(' + money(pend[d]) + ')', cls: 'cell c-pend' };
+        return { txt: '', cls: 'cell' };
+      });
+    };
+    var rowView = function (r) {
+      var exp = s.open === r.id;
+      var pasos = PASOS[r.tipo].map(function (p, i) {
+        var fail = r.estado === 'atencion' && i === 2, later = r.estado === 'atencion' && i > 2, undone = r.estado === 'anulada', draft = r.estado === 'borrador';
+        return { texto: p, ref: r.tipo === 'externo' || draft ? '' : 'TES-' + r.id + '-' + (i + 1) + (undone ? ' revertido' : ''),
+          mark: draft ? '·' : (undone ? '↺' : (fail ? '✕' : (later ? '·' : '✓'))), cls: draft || later ? 'c-zero' : (undone ? 'c-zero' : (fail ? 'c-neg' : 'c-pos')) };
+      });
+      var setEstado = function (estado) { self.setState({ rows: s.rows.map(function (x) { return x.id === r.id ? Object.assign({}, x, { estado: estado }) : x; }), askAnular: null }); };
+      return { concepto: r.concepto, contacto: r.contacto, cuenta: r.cuenta, tipo: META[r.tipo].label, estadoLabel: ESTADOS[r.estado], chipCls: 'chip st-' + r.estado,
+        icon: exp ? '▾' : '▸', expanded: exp, pasos: pasos, encargado: r.encargado, registrado: r.tipo === 'externo' ? 'Usuario de Odoo' : 'Mariano',
+        rowCls: 'mrow' + (r.id === s.highlight ? ' hl' : '') + (r.estado === 'anulada' ? ' anul' : '') + (r.estado === 'borrador' ? ' borr' : ''),
+        cells: cellsFor(r.mov, r.pend),
+        open: function () { self.setState({ open: exp ? null : r.id, askAnular: null }); },
+        isAtencion: r.estado === 'atencion', isExterno: r.estado === 'externo', isBorrador: r.estado === 'borrador',
+        canReanudar: r.estado === 'atencion', canAnular: r.estado === 'ok' || r.estado === 'proceso',
+        askAnular: s.askAnular === r.id, noAsk: s.askAnular !== r.id,
+        pedirAnular: function () { self.setState({ askAnular: r.id }); }, noAnular: function () { self.setState({ askAnular: null }); },
+        siAnular: function () { setEstado('anulada'); }, reanudar: function () { setEstado('ok'); },
+        borrar: function () { self.setState({ rows: s.rows.filter(function (x) { return x.id !== r.id; }), open: null }); },
+        seguir: function () { var ne = newEdit(r.tipo); ne.obs = 'Pintura de centros'; ne.contacto = r.contacto; ne.cuenta = r.cuenta; ne.amounts = { 'Efectivo Admin.': '181500' }; ne.splits = {}; ne.factura = { on: true, tipo: 'A', nro: '00008-12345678', fecha: '2026-10-23', iva: '21' };
+          self.setState({ edit: ne, open: null, fromDraft: r.id, err: '', dupOk: false, period: 'dia' }); } };
+    };
+    var totals = DIARIOS.map(function (d) { var v = live.reduce(function (a, r) { return a + (r.mov[d] || 0); }, 0); return { txt: v ? money(v) : '0,00', cls: 'cell ' + sgnCls(v) }; });
+    var gmap = {}, gorder = [];
+    s.rows.filter(function (r) { return r.estado !== 'borrador'; }).forEach(function (r) { var g = META[r.tipo].grupo; if (r.tipo === 'gasto' || r.tipo === 'ingreso') g = r.cuenta; if (!gmap[g]) { gmap[g] = []; gorder.push(g); } gmap[g].push(r); });
+    var grupos = gorder.map(function (g) {
+      var rs = gmap[g], agg = {};
+      rs.filter(function (r) { return r.estado !== 'anulada'; }).forEach(function (r) { Object.keys(r.mov).forEach(function (k) { agg[k] = (agg[k] || 0) + r.mov[k]; }); });
+      var exp = !!s.expanded[g];
+      return { grupo: g, count: rs.length, cells: cellsFor(agg, null), expanded: exp, icon: exp ? '−' : '+', rows: rs.map(rowView),
+        toggle: function () { var x = Object.assign({}, s.expanded); x[g] = !x[g]; self.setState({ expanded: x }); } };
+    });
+    var tab = function (on) { return on ? 'btn pri' : 'btn ghost'; };
+
+    var on = {};
+    ['obs', 'contacto', 'cuenta', 'encargado', 'origen', 'destino', 'cuentaSocio'].forEach(function (k) { on[k] = function (ev) { var v = ev.target.value; self.upd(function (x) { x[k] = v; }); }; });
+
+    var editCells = [], ev = null;
+    if (e) {
+      var sg = SIGNO[t];
+      editCells = DIARIOS.map(function (d) {
+        var c = { diario: d, isInput: false, isPop: false, isText: false, hasChq: false, hasSplit: false, value: '', inpCls: 'inp num', chqLabel: '', chqCls: 'btn mini', splitLabel: '', popLabel: '', text: '', textCls: '' };
+        var setAmt = function (x) { var v = x.target.value; self.upd(function (y) { y.amounts[d] = v; }); };
+        var money2 = function (v) { return v ? money(v) : 'Elegir ▾'; };
+        if (t === 'pago' || t === 'cobro' || t === 'gasto' || t === 'ingreso' || t === 'socios') {
+          if (d === CHQ) {
+            if (t === 'pago') { var n = Object.keys(e.carteraSel).filter(function (k) { return e.carteraSel[k]; }).length; c.isPop = true; c.popLabel = n ? n + ' chq · ' + money(-self.carteraTotal(e)) : 'Elegir cheques ▾'; c.openPop = self.popHandler('cartera', d); }
+            else if (t === 'cobro') { var rt = self.recTotal(e); c.isPop = true; c.popLabel = rt ? e.chqRec.length + ' chq · ' + money(rt) : 'Cargar cheques ▾'; c.openPop = self.popHandler('chqRec', d); }
+            else { c.isText = true; c.text = '—'; c.textCls = 'c-zero'; }
+            return c;
+          }
+          var s2 = t === 'socios' ? (e.sentido === 'retiro' ? -1 : 1) : sg;
+          if ((t === 'gasto' || t === 'ingreso') && e.splits[d] && e.splits[d].length) {
+            c.isPop = true; c.popLabel = e.splits[d].length + ' cuentas · ' + money(s2 * self.splitTotal(e, d)); c.openPop = self.popHandler('split', d);
+            return c;
+          }
+          c.isInput = true; c.value = e.amounts[d] || ''; c.onChange = setAmt;
+          var isChq = t === 'pago' && e.chqp[d] && e.chqp[d].on;
+          c.inpCls = 'inp num ' + (num(c.value) ? (isChq ? 'pend' : (s2 < 0 ? 'neg' : 'pos')) : '');
+          if (t === 'pago' && BANCOS.indexOf(d) >= 0) { c.hasChq = true; c.chqLabel = isChq ? 'cheque propio ▾' : '+ cheque propio'; c.chqCls = 'btn mini' + (isChq ? ' on' : ''); c.openChq = self.popHandler('chqp', d); }
+          if ((t === 'gasto' || t === 'ingreso') && num(c.value)) { c.hasSplit = true; c.splitLabel = 'repartir en cuentas'; c.openSplit = function () { var before = clone(self.state.edit); self.upd(function (y) { y.splits[d] = [{ cuenta: y.cuenta || '', importe: y.amounts[d] || '' }, { cuenta: '', importe: '' }]; }); self.popHandler('split', d, before)(); }; }
+          return c;
+        }
+        if (t === 'mov') {
+          if (d === e.origen) { c.isInput = true; c.value = e.importeMov; c.onChange = function (x) { var v = x.target.value; self.upd(function (y) { y.importeMov = v; }); }; c.inpCls = 'inp num neg'; }
+          else if (d === e.destino) { c.isText = true; c.text = num(e.importeMov) ? money(num(e.importeMov)) : '—'; c.textCls = 'c-pos'; }
+          else { c.isText = true; c.text = ''; }
+          return c;
+        }
+        if (t === 'chqp') {
+          if (BANCOS.indexOf(d) >= 0) { var tot = self.emTotal(e, d); c.isPop = true; c.popLabel = tot ? money(-tot) : 'Elegir cheques ▾'; c.openPop = self.popHandler('emitidos', d); }
+          else { c.isText = true; c.text = ''; }
+          return c;
+        }
+        if (t === 'cambioR' || t === 'cambioE') {
+          if (d === CHQ) {
+            if (t === 'cambioR') { var r2 = self.recTotal(e); c.isPop = true; c.popLabel = r2 ? money(r2) : 'Cargar cheques ▾'; c.openPop = self.popHandler('chqRec', d); }
+            else { var ct = self.carteraTotal(e); c.isPop = true; c.popLabel = ct ? money(-ct) : 'Elegir cheques ▾'; c.openPop = self.popHandler('cartera', d); }
+          } else if (EFECTIVOS.indexOf(d) >= 0) { c.isInput = true; c.value = e.amounts[d] || ''; c.onChange = setAmt; c.inpCls = 'inp num ' + (num(c.value) ? (t === 'cambioR' ? 'neg' : 'pos') : ''); }
+          else { c.isText = true; c.text = ''; }
+          return c;
+        }
+        return c;
+      });
+
+      var resumen = '';
+      var eff = this.effect(e);
+      var parts = Object.keys(eff.mov).map(function (k) { return k + ' ' + money(eff.mov[k]); }).concat(Object.keys(eff.pend).map(function (k) { return k + ' (' + money(eff.pend[k]) + ' a debitar)'; }));
+      resumen = parts.length ? 'Efecto: ' + parts.join(' · ') : 'Cargá el importe en la columna del diario.';
+      var cuentaTxt = '', cuentaTextoCls = 'c-zero';
+      if (t === 'cambioR' || t === 'cambioE') {
+        var df = this.diff(e), g2 = t === 'cambioR' ? df.dif : -df.dif;
+        cuentaTxt = (g2 >= 0 ? 'Ganancia ' : 'Interés ') + money(g2) + ' → Resultados financieros'; cuentaTextoCls = g2 >= 0 ? 'c-pos' : 'c-neg';
+      }
+      if (t === 'pago' || t === 'cobro') cuentaTxt = 'Un ' + (t === 'pago' ? 'pago' : 'cobro') + ' en Odoo por cada columna con importe';
+      if (t === 'chqp') cuentaTxt = 'Una línea por cheque, conciliada con su pago';
+      var fOn = e.factura.on;
+      ev = { typeLabel: META[t].label, obs: e.obs, encargado: e.encargado, contacto: e.contacto, cuenta: e.cuenta, origen: e.origen, destino: e.destino, cuentaSocio: e.cuentaSocio,
+        obsPh: ['gasto', 'ingreso', 'cambioR', 'cambioE'].indexOf(t) >= 0 ? 'Observación (obligatoria)' : 'Observación (opcional: si queda vacía se arma sola)',
+        isSocios: t === 'socios', isGasto: t === 'gasto',
+        retiroCls: 'btn mini' + (e.sentido === 'retiro' ? ' on' : ''), depositoCls: 'btn mini' + (e.sentido === 'deposito' ? ' on' : ''),
+        facturaCls: 'btn mini' + (fOn ? ' on' : ''), facturaLabel: fOn ? 'Factura ' + e.factura.tipo + ' ' + (e.factura.nro || '') + ' ▾' : '¿Lleva factura fiscal?',
+        contactoPago: t === 'pago', contactoCobro: t === 'cobro', contactoLibre: ['gasto', 'ingreso', 'cambioR', 'cambioE'].indexOf(t) >= 0, contactoNo: ['mov', 'socios', 'chqp'].indexOf(t) >= 0,
+        contactoPh: t === 'gasto' && fOn ? 'Proveedor (obligatorio)' : (t === 'cambioR' || t === 'cambioE' ? 'Contacto (obligatorio)' : 'Contacto (opcional)'),
+        cuentaGasto: t === 'gasto', cuentaIngreso: t === 'ingreso', cuentaSocios: t === 'socios', cuentaMov: t === 'mov', cuentaTexto: !!cuentaTxt, cuentaTxt: cuentaTxt, cuentaTextoCls: cuentaTextoCls,
+        resumen: resumen };
+    }
+
+    var p = s.pop;
+    var carteraView = CARTERA.map(function (c) {
+      var sel = !!(e && e.carteraSel[c.id]);
+      return { nro: c.nro, banco: c.banco, librador: c.librador, fecha: c.fecha, importeTxt: money(c.importe), sel: sel, cls: 'check' + (sel ? ' on' : ''),
+        toggle: function () { self.upd(function (y) { y.carteraSel[c.id] = !sel; }); } };
+    });
+    var chqRecView = e ? e.chqRec.map(function (q, i) {
+      var mk = function (k) { return function (x) { var v = x.target.value; self.upd(function (y) { y.chqRec[i][k] = v; }); }; };
+      return { nro: q.nro, banco: q.banco, cuit: q.cuit, fecha: q.fecha, importe: q.importe, setNro: mk('nro'), setBanco: mk('banco'), setCuit: mk('cuit'), setFecha: mk('fecha'), setImporte: mk('importe') };
+    }) : [];
+    var emitidosView = p && p.type === 'emitidos' ? EMITIDOS.filter(function (x) { return x.banco === p.key; }).map(function (x) {
+      var sel = !!e.emSel[x.id];
+      return { nro: x.nro, proveedor: x.proveedor, fecha: x.fecha, aviso: x.vencido ? '· ya venció' : '· todavía no vence', importeTxt: money(x.importe), sel: sel, cls: 'check' + (sel ? ' on' : ''),
+        toggle: function () { self.upd(function (y) { y.emSel[x.id] = !sel; }); } };
+    }) : [];
+    var splitView = p && p.type === 'split' ? (e.splits[p.key] || []).map(function (l, i) {
+      return { cuenta: l.cuenta, importe: l.importe,
+        setCuenta: function (x) { var v = x.target.value; self.upd(function (y) { y.splits[p.key][i].cuenta = v; }); },
+        setImporte: function (x) { var v = x.target.value; self.upd(function (y) { y.splits[p.key][i].importe = v; }); },
+        remove: function () { self.upd(function (y) { y.splits[p.key].splice(i, 1); if (!y.splits[p.key].length) delete y.splits[p.key]; }); } };
+    }) : [];
+    var chq = p && p.type === 'chqp' ? (e.chqp[p.key] || { on: false, nro: p.key === 'ICBC' ? '00012347' : '00003322', fecha: '2026-11-28' }) : null;
+    var setChq = function (k) { return function (x) { var v = x.target.value; self.upd(function (y) { y.chqp[p.key] = Object.assign({ on: true, nro: chq.nro, fecha: chq.fecha }, y.chqp[p.key] || {}); y.chqp[p.key][k] = v; }); }; };
+    var fac = null;
+    if (e && t === 'gasto') {
+      var totalF = Object.keys(e.amounts).reduce(function (a, d) { return a + self.amount(e, d); }, 0), alic = num(e.factura.iva) / 100, neto = totalF / (1 + alic);
+      var setFac = function (k) { return function (x) { var v = x.target.value; self.upd(function (y) { y.factura[k] = v; }); }; };
+      fac = { tipo: e.factura.tipo, nro: e.factura.nro, fecha: e.factura.fecha, iva: e.factura.iva, neto: money(neto), ivaTxt: money(totalF - neto), total: money(totalF),
+        setTipo: setFac('tipo'), setNro: setFac('nro'), setFecha: setFac('fecha'), setIva: setFac('iva') };
+    }
+    var titles = { cartera: 'Cheques de cartera', chqRec: 'Cheques recibidos', chqp: 'Cheque propio', emitidos: 'Cheques propios a debitar', split: 'Varias cuentas', factura: 'Factura fiscal' };
+
+    return {
+      diarios: DIARIOS,
+      periodLabel: s.period === 'dia' ? 'Viernes 24/10/2026' : (s.period === 'mes' ? 'Octubre 2026' : 'Año 2026'),
+      isDia: s.period === 'dia', isAgrupado: s.period !== 'dia',
+      tabDia: tab(s.period === 'dia'), tabMes: tab(s.period === 'mes'), tabAnio: tab(s.period === 'anio'),
+      setDia: function () { self.setState({ period: 'dia' }); }, setMes: function () { self.setState({ period: 'mes', edit: null }); }, setAnio: function () { self.setState({ period: 'anio', edit: null }); },
+      comboVal: t || '',
+      onCombo: function (x) { var v = x.target.value; if (!v) return; self.setState({ edit: newEdit(v), period: 'dia', pop: null, err: '', dupOk: false, open: null, fromDraft: null }); },
+      editing: !!e, e: ev || {}, on: on, editCells: editCells,
+      setRetiro: function () { self.upd(function (y) { y.sentido = 'retiro'; }); }, setDeposito: function () { self.upd(function (y) { y.sentido = 'deposito'; }); },
+      openFactura: function () { self.popHandler('factura', 'gasto')(); },
+      hasErr: !!s.err, err: s.err, hasDup: s.dupOk, dupText: s.dupText,
+      confirming: s.confirming, notConfirming: !s.confirming, stepNum: s.step + 1, stepTotal: t ? PASOS[t].length : 0, stepText: t ? PASOS[t][s.step] || '' : '',
+      cancelEdit: function () { if (!s.confirming) self.setState({ edit: null, pop: null, err: '' }); },
+      saveDraft: function () { if (s.confirming) return; var r = self.buildRow(e); r.estado = 'borrador'; r.id = 'b' + s.nextId; r.mov = {}; r.pend = {}; self.setState({ rows: [r].concat(s.rows), nextId: s.nextId + 1, edit: null, pop: null }); },
+      confirm: function () { if (!s.confirming) self.confirm(); },
+      rowsView: s.rows.map(rowView), grupos: grupos, totales: totals,
+      popOpen: !!(p && e), closePop: function () { self.setState({ pop: null, popSnap: null }); },
+      cancelPop: function () { self.setState({ pop: null, edit: s.popSnap || s.edit, popSnap: null }); },
+      pop: p ? { key: p.key, context: META[t].label + (e.contacto ? ' · ' + e.contacto : ''), title: titles[p.type] + (p.type === 'split' || p.type === 'chqp' || p.type === 'emitidos' ? ' · ' + p.key : ''),
+        isCartera: p.type === 'cartera', isChqRec: p.type === 'chqRec', isChqp: p.type === 'chqp', isEmitidos: p.type === 'emitidos', isSplit: p.type === 'split', isFactura: p.type === 'factura' } : {},
+      carteraView: carteraView, carteraTotal: e ? money(this.carteraTotal(e)) : '', chqRecView: chqRecView, recTotal: e ? money(this.recTotal(e)) : '',
+      addChqRec: function () { self.upd(function (y) { y.chqRec.push({ nro: '', banco: '', cuit: '', fecha: '', importe: '' }); }); },
+      chqpOn: !!(chq && chq.on), toggleChqp: function () { self.upd(function (y) { var cur = y.chqp[p.key] || { nro: chq.nro, fecha: chq.fecha }; cur.on = !chq.on; y.chqp[p.key] = cur; }); },
+      chqpData: chq ? { nro: chq.nro, fecha: chq.fecha, setNro: setChq('nro'), setFecha: setChq('fecha') } : {},
+      emitidosView: emitidosView, emitidosTotalTxt: p && p.type === 'emitidos' ? money(-this.emTotal(e, p.key)) : '',
+      splitView: splitView, splitTotal: p && p.type === 'split' && e ? money(this.splitTotal(e, p.key)) : '',
+      addSplit: function () { self.upd(function (y) { (y.splits[p.key] = y.splits[p.key] || []).push({ cuenta: '', importe: '' }); }); },
+      facturaOn: !!(e && e.factura.on), toggleFactura: function () { self.upd(function (y) { y.factura.on = !y.factura.on; }); },
+      fac: fac || {}
+    };
+  }
+}
+</script>
+</body>
+</html>

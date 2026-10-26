@@ -1,0 +1,549 @@
+<title>Plan Tesorería Casa Sonia</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: documento de trabajo para revisar en reunión. Columna de lectura con índice lateral en escritorio; tablas en contenedores con scroll propio. Identidad de la app: ámbar sobre neutros cálidos. */
+:root {
+  --bg: #faf8f4;
+  --surface: #ffffff;
+  --ink: #1d1a15;
+  --ink-2: #5b5448;
+  --line: #e4ddd0;
+  --accent: #b86e00;
+  --accent-soft: #fbefd9;
+  --ok: #2f7d4f;
+  --ok-soft: #e3f2e8;
+  --warn: #a8460c;
+  --warn-soft: #fbe7da;
+  --info: #3a5f8f;
+  --info-soft: #e4ecf6;
+  --neg: #b3261e;
+  --pos: #2f7d4f;
+  --font-display: "Syne", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "DM Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15130f; --surface: #1e1b16; --ink: #efe9df; --ink-2: #b2a998; --line: #353028;
+    --accent: #f0a63a; --accent-soft: #3a2a10; --ok: #6fc796; --ok-soft: #173123;
+    --warn: #f29a62; --warn-soft: #3b2214; --info: #8fb3e3; --info-soft: #1b2738;
+    --neg: #f08a83; --pos: #6fc796; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15130f; --surface: #1e1b16; --ink: #efe9df; --ink-2: #b2a998; --line: #353028;
+  --accent: #f0a63a; --accent-soft: #3a2a10; --ok: #6fc796; --ok-soft: #173123;
+  --warn: #f29a62; --warn-soft: #3b2214; --info: #8fb3e3; --info-soft: #1b2738;
+  --neg: #f08a83; --pos: #6fc796; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-sans); font-size: 15.5px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 40px 80px; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 48px; }
+@media (max-width: 880px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 24px; padding-block: 24px 56px; } nav.toc { display: none; } }
+
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; font-size: 13px; }
+nav.toc p { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: .08em; font-size: 11px; color: var(--ink-2); margin: 0 0 8px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+nav.toc a { color: var(--ink-2); text-decoration: none; display: block; padding: 4px 8px; border-radius: 4px; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink); background: var(--accent-soft); outline: none; }
+
+main { min-width: 0; display: grid; gap: 56px; }
+header.doc { display: grid; gap: 14px; border-bottom: 1px solid var(--line); padding-bottom: 28px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 0; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; line-height: 1.15; margin: 0; }
+h1 { font-size: clamp(30px, 5vw, 44px); letter-spacing: -.01em; }
+h2 { font-size: clamp(22px, 3vw, 28px); }
+h3 { font-size: 18px; }
+p { margin: 0; max-width: 68ch; }
+.lede { font-size: 17px; color: var(--ink-2); }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; color: var(--ink-2); }
+.meta b { color: var(--ink); font-weight: 600; }
+
+section { display: grid; gap: 18px; scroll-margin-top: 24px; }
+section > .head { display: grid; gap: 6px; }
+.sub { color: var(--ink-2); font-size: 14.5px; }
+
+.chip { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; padding: 1px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; vertical-align: 1px; }
+.e1 { background: var(--ok-soft); color: var(--ok); }
+.e2 { background: var(--info-soft); color: var(--info); }
+.e3 { background: var(--accent-soft); color: var(--accent); }
+.val { background: var(--warn-soft); color: var(--warn); }
+.src { border-color: var(--line); color: var(--ink-2); }
+
+/* Panorama */
+.stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 760px) { .stages { grid-template-columns: minmax(0, 1fr); } }
+.stage { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; display: grid; gap: 10px; align-content: start; }
+.stage.now { border-color: var(--ok); }
+.stage h3 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.stage ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; font-size: 14.5px; }
+.stage .tag { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); margin: 6px 0 0; }
+.scope { font-size: 13.5px; color: var(--ink-2); }
+
+/* Validar */
+.checks { display: grid; gap: 12px; counter-reset: v; }
+.check { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 6px; padding: 16px 18px; display: grid; gap: 10px; }
+.check h3 { font-size: 16.5px; display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.check h3 .n { font-family: var(--font-mono); color: var(--warn); font-size: 13px; }
+.vs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 640px) { .vs { grid-template-columns: minmax(0, 1fr); } }
+.vs > div { display: grid; gap: 4px; font-size: 14.5px; }
+.vs .k { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-2); }
+.answer { font-size: 13.5px; color: var(--ink-2); border-top: 1px dashed var(--line); padding-top: 8px; }
+
+/* Tablas */
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); background: var(--bg); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono); white-space: nowrap; }
+.neg { color: var(--neg); } .pos { color: var(--pos); }
+td .muted, .muted { color: var(--ink-2); }
+
+/* Operaciones */
+.op { display: grid; gap: 14px; padding-top: 6px; }
+.op + .op { border-top: 1px solid var(--line); padding-top: 26px; }
+.op h3 { font-size: 20px; display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 760px) { .two { grid-template-columns: minmax(0, 1fr); } }
+.two > div { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.label { font-family: var(--font-mono); font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-2); margin: 0; }
+ul.rules { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14.5px; }
+ol.steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 14.5px; }
+.example { font-size: 13.5px; color: var(--ink-2); }
+code, .mono { font-family: var(--font-mono); font-size: .92em; }
+
+/* Hallazgos */
+.finds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 700px) { .finds { grid-template-columns: minmax(0, 1fr); } }
+.find { border-top: 2px solid var(--accent); padding-top: 10px; display: grid; gap: 4px; font-size: 14.5px; }
+.find b { font-weight: 600; }
+
+/* Mini matriz de ejemplo */
+.mini td.num { width: 1%; }
+
+footer.doc { border-top: 1px solid var(--line); padding-top: 18px; font-size: 13px; color: var(--ink-2); display: grid; gap: 6px; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+  <nav class="toc" aria-label="Índice">
+    <p>Contenido</p>
+    <ol>
+      <li><a href="#panorama">Panorama</a></li>
+      <li><a href="#validar">Para validar hoy</a></li>
+      <li><a href="#operaciones">Operaciones etapa 1</a></li>
+      <li><a href="#vistas">Vistas etapa 1</a></li>
+      <li><a href="#reglas">Reglas generales</a></li>
+      <li><a href="#odoo">Lo que vimos en Odoo</a></li>
+      <li><a href="#etapa2">Etapa 2</a></li>
+      <li><a href="#etapa3">Etapa 3</a></li>
+      <li><a href="#abiertas">Preguntas abiertas</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="doc">
+      <p class="eyebrow">Casa Sonia · Módulo de Tesorería</p>
+      <h1>Plan de Tesorería: etapa 1 y lo que sigue</h1>
+      <p class="lede">La app nueva reemplaza la planilla diaria de Mariano. Cada operación se carga en una pantalla simple y la app hace en segundo plano todos los pasos en Odoo: pagos, extractos y conciliación. Este documento resume cómo quedó el plan después de revisar la spec, las reuniones y Odoo, y marca lo que hay que confirmar con ustedes.</p>
+      <div class="meta">
+        <span><b>Fecha:</b> 26/10/2026</span>
+        <span><b>Fuentes:</b> reuniones del 22/10 (2) y 24/10 (2), planilla <span class="mono">mvp_app_contable</span>, respuestas posteriores, relevamiento de Odoo en producción (solo lectura)</span>
+      </div>
+      <div class="meta">
+        <span><span class="chip e1">Etapa 1</span> se construye ahora</span>
+        <span><span class="chip e2">Etapa 2</span> siguiente</span>
+        <span><span class="chip e3">Etapa 3</span> depende de configurar Odoo</span>
+        <span><span class="chip val">Validar</span> difiere de lo charlado o lo agregamos nosotros</span>
+      </div>
+    </header>
+
+    <section id="panorama">
+      <div class="head">
+        <h2>Panorama</h2>
+        <p class="sub">Se entrega por etapas, pero es un único módulo. La etapa 1 trabaja solo en pesos, sin retenciones y sin cierre diario de extractos, porque hoy Odoo no tiene esas partes configuradas.</p>
+      </div>
+      <div class="stages">
+        <div class="stage now">
+          <h3>Etapa 1 <span class="chip e1">ahora</span></h3>
+          <p class="tag">Operaciones</p>
+          <ul><li>Pago a proveedor</li><li>Cobro de cliente</li><li>Gasto</li><li>Ingreso</li></ul>
+          <p class="tag">Vistas</p>
+          <ul><li>Vista General</li><li>Vista Extracto</li><li>Pendientes de conciliación</li><li>Inicio, Historial, Detalle, Configuración</li></ul>
+        </div>
+        <div class="stage">
+          <h3>Etapa 2 <span class="chip e2">propuesta</span></h3>
+          <p class="tag">Operaciones</p>
+          <ul><li>Movimiento entre diarios</li><li>Retiro / Depósito de socios</li><li>Pago de cheques propios</li><li>Cambio de cheques (recibo y entrego)</li><li>Gasto con factura fiscal</li></ul>
+          <p class="tag">Vistas y otros</p>
+          <ul><li>Resumen PN</li><li>Cartera y cheques propios</li><li>Adjuntos</li></ul>
+        </div>
+        <div class="stage">
+          <h3>Etapa 3 <span class="chip e3">propuesta</span></h3>
+          <p class="tag">Requiere preparar Odoo</p>
+          <ul><li>Retenciones practicadas y sufridas</li><li>Dólares y Compra / Venta de divisas</li><li>Cierre diario de extractos con arqueo</li></ul>
+          <p class="tag">Otros</p>
+          <ul><li>Depósito y rechazo de cheques</li><li>Exportar vistas a Excel / PDF</li></ul>
+        </div>
+      </div>
+      <p class="scope">Quedan fuera del módulo: importación automática de extractos bancarios, aprobación por monto, revaluación de saldos en dólares, cheques en dólares, constatación de comprobantes en ARCA y emisión de facturas de venta.</p>
+    </section>
+
+    <section id="validar">
+      <div class="head">
+        <h2>Para validar hoy</h2>
+        <p class="sub">Puntos donde el plan difiere de lo que se habló en las reuniones o en la planilla, o cosas que agregamos nosotros. Para cada uno necesitamos una respuesta antes de construir.</p>
+      </div>
+      <div class="checks">
+
+        <article class="check">
+          <h3><span class="n">V1</span> Adjuntos <span class="chip e1">Etapa 1</span></h3>
+          <div class="vs">
+            <div><span class="k">Lo que se habló</span>Adjuntar archivos en todas las pantallas (próximos pasos del 22/10; planilla: "podés adjuntar archivos"). En cambio de cheques, foto obligatoria.</div>
+            <div><span class="k">El plan</span>La etapa 1 sale sin adjuntos; entran en la etapa 2. El cambio de cheques ya está en la etapa 2.</div>
+          </div>
+          <p class="answer">¿Los adjuntos son necesarios desde el primer día para Pago, Cobro, Gasto e Ingreso?</p>
+        </article>
+
+        <article class="check">
+          <h3><span class="n">V2</span> Pago de cheques propios <span class="chip e2">Etapa 2</span></h3>
+          <div class="vs">
+            <div><span class="k">Lo que se habló</span>Máximo propuso esta operación en las dos reuniones (22/10 y 24/10) y está en la planilla como operación 7.</div>
+            <div><span class="k">El plan</span>En la etapa 1 se pueden emitir cheques propios desde Pago, pero quedan "En proceso". El débito se sigue conciliando en Odoo como hoy hasta la etapa 2.</div>
+          </div>
+          <p class="answer">¿Alcanza con conciliar el débito en Odoo durante la etapa 1, o esta operación tiene que entrar ya?</p>
+        </article>
+
+        <article class="check">
+          <h3><span class="n">V3</span> "Encargado por" <span class="chip e1">Etapa 1</span></h3>
+          <div class="vs">
+            <div><span class="k">Lo que se habló</span>"Usar los usuarios de Odoo" para registrar quién encargó cada operación (22/10, planilla).</div>
+            <div><span class="k">El plan</span>Obligatorio y se elige entre los empleados de la app. En Odoo hoy hay usuarios para Máximo, Gianlu y las cajas, pero no para Mariano.</div>
+          </div>
+          <p class="answer">¿Quiénes encargan operaciones? ¿Están todos como empleados de la app o hace falta la lista de usuarios de Odoo?</p>
+        </article>
+
+        <article class="check">
+          <h3><span class="n">V4</span> Cuentas para Gasto e Ingreso <span class="chip e1">Etapa 1</span></h3>
+          <div class="vs">
+            <div><span class="k">Lo que se habló</span>Tomar las cuentas directamente del plan de cuentas de Odoo, para que se actualicen solas (22/10). La hoja "Cuentas" de la planilla tiene las categorías pero sin cuentas cargadas.</div>
+            <div><span class="k">El plan</span>Lista configurable: un administrador elige qué cuentas aparecen en Gasto y cuáles en Ingreso. Se precarga con las que ya se usan. Hoy hay 95 cuentas activas, 34 de gasto.</div>
+          </div>
+          <p class="answer">¿Prefieren ver todas las cuentas de Odoo de cada tipo, o una lista corta elegida? Si es lista, ¿quién la mantiene?</p>
+        </article>
+
+        <article class="check">
+          <h3><span class="n">V5</span> Fecha contable por defecto <span class="chip e1">Etapa 1</span></h3>
+          <div class="vs">
+            <div><span class="k">Lo que se habló</span>Hoy por defecto, aunque se evaluó recordar la última fecha elegida porque las operaciones se cargan a día vencido (22/10).</div>
+            <div><span class="k">El plan</span>Hoy por defecto (hora de Argentina), editable. No se permiten fechas futuras. Sin límite hacia atrás.</div>
+          </div>
+          <p class="answer">¿Mariano carga normalmente lo del día anterior? Si es así, conviene recordar la última fecha durante la sesión.</p>
+        </article>
+
+        <article class="check">
+          <h3><span class="n">V6</span> Importes con signo <span class="chip e1">Etapa 1</span></h3>
+          <div class="vs">
+            <div><span class="k">Lo que se habló</span>En la planilla y en Odoo se tipean negativos para salidas. La planilla dejó la decisión abierta: "pensá en lo más simple para Mariano".</div>
+            <div><span class="k">El plan</span>Siempre se tipea en positivo. La operación define si entra o sale, y la pantalla lo muestra en rojo o verde antes de confirmar.</div>
+          </div>
+          <p class="answer">¿Le resulta natural a Mariano?</p>
+        </article>
+
+        <article class="check">
+          <h3><span class="n">V7</span> Gasto con varios medios de pago <span class="chip e1">Etapa 1</span></h3>
+          <div class="vs">
+            <div><span class="k">Lo que se habló</span>Un gasto sale de un medio de pago. Para varias cuentas, Máximo sugirió separarlas si se vuelve complejo (22/10).</div>
+            <div><span class="k">El plan</span>Un gasto puede salir de varios diarios y cada diario lleva sus cuentas. Odoo no permite varias cuentas en una línea, así que se crea una línea por cuenta; la app las muestra como un único movimiento.</div>
+          </div>
+          <p class="answer">¿Se da el caso de pagar un mismo gasto con dos medios?</p>
+        </article>
+
+        <article class="check">
+          <h3><span class="n">V8</span> Cambio de cheques: cómo se registra la ganancia <span class="chip e2">Etapa 2</span></h3>
+          <div class="vs">
+            <div><span class="k">Lo que se habló</span>Cobro de los cheques al cliente, pago al cliente por el <b>total del cheque</b> en efectivo y una línea de ingreso en caja por la diferencia contra Resultados financieros (24/10, planilla).</div>
+            <div><span class="k">El plan</span>Pago al cliente por el <b>efectivo real</b> (90.000) y la diferencia (10.000) se ajusta en la cuenta del cliente contra Resultados financieros. La caja muestra una sola salida de 90.000 y la cuenta corriente del cliente muestra cheques, pago y descuento.</div>
+          </div>
+          <p class="answer">Las dos dejan el mismo resultado (cheques +100.000, caja −90.000, ganancia 10.000, cliente en 0). ¿Cuál prefiere ver el contador en Odoo? El plan además permite diferencia 0 (cambio a la par) sin usar el truco de 0,01.</p>
+        </article>
+
+        <article class="check">
+          <h3><span class="n">V9</span> Lo que agregamos y nadie pidió <span class="chip e1">Etapa 1</span></h3>
+          <div class="vs">
+            <div><span class="k">Agregado</span>Alta rápida de contactos (nombre, CUIT validado, condición IVA, cliente o proveedor) · aviso de posible duplicado · borradores guardados · anulación de operaciones · vista consolidada de pendientes para Jan · uso desde el celular.</div>
+            <div><span class="k">Por qué</span>Sin alta de contactos, Mariano tiene que ir a Odoo para un proveedor nuevo. Sin anulación, un error obliga a corregir a mano en Odoo. La vista de pendientes responde al pedido de que Jan revise lo no conciliado.</div>
+          </div>
+          <p class="answer">¿Algo de esto sobra para la etapa 1?</p>
+        </article>
+
+        <article class="check">
+          <h3><span class="n">V10</span> Imputación a facturas en Pago y Cobro <span class="chip e1">Etapa 1</span></h3>
+          <div class="vs">
+            <div><span class="k">Lo que se habló</span>En las reuniones se mostraron pagos y cobros sin facturas. La imputación surgió en las respuestas posteriores: se cargan facturas de proveedores y clientes.</div>
+            <div><span class="k">El plan</span>Pago y Cobro muestran las facturas y notas de crédito abiertas del contacto para imputar total o parcialmente. Sin selección, queda a cuenta.</div>
+          </div>
+          <p class="answer">¿Quién carga hoy las facturas en Odoo? ¿Mariano imputa los pagos o lo hace otra persona?</p>
+        </article>
+
+      </div>
+    </section>
+
+    <section id="operaciones">
+      <div class="head">
+        <h2>Operaciones de la etapa 1</h2>
+        <p class="sub">Todas comparten las reglas generales de más abajo: fecha contable, importes positivos, encargado por y anulación.</p>
+      </div>
+
+      <div class="op">
+        <h3>Pago a proveedor <span class="chip e1">Etapa 1</span></h3>
+        <div class="two">
+          <div>
+            <p class="label">En pantalla</p>
+            <ul class="rules">
+              <li>Proveedor obligatorio, con alta rápida si no existe.</li>
+              <li>Facturas y notas de crédito abiertas para imputar, total o parcial. Sin selección: pago a cuenta.</li>
+              <li>Uno o varios métodos: efectivo, transferencia o billetera (diario + importe); cheque de tercero (se elige de la cartera, sin tipear importe); cheque propio (banco, número, fecha de pago).</li>
+              <li>Indicador en vivo: falta, sobra o cuadra.</li>
+              <li>Observación opcional. Si queda vacía se arma sola: <span class="mono">Pago Megaban — Fc 0001-00012345</span>.</li>
+            </ul>
+            <p class="label">Si no cuadra</p>
+            <ul class="rules">
+              <li>Pagado menor que lo imputado: no se puede confirmar; se corrige la imputación a mano.</li>
+              <li>Pagado mayor: la app pregunta qué hacer con el excedente: dejarlo a cuenta del proveedor, registrar el vuelto recibido, imputarlo a otra factura o volver a corregir.</li>
+            </ul>
+          </div>
+          <div>
+            <p class="label">Lo que hace en Odoo</p>
+            <ol class="steps">
+              <li>Un pago por cada método, confirmado.</li>
+              <li>Por cada método en efectivo, transferencia, billetera o cheque de tercero: línea de extracto en su diario y conciliación con el pago, que pasa de "En proceso" a "Pagado".</li>
+              <li>Cheque propio: el pago queda "En proceso" hasta el débito del banco.</li>
+              <li>Imputación de los pagos a las facturas elegidas.</li>
+            </ol>
+            <p class="example">Ejemplo de las reuniones: Megaban, $1.500 por Bica · Todo Color, dos cheques propios ICBC del 28/11 y 30/12 por $300.000.</p>
+            <p class="label">Cheques</p>
+            <ul class="rules">
+              <li>Cheque propio físico o e-cheq. Número de 8 dígitos en físico; la app sugiere el siguiente número del banco y no deja repetir uno usado.</li>
+              <li>Cartera de terceros con filtros por fecha de pago, banco, librador e importe, y total elegido contra lo que falta pagar.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="op">
+        <h3>Cobro de cliente <span class="chip e1">Etapa 1</span></h3>
+        <div class="two">
+          <div>
+            <p class="label">En pantalla</p>
+            <ul class="rules">
+              <li>Igual que el Pago, del lado del cliente: imputación a facturas de venta y notas de crédito, varios métodos, mismas reglas de cuadre.</li>
+              <li>Excedente: a cuenta del cliente, vuelto entregado, imputar a otra factura o volver.</li>
+              <li>Cheque de tercero recibido, físico o e-cheq: número, banco, CUIT del librador (validado, completa el nombre si existe), fecha de pago e importe.</li>
+              <li>Bloquea un cheque ya cargado (mismo número, banco y CUIT) y un cheque cuyo librador es Casa Sonia.</li>
+            </ul>
+          </div>
+          <div>
+            <p class="label">Lo que hace en Odoo</p>
+            <ol class="steps">
+              <li>Un cobro por método, confirmado. Los cheques recibidos entran a la cartera de Cheques de Terceros.</li>
+              <li>Línea de extracto y conciliación en cada diario.</li>
+              <li>Imputación a las facturas elegidas.</li>
+            </ol>
+            <p class="example">Ejemplo de las reuniones: Traída Máximo, $100 en efectivo.</p>
+            <p class="label">No incluye</p>
+            <p class="example">Retenciones que nos hacen los clientes (etapa 3).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="op">
+        <h3>Gasto e Ingreso <span class="chip e1">Etapa 1</span></h3>
+        <div class="two">
+          <div>
+            <p class="label">En pantalla</p>
+            <ul class="rules">
+              <li>Uno o varios diarios; Efectivo Administración por defecto.</li>
+              <li>Cada diario con una o más cuentas e importes. Sin límite de líneas y se puede repetir una cuenta.</li>
+              <li>Observación obligatoria. Contacto opcional.</li>
+              <li>Ingreso es igual, con la lista de cuentas de ingreso.</li>
+            </ul>
+            <p class="label">No incluye</p>
+            <p class="example">Factura fiscal en gastos (etapa 2; en la reunión del 22/10 quedó en espera).</p>
+          </div>
+          <div>
+            <p class="label">Lo que hace en Odoo</p>
+            <ol class="steps">
+              <li>Una línea de extracto por cada combinación de diario y cuenta, con la cuenta establecida y conciliada.</li>
+              <li>Todas llevan la misma referencia de la operación; la app las agrupa y las muestra como un solo movimiento por diario.</li>
+            </ol>
+            <p class="label">Ejemplo: la luz</p>
+            <div class="tbl">
+              <table class="mini">
+                <thead><tr><th>Línea en Odoo (Bica)</th><th>Cuenta</th><th class="num">Importe</th></tr></thead>
+                <tbody>
+                  <tr><td>Luz</td><td>Servicios</td><td class="num neg">−49.500,00</td></tr>
+                  <tr><td>Luz</td><td>Retenciones y percepciones varias</td><td class="num neg">−500,00</td></tr>
+                  <tr><td colspan="2"><b>En la app: una línea "Luz"</b></td><td class="num neg"><b>−50.000,00</b></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="vistas">
+      <div class="head">
+        <h2>Vistas de la etapa 1</h2>
+        <p class="sub">Muestran todo lo que hay en Odoo en los diarios habilitados, también lo cargado fuera de la app (marcado), para que los saldos coincidan con Odoo. Sin exportación en esta etapa.</p>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Vista</th><th>Qué muestra</th></tr></thead>
+          <tbody>
+            <tr><td><b>Vista General</b></td><td>Matriz conceptos × diarios, como la hoja "Movimientos – Vista General". Día: una fila por operación. Mes y año: una fila por cuenta, que se despliega para ver sus operaciones. Fila de totales. Columnas: los diarios habilitados en configuración.</td></tr>
+            <tr><td><b>Vista Extracto</b></td><td>Por diario y período (día, mes, año): Fecha · Etiqueta · Contacto · Importe · Balance · Conciliado ✓ / ✗, negativos en rojo y positivos en verde. Total y filtro "solo sin conciliar". Un clic abre la operación.</td></tr>
+            <tr><td><b>Pendientes de conciliación</b></td><td>Todos los diarios juntos: líneas sin conciliar y pagos en proceso (cheques propios sin debitar), con antigüedad y filtros. Pensada para que Jan revise; entra con un usuario de administrador o tesorero.</td></tr>
+            <tr><td><b>Inicio</b></td><td>Menú de operaciones, borradores sin terminar y operaciones que requieren atención.</td></tr>
+            <tr><td><b>Historial y Detalle</b></td><td>Lista con filtros por fecha, tipo, contacto, diario y estado. El detalle muestra cada paso hecho en Odoo con su link y permite Anular o Reanudar.</td></tr>
+            <tr><td><b>Configuración</b></td><td>Solo administrador: diarios habilitados y su orden, cuentas que se ofrecen en Gasto y en Ingreso.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="label">Así se ve un día en la Vista Extracto (ejemplo de la planilla)</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Fecha</th><th>Etiqueta</th><th>Contacto</th><th class="num">Importe</th><th class="num">Balance</th><th>Conciliado</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">14/08/2026</td><td>pago bando</td><td>Bando S.A.</td><td class="num neg">−150.000,00</td><td class="num">4.500.000,00</td><td class="pos">✓</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="reglas">
+      <div class="head">
+        <h2>Reglas generales</h2>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Tema</th><th>Cómo queda</th></tr></thead>
+          <tbody>
+            <tr><td>Quién usa el módulo</td><td>Rol nuevo <b>Tesorero</b> (Mariano), que ve solo Tesorería. Los administradores ven todo y configuran. El resto de los roles no lo ve.</td></tr>
+            <tr><td>Fecha contable</td><td>Hoy por defecto, editable; sin fechas futuras; sin límite hacia atrás. <span class="chip val">V5</span></td></tr>
+            <tr><td>Importes</td><td>Siempre positivos; el sentido lo da la operación. <span class="chip val">V6</span></td></tr>
+            <tr><td>Observación</td><td>Obligatoria en Gasto e Ingreso. Opcional en Pago y Cobro, con etiqueta automática.</td></tr>
+            <tr><td>Contacto</td><td>Obligatorio en Pago y Cobro; opcional en Gasto e Ingreso. Alta rápida con CUIT validado.</td></tr>
+            <tr><td>Encargado por</td><td>Obligatorio, de la lista de empleados de la app. Se deja como nota en Odoo junto con quién lo registró. <span class="chip val">V3</span></td></tr>
+            <tr><td>Borradores</td><td>Se guardan hasta confirmarlos o borrarlos a mano. No vencen.</td></tr>
+            <tr><td>Antes de ejecutar</td><td>La app vuelve a verificar en Odoo que facturas y cheques sigan disponibles. Si algo cambió, avisa y no ejecuta.</td></tr>
+            <tr><td>Durante la ejecución</td><td>Se ve el progreso paso a paso. Si un paso falla, la operación queda "Requiere atención" y se puede Reanudar sin duplicar nada.</td></tr>
+            <tr><td>Corregir</td><td>Una operación confirmada no se edita: se anula (la app revierte todo en Odoo) y se carga de nuevo. Pueden anular el tesorero y los administradores.</td></tr>
+            <tr><td>Posible duplicado</td><td>Mismo contacto, importe, día y tipo: aviso con link a la operación anterior.</td></tr>
+            <tr><td>Odoo caído</td><td>Aviso; se pueden guardar borradores pero no confirmar ni ver vistas.</td></tr>
+            <tr><td>Celular</td><td>Todo el módulo usable desde el celular.</td></tr>
+            <tr><td>Historial de cada operación</td><td>Quién y cuándo la creó, confirmó o anuló; cada paso en Odoo con su resultado; avisos aceptados.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="odoo">
+      <div class="head">
+        <h2>Lo que vimos en Odoo</h2>
+        <p class="sub">Relevamiento del 26/10 sobre producción, solo lectura. Explica por qué algunas cosas quedaron para después.</p>
+      </div>
+      <div class="finds">
+        <div class="find"><b>No hay retenciones configuradas.</b><span>El módulo está instalado, pero sin impuestos de retención ni padrones. Odoo hoy no calcula ninguna. Por eso las retenciones van en la etapa 3.</span></div>
+        <div class="find"><b>El dólar no tiene cotización cargada.</b><span>Odoo toma 1 USD = 1 ARS. Hay un solo diario en dólares (Dolar USD Administracion); "Vale USD" no existe.</span></div>
+        <div class="find"><b>No se usan extractos.</b><span>Se cargan líneas sueltas, sin saldo inicial, saldo final ni cierre. El cierre diario es una práctica nueva y va en la etapa 3.</span></div>
+        <div class="find"><b>La cuenta puente no está en cero.</b><span>"6.1 Movimiento entre Bancos" tiene un saldo de unos $1.452.000 en Efectivo Administración. Conviene revisarlo antes de la etapa 2.</span></div>
+        <div class="find"><b>Mariano no tiene usuario en Odoo.</b><span>Hoy carga Máximo: en 90 días, unas 1.000 líneas de extracto y 700 pagos. Las cajas locales cargan lo suyo.</span></div>
+        <div class="find"><b>Cajas locales con muchos pendientes.</b><span>681 líneas sin conciliar, casi todas de Ruta, Centro, Quiver y Estribo, contra "Cuenta transitoria".</span></div>
+        <div class="find"><b>Cuentas de socios.</b><span>Solo existen Retiro Maximo y Retiro Mariano. Maxi MP, Vale MP, Andre Bica, Mili Bica y Cuenta Vale son diarios de la empresa.</span></div>
+        <div class="find"><b>Asientos de prueba.</b><span>El 21/04 se crearon las cuentas 1.2.7 y 2.1.3 para probar el cambio de cheques ($105). Siguen publicados en Efectivo Administración y Cheques de Terceros.</span></div>
+      </div>
+    </section>
+
+    <section id="etapa2">
+      <div class="head">
+        <h2>Etapa 2 <span class="chip e2">propuesta</span></h2>
+        <p class="sub">Operaciones en pesos que no dependen de configurar nada nuevo en Odoo. El orden es una propuesta para charlar.</p>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Qué</th><th>Lo que ya está definido</th><th>Lo que falta definir</th></tr></thead>
+          <tbody>
+            <tr><td><b>Pago de cheques propios</b></td><td>Lista de cheques emitidos sin debitar; se eligen, se carga el débito en el banco y se concilia con el pago. Una línea por cheque.</td><td>Gastos bancarios que debita el banco junto con el cheque. Qué pasa si el banco debitó un importe distinto. <span class="chip val">V2</span></td></tr>
+            <tr><td><b>Cambio de cheques</b></td><td>Recibo y entrego en una pantalla. Pasa por la cuenta corriente del contacto, que queda en 0. Diferencia 0 permitida. Las cuentas de ganancia y pérdida se configuran en la app.</td><td>Esquema de la ganancia <span class="chip val">V8</span>. Qué cuentas usar para ganancia y pérdida (Máximo dijo Resultados financieros para las dos; hay que ver si sirve para la pérdida). Adjuntos y observación obligatorios.</td></tr>
+            <tr><td><b>Movimiento entre diarios</b></td><td>Salida en el diario origen y entrada en el destino contra la cuenta puente 6.1, que queda en 0. Incluye el efectivo de las cajas locales hacia Administración.</td><td>Fecha de acreditación distinta. Idea del 22/10: una casilla "ingreso de cajas locales" que use la cuenta Recibos pendientes.</td></tr>
+            <tr><td><b>Retiro / Depósito de socios</b></td><td>Igual que Gasto o Ingreso contra la cuenta del socio (Retiro Maximo, Retiro Mariano).</td><td>Si hay más socios o cuentas por crear.</td></tr>
+            <tr><td><b>Gasto con factura fiscal</b></td><td>Casilla "¿Lleva factura fiscal?" que carga la factura de compra (tipo, número, IVA) y la paga en el acto.</td><td>Tipos de comprobante, formato de número (en la reunión: 00812345678), percepciones, quién carga hoy las facturas.</td></tr>
+            <tr><td><b>Resumen PN</b></td><td>Por diario: saldo al inicio, movimientos, saldo al final, más Cheques Propios y Total (hoja "Vista Resumen PN").</td><td>Qué significa PN. Si los cheques propios sin debitar restan del total.</td></tr>
+            <tr><td><b>Cartera y cheques propios</b></td><td>Listados de cheques de terceros por estado y de cheques propios emitidos con sus vencimientos.</td><td>Alertas de vencimiento y con cuántos días.</td></tr>
+            <tr><td><b>Adjuntos</b></td><td>Comprobantes y fotos de cheques en cada operación, guardados en Odoo.</td><td>Si se adelantan a la etapa 1 <span class="chip val">V1</span>. Tamaños y formatos.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="etapa3">
+      <div class="head">
+        <h2>Etapa 3 <span class="chip e3">propuesta</span></h2>
+        <p class="sub">Necesita trabajo previo en Odoo, del contador o de quien administra Odoo, antes de construir.</p>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Qué</th><th>Qué hace falta antes</th></tr></thead>
+          <tbody>
+            <tr><td><b>Retenciones practicadas</b> (al pagar)</td><td>Configurar en Odoo los regímenes (Ganancias, IIBB y jurisdicciones) y padrones. Resolver que la retención se calcule una vez sobre el total cuando el pago usa varios métodos, porque Odoo hace un pago por método.</td></tr>
+            <tr><td><b>Retenciones sufridas</b> (al cobrar)</td><td>Confirmar si los clientes retienen y configurar las cuentas por impuesto.</td></tr>
+            <tr><td><b>Dólares y Compra / Venta de divisas</b></td><td>Definir quién carga la cotización del dólar en Odoo, de qué fuente y con qué frecuencia. Qué tipo de cambio usar al comprar o vender. Qué se paga o cobra en dólares.</td></tr>
+            <tr><td><b>Cierre diario de extractos</b></td><td>Decidir si se adopta: hoy no se usan extractos. Incluye arqueo y ajuste de diferencias de caja.</td></tr>
+            <tr><td><b>Depósito y rechazo de cheques</b></td><td>Definir cómo se registran hoy el depósito, la acreditación y el rechazo (de terceros y propios). No se habló en ninguna reunión.</td></tr>
+            <tr><td><b>Exportar vistas</b></td><td>Excel o PDF de Vista General, Extracto y Resumen PN.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="abiertas">
+      <div class="head">
+        <h2>Preguntas abiertas</h2>
+        <p class="sub">Además de los puntos V1 a V10.</p>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Para</th><th>Pregunta</th><th>Etapa</th></tr></thead>
+          <tbody>
+            <tr><td>Contador</td><td>Cuentas de ganancia y pérdida del cambio de cheques. Candidatas: 4.2.1 Resultados Financieros o 4.2.3 Intereses ganados para la ganancia; 5.6.3 Intereses Pagados para la pérdida.</td><td><span class="chip e2">2</span></td></tr>
+            <tr><td>Máximo</td><td>¿Se archivan las cuentas 1.2.7 y 2.1.3 y se revierten los asientos de prueba del 21/04?</td><td><span class="chip e1">1</span></td></tr>
+            <tr><td>Máximo</td><td>Saldo de la cuenta puente 6.1 (≈ $1.452.000): ¿de dónde viene?</td><td><span class="chip e2">2</span></td></tr>
+            <tr><td>Máximo / Mariano</td><td>¿Qué diarios ve Mariano en cada operación y en las vistas? ¿Entran las cajas locales y los Cupones a Liquidar?</td><td><span class="chip e1">1</span></td></tr>
+            <tr><td>Máximo / Mariano</td><td>Columnas de la Vista General: la planilla tiene USD y Vale USD. En la etapa 1 no hay dólares y Vale USD no existe en Odoo.</td><td><span class="chip e1">1</span></td></tr>
+            <tr><td>Contador</td><td>¿Se practican retenciones hoy? ¿Quién las configuraría en Odoo?</td><td><span class="chip e3">3</span></td></tr>
+            <tr><td>Máximo</td><td>¿Quién carga la cotización del dólar y cuánto se mueve en dólares?</td><td><span class="chip e3">3</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="doc">
+      <span>Documento de trabajo. Las decisiones se registran en <span class="mono">docs/borradores/tesoreria-decisiones.md</span> del repositorio; el relevamiento de Odoo en <span class="mono">tesoreria-fase0-odoo.md</span>.</span>
+      <span>Ningún dato de este documento se escribió en Odoo: el relevamiento fue solo de lectura.</span>
+    </footer>
+  </main>
+</div>
