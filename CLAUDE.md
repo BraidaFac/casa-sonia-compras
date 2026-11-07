@@ -48,4 +48,4 @@ No hay framework de tests.
 - React Query: un hook por entidad en `src/hooks/use*.ts`, claves en `src/lib/queryKeys.ts`.
 - Rutas API envueltas en `withAuth` (`src/lib/withAuth.ts`); errores como `{ error: string }`.
 - UI: Mantine 9 tema oscuro + ámbar, fuentes `--font-display` (Syne), `--font-sans` (DM Sans), `--font-mono` (DM Mono).
-- Roles: `ADMIN`, `MANAGER`, `EMPLEADO` ("Encargado"), `EMPLEADO_BASICO` ("Empleado").
+- Roles: `ADMIN`, `MANAGER`, `EMPLEADO` ("Encargado"), `EMPLEADO_BASICO` ("Empleado"), `TESORERO` ("Tesorero").

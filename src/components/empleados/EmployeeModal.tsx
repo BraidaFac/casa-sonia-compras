@@ -64,6 +64,7 @@ export function EmployeeModal({
       ? [
           { value: "EMPLEADO_BASICO", label: "Empleado" },
           { value: "EMPLEADO", label: "Encargado" },
+          { value: "TESORERO", label: "Tesorero" },
           { value: "MANAGER", label: "Manager" },
           { value: "ADMIN", label: "Admin" },
         ]

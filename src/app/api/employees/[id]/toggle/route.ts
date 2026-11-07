@@ -19,9 +19,9 @@ export const PATCH = withAuth(async (_request: NextRequest, payload, ctx) => {
   const target = await prisma.employee.findUnique({ where: { id: empId } });
   if (!target) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
-  if (payload.role === "MANAGER" && target.role === "ADMIN") {
+  if (payload.role === "MANAGER" && (target.role === "ADMIN" || target.role === "TESORERO")) {
     return NextResponse.json(
-      { error: "Sin permisos para modificar empleados ADMIN" },
+      { error: "Sin permisos para modificar empleados ADMIN o TESORERO" },
       { status: 403 },
     );
   }

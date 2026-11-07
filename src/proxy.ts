@@ -41,9 +41,31 @@ export async function proxy(request: NextRequest) {
         }
       }
 
-      // Guard para rol Empleado (sin acceso a gestión de empleados)
+      // Guard para rol Tesorero (solo Tesorería)
+      if (payload.role === "TESORERO") {
+        const allowed = ["/tesoreria", "/api/tesoreria", "/api/auth/"].some((prefix) => pathname.startsWith(prefix));
+        if (!allowed) {
+          if (pathname.startsWith("/api/")) {
+            return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+          }
+          return NextResponse.redirect(new URL("/tesoreria", request.url));
+        }
+      }
+
+      // Guard para rol Manager (sin Tesorería)
+      if (payload.role === "MANAGER") {
+        const blocked = ["/tesoreria", "/api/tesoreria"].some((prefix) => pathname.startsWith(prefix));
+        if (blocked) {
+          if (pathname.startsWith("/api/")) {
+            return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+          }
+          return NextResponse.redirect(new URL("/existencias", request.url));
+        }
+      }
+
+      // Guard para rol Empleado (sin gestión de empleados ni Tesorería)
       if (payload.role === "EMPLEADO") {
-        const blocked = ["/empleados", "/api/employees"].some((prefix) => pathname.startsWith(prefix));
+        const blocked = ["/empleados", "/api/employees", "/tesoreria", "/api/tesoreria"].some((prefix) => pathname.startsWith(prefix));
         if (blocked) {
           if (pathname.startsWith("/api/")) {
             return NextResponse.json({ error: "Sin permisos" }, { status: 403 });

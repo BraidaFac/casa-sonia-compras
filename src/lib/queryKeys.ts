@@ -52,4 +52,20 @@ export const queryKeys = {
 
   // ─── Tier D — Volátil (siempre fresco) ───────────────────────────────────
   stock: (templateId: number) => ["stock", templateId] as const,
+
+  // ─── Tesorería ───────────────────────────────────────────────────────────
+  tesoreria: {
+    config: (conOdoo: boolean) => ["tesoreria", "config", conOdoo] as const,
+    catalogos: () => ["tesoreria", "catalogos"] as const,
+    movimientos: (periodo: string, fecha: string) => ["tesoreria", "movimientos", periodo, fecha] as const,
+    extracto: (diario: number, desde: string, hasta: string) => ["tesoreria", "extracto", diario, desde, hasta] as const,
+    resumen: (periodo: string, fecha: string) => ["tesoreria", "resumen", periodo, fecha] as const,
+    operacion: (id: number) => ["tesoreria", "operacion", id] as const,
+    adjuntos: (id: number) => ["tesoreria", "adjuntos", id] as const,
+    pendientes: () => ["tesoreria", "pendientes"] as const,
+    contactos: (q: string) => ["tesoreria", "contactos", q] as const,
+    cartera: () => ["tesoreria", "cartera"] as const,
+    chequesPropios: (diarioId: number) => ["tesoreria", "cheques-propios", diarioId] as const,
+    facturasPendientes: (contactoId: number, tipo: string) => ["tesoreria", "facturas-pendientes", contactoId, tipo] as const,
+  },
 } as const;

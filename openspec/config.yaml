@@ -9,7 +9,7 @@ context: |
   TanStack Query 5, Prisma + MariaDB) integrada con Odoo 19 vía JSON-2 API (src/lib/odoo.ts).
   Odoo es la fuente de verdad de productos, stock y órdenes; la DB local guarda borradores,
   empleados, historial y configuración comercial.
-  Roles: ADMIN, MANAGER, EMPLEADO ("Encargado"), EMPLEADO_BASICO ("Empleado"). Los permisos se
+  Roles: ADMIN, MANAGER, EMPLEADO ("Encargado"), EMPLEADO_BASICO ("Empleado"), TESORERO ("Tesorero"). Los permisos se
   aplican en tres lugares que deben quedar alineados: src/proxy.ts, withAuth({roles}) en cada API
   y los filtros de src/components/layout/Sidebar.tsx.
   Convenciones: un hook React Query por entidad en src/hooks, claves en src/lib/queryKeys.ts;

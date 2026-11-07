@@ -2,11 +2,13 @@ import { jwtVerify } from "jose";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+export type Role = "ADMIN" | "MANAGER" | "EMPLEADO" | "EMPLEADO_BASICO" | "TESORERO";
+
 export type TokenPayload = {
   employeeId: number;
   username: string;
   name: string;
-  role: "ADMIN" | "MANAGER" | "EMPLEADO" | "EMPLEADO_BASICO";
+  role: Role;
 };
 
 export const ROLE_LABELS: Record<string, string> = {
@@ -14,6 +16,7 @@ export const ROLE_LABELS: Record<string, string> = {
   MANAGER: "Manager",
   EMPLEADO: "Encargado",
   EMPLEADO_BASICO: "Empleado",
+  TESORERO: "Tesorero",
 };
 
 export async function verifyToken(token: string): Promise<TokenPayload> {
@@ -44,7 +47,7 @@ export async function authenticateRequest(request: NextRequest): Promise<boolean
  */
 export function requireRole(
   payload: TokenPayload,
-  roles: Array<"ADMIN" | "MANAGER" | "EMPLEADO" | "EMPLEADO_BASICO">,
+  roles: Role[],
 ): NextResponse | null {
   if (!roles.includes(payload.role)) {
     return NextResponse.json({ error: "Sin permisos" }, { status: 403 });

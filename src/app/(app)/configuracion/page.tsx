@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { use, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { Tabs, Button, Badge, Group, Text, Tooltip } from "@mantine/core";
@@ -11,6 +11,7 @@ import { MedioPagoModal } from "@/components/config/MedioPagoModal";
 import { BancoModal, BancoIcono } from "@/components/config/BancoModal";
 import { DescuentoModal } from "@/components/config/DescuentoModal";
 import { PromocionModal } from "@/components/config/PromocionModal";
+import { ConfigTesoreria } from "@/components/tesoreria/ConfigTesoreria";
 import type { MedioPagoRecord } from "@/components/config/MedioPagoModal";
 import type { BancoRecord } from "@/components/config/BancoModal";
 import type { DescuentoRecord } from "@/components/config/DescuentoModal";
@@ -101,7 +102,9 @@ function EmptyRow({ cols, msg }: { cols: number; msg: string }) {
 
 // ─── página ─────────────────────────────────────────────────────────────────
 
-export default function ConfiguracionPage() {
+export default function ConfiguracionPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  const { tab } = use(searchParams);
+  const tabInicial = tab === "tesoreria" ? "tesoreria" : "medios";
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: me, isLoading: loadingMe } = useCurrentEmployee();
@@ -274,12 +277,13 @@ export default function ConfiguracionPage() {
         Configuración
       </Text>
 
-      <Tabs defaultValue="medios">
+      <Tabs defaultValue={tabInicial}>
         <Tabs.List mb={24}>
           <Tabs.Tab value="medios">Medios de pago</Tabs.Tab>
           <Tabs.Tab value="bancos">Bancos</Tabs.Tab>
           <Tabs.Tab value="descuentos">Descuentos especiales</Tabs.Tab>
           <Tabs.Tab value="promociones">Promociones bancarias</Tabs.Tab>
+          {me?.role === "ADMIN" && <Tabs.Tab value="tesoreria">Tesorería</Tabs.Tab>}
         </Tabs.List>
 
         {/* ── MEDIOS DE PAGO ─────────────────────────────────────────────── */}
@@ -503,6 +507,13 @@ export default function ConfiguracionPage() {
             </table>
           </div>
         </Tabs.Panel>
+
+        {/* ── TESORERÍA (solo ADMIN) ─────────────────────────────────────── */}
+        {me?.role === "ADMIN" && (
+          <Tabs.Panel value="tesoreria" keepMounted={false}>
+            <ConfigTesoreria />
+          </Tabs.Panel>
+        )}
       </Tabs>
 
       {/* ── modales ──────────────────────────────────────────────────────── */}

@@ -23,6 +23,7 @@ enum Role {
   MANAGER
   EMPLEADO
   EMPLEADO_BASICO
+  TESORERO
 }
 
 model Employee {
@@ -35,15 +36,23 @@ model Employee {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  createdOrders        Order[]              @relation("OrderCreatedBy")
-  confirmedOrders      Order[]              @relation("OrderConfirmedBy")
-  createdInventories   Inventory[]          @relation("InventoryCreatedBy")
-  confirmedInventories Inventory[]          @relation("InventoryConfirmedBy")
-  searchHistory        SearchHistory[]
-  mediosPagoCreados    MedioPago[]          @relation("MedioPagoCreador")
-  bancosCreados        Banco[]              @relation("BancoCreador")
-  descuentosCreados    DescuentoEspecial[]  @relation("DescuentoCreador")
-  promocionesCreadas   PromocionBancaria[]  @relation("PromoCreador")
+  createdOrders                   Order[]              @relation("OrderCreatedBy")
+  confirmedOrders                 Order[]              @relation("OrderConfirmedBy")
+  createdInventories              Inventory[]          @relation("InventoryCreatedBy")
+  confirmedInventories            Inventory[]          @relation("InventoryConfirmedBy")
+  searchHistory                   SearchHistory[]
+  mediosPagoCreados               MedioPago[]          @relation("MedioPagoCreador")
+  bancosCreados                   Banco[]              @relation("BancoCreador")
+  descuentosCreados               DescuentoEspecial[]  @relation("DescuentoCreador")
+  promocionesCreadas              PromocionBancaria[]  @relation("PromoCreador")
+  tesoreriaOperacionesCreadas     TesoreriaOperacion[] @relation("TesoreriaOperacionCreador")
+  tesoreriaOperacionesConfirmadas TesoreriaOperacion[] @relation("TesoreriaOperacionConfirmador")
+  tesoreriaOperacionesAnuladas    TesoreriaOperacion[] @relation("TesoreriaOperacionAnulador")
+  tesoreriaEventos                TesoreriaEvento[]    @relation("TesoreriaEventoEmpleado")
+  tesoreriaAdjuntos               TesoreriaAdjunto[]   @relation("TesoreriaAdjuntoCreador")
+  tesoreriaDiariosCreados         TesoreriaDiario[]    @relation("TesoreriaDiarioCreador")
+  tesoreriaCuentasCreadas         TesoreriaCuenta[]    @relation("TesoreriaCuentaCreador")
+  tesoreriaConfigCreada           TesoreriaConfig[]    @relation("TesoreriaConfigCreador")
 
   @@map("employees")
 }
@@ -85,7 +94,7 @@ model Inventory {
   countDate           String?         @map("count_date")
   accountingDate      String?         @map("accounting_date")
   articles            Json            @default("[]")
-  articleCount        Int             @default(0)    @map("article_count")
+  articleCount        Int             @default(0) @map("article_count")
   confirmationSummary Json?           @map("confirmation_summary")
   odooRef             String?         @map("odoo_ref")
   errorDetail         String?         @map("error_detail") @db.Text
@@ -132,7 +141,7 @@ model MedioPago {
 model Banco {
   id            Int                 @id @default(autoincrement())
   nombre        String              @unique
-  icono         String?             // key del catálogo bankIcons (ej: "galicia", "santander")
+  icono         String? // key del catálogo bankIcons (ej: "galicia", "santander")
   activo        Boolean             @default(true)
   creadoPorId   Int                 @map("creado_por_id")
   creadoPor     Employee            @relation("BancoCreador", fields: [creadoPorId], references: [id])
@@ -148,7 +157,7 @@ model DescuentoEspecial {
   nombre          String?
   medioPagoId     Int       @map("medio_pago_id")
   medioPago       MedioPago @relation(fields: [medioPagoId], references: [id])
-  tipo            String    // "porcentaje" | "monto_fijo"
+  tipo            String // "porcentaje" | "monto_fijo"
   valor           Decimal   @db.Decimal(10, 4)
   alcance         String    @default("global") // "global" | "categoria"
   categoriaOdooId Int?      @map("categoria_odoo_id")
@@ -170,9 +179,9 @@ model PromocionBancaria {
   marcaTarjeta       String?   @map("marca_tarjeta")
   tipoBeneficio      String    @map("tipo_beneficio") // "cuotas_sin_interes" | "cuotas_con_interes" | "reintegro" | "descuento_directo"
   cantidadCuotas     Int?      @map("cantidad_cuotas")
-  coeficienteInteres Decimal?  @db.Decimal(8, 6) @map("coeficiente_interes")
-  valorPorcentaje    Decimal?  @db.Decimal(8, 4) @map("valor_porcentaje")
-  topeReintegro      Decimal?  @db.Decimal(10, 2) @map("tope_reintegro")
+  coeficienteInteres Decimal?  @map("coeficiente_interes") @db.Decimal(8, 6)
+  valorPorcentaje    Decimal?  @map("valor_porcentaje") @db.Decimal(8, 4)
+  topeReintegro      Decimal?  @map("tope_reintegro") @db.Decimal(10, 2)
   descripcion        String?   @db.Text
   diasAplicables     String?   @map("dias_aplicables") // JSON: '["lunes","martes"]' — null = todos
   vigenciaDesde      DateTime  @map("vigencia_desde")
@@ -185,4 +194,184 @@ model PromocionBancaria {
   actualizadoEn      DateTime  @updatedAt @map("actualizado_en")
 
   @@map("promociones_bancarias")
+}
+
+// ─── Tesorería ───────────────────────────────────────────────────────────────
+
+enum TesoreriaTipo {
+  PAGO
+  COBRO
+  GASTO
+  INGRESO
+  MOVIMIENTO
+  SOCIOS
+  PAGO_CHEQUES_PROPIOS
+  CAMBIO_RECIBO
+  CAMBIO_ENTREGO
+}
+
+enum TesoreriaEstado {
+  BORRADOR
+  PROCESANDO
+  COMPLETADA
+  PENDIENTE_DEBITO
+  REQUIERE_ATENCION
+  ANULANDO
+  ANULADA
+}
+
+enum TesoreriaFase {
+  EJECUCION
+  ANULACION
+}
+
+enum TesoreriaPasoEstado {
+  PENDIENTE
+  EN_CURSO
+  OK
+  ERROR
+}
+
+enum TesoreriaDiarioTipo {
+  EFECTIVO
+  BANCO
+  CHEQUES
+}
+
+enum TesoreriaCuentaUso {
+  GASTO
+  INGRESO
+  SOCIO
+}
+
+model TesoreriaOperacion {
+  id              Int               @id @default(autoincrement())
+  tipo            TesoreriaTipo
+  estado          TesoreriaEstado   @default(BORRADOR)
+  fechaContable   DateTime          @map("fecha_contable") @db.Date
+  contactoId      Int?              @map("contacto_id") // res.partner de Odoo
+  contactoNombre  String?           @map("contacto_nombre")
+  observacion     String?           @db.Text
+  total           Decimal           @default(0) @db.Decimal(14, 2)
+  datos           Json // detalle por tipo: medios, cheques, líneas de cuenta, factura
+  error           String?           @db.Text
+  creadoPorId     Int               @map("creado_por_id")
+  creadoPor       Employee          @relation("TesoreriaOperacionCreador", fields: [creadoPorId], references: [id])
+  confirmadoPorId Int?              @map("confirmado_por_id")
+  confirmadoPor   Employee?         @relation("TesoreriaOperacionConfirmador", fields: [confirmadoPorId], references: [id])
+  confirmadoEn    DateTime?         @map("confirmado_en")
+  anuladoPorId    Int?              @map("anulado_por_id")
+  anuladoPor      Employee?         @relation("TesoreriaOperacionAnulador", fields: [anuladoPorId], references: [id])
+  anuladoEn       DateTime?         @map("anulado_en")
+  creadoEn        DateTime          @default(now()) @map("creado_en")
+  actualizadoEn   DateTime          @updatedAt @map("actualizado_en")
+  pasos           TesoreriaPaso[]
+  eventos         TesoreriaEvento[]
+  adjuntos        TesoreriaAdjunto[]
+
+  @@index([fechaContable])
+  @@index([estado])
+  @@map("tesoreria_operaciones")
+}
+
+model TesoreriaPaso {
+  id           Int                 @id @default(autoincrement())
+  operacionId  Int                 @map("operacion_id")
+  operacion    TesoreriaOperacion  @relation(fields: [operacionId], references: [id], onDelete: Cascade)
+  fase         TesoreriaFase
+  orden        Int
+  tipo         String
+  payload      Json
+  estado       TesoreriaPasoEstado @default(PENDIENTE)
+  odooModelo   String?             @map("odoo_modelo")
+  odooId       Int?                @map("odoo_id")
+  referencia   String // TES-{operacion}-{orden}
+  error        String?             @db.Text // mensaje para el usuario
+  errorTecnico String?             @map("error_tecnico") @db.Text
+  intentos     Int                 @default(0)
+  iniciadoEn   DateTime?           @map("iniciado_en")
+  finalizadoEn DateTime?           @map("finalizado_en")
+  creadoEn     DateTime            @default(now()) @map("creado_en")
+
+  @@unique([operacionId, fase, orden])
+  @@map("tesoreria_pasos")
+}
+
+// Adjunto pendiente de subir a Odoo (borrador). Una vez subido se borra: Odoo es la fuente de verdad.
+model TesoreriaAdjunto {
+  id          Int                @id @default(autoincrement())
+  operacionId Int                @map("operacion_id")
+  operacion   TesoreriaOperacion @relation(fields: [operacionId], references: [id], onDelete: Cascade)
+  diarioId    Int?               @map("diario_id") // ranura: diario del medio; null = factura
+  nombre      String
+  mimetype    String
+  contenido   Bytes              @db.LongBlob
+  creadoPorId Int                @map("creado_por_id")
+  creadoPor   Employee           @relation("TesoreriaAdjuntoCreador", fields: [creadoPorId], references: [id])
+  creadoEn    DateTime           @default(now()) @map("creado_en")
+
+  @@index([operacionId])
+  @@map("tesoreria_adjuntos")
+}
+
+model TesoreriaEvento {
+  id          Int                @id @default(autoincrement())
+  operacionId Int                @map("operacion_id")
+  operacion   TesoreriaOperacion @relation(fields: [operacionId], references: [id], onDelete: Cascade)
+  tipo        String // creada, confirmada, duplicado_aceptado, reanudada, anulada...
+  empleadoId  Int                @map("empleado_id")
+  empleado    Employee           @relation("TesoreriaEventoEmpleado", fields: [empleadoId], references: [id])
+  detalle     String?            @db.Text
+  creadoEn    DateTime           @default(now()) @map("creado_en")
+
+  @@index([operacionId])
+  @@map("tesoreria_eventos")
+}
+
+model TesoreriaDiario {
+  id            Int                 @id @default(autoincrement())
+  odooJournalId Int                 @unique @map("odoo_journal_id")
+  nombre        String
+  tipo          TesoreriaDiarioTipo
+  orden         Int
+  activo        Boolean             @default(true)
+  creadoPorId   Int                 @map("creado_por_id")
+  creadoPor     Employee            @relation("TesoreriaDiarioCreador", fields: [creadoPorId], references: [id])
+  creadoEn      DateTime            @default(now()) @map("creado_en")
+  actualizadoEn DateTime            @updatedAt @map("actualizado_en")
+
+  @@map("tesoreria_diarios")
+}
+
+model TesoreriaCuenta {
+  id            Int                @id @default(autoincrement())
+  odooAccountId Int                @map("odoo_account_id")
+  codigo        String
+  nombre        String
+  uso           TesoreriaCuentaUso
+  creadoPorId   Int                @map("creado_por_id")
+  creadoPor     Employee           @relation("TesoreriaCuentaCreador", fields: [creadoPorId], references: [id])
+  creadoEn      DateTime           @default(now()) @map("creado_en")
+  actualizadoEn DateTime           @updatedAt @map("actualizado_en")
+
+  @@unique([odooAccountId, uso])
+  @@map("tesoreria_cuentas")
+}
+
+// Fila única (id = 1): cuentas y diarios fijos de Odoo
+model TesoreriaConfig {
+  id                      Int      @id @default(1)
+  cuentaGananciaId        Int?     @map("cuenta_ganancia_id")
+  cuentaPerdidaId         Int?     @map("cuenta_perdida_id")
+  cuentaPuenteId          Int?     @map("cuenta_puente_id")
+  diarioAjustesId         Int?     @map("diario_ajustes_id")
+  diarioComprasId         Int?     @map("diario_compras_id")
+  diarioComprasSinDocId   Int?     @map("diario_compras_sin_doc_id")
+  diarioEfectivoDefaultId Int?     @map("diario_efectivo_default_id")
+  creadoPorId             Int      @map("creado_por_id")
+  creadoPor               Employee @relation("TesoreriaConfigCreador", fields: [creadoPorId], references: [id])
+  creadoEn                DateTime @default(now()) @map("creado_en")
+  actualizadoEn           DateTime @updatedAt @map("actualizado_en")
+
+  @@map("tesoreria_config")
 }
