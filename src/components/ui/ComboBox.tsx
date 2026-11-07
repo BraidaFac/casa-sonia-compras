@@ -12,6 +12,28 @@ interface Props {
   onChange: (value: AttributeValue) => void;
 }
 
+// ─── Teclado en listas desplegables ─────────────────────────────────────────
+
+/**
+ * Con la lista abierta: un solo resultado → Tab o Enter lo eligen (Tab sigue al próximo campo);
+ * varios → Tab / Shift+Tab recorren las opciones y Enter elige la marcada (eso lo resuelve el Combobox).
+ */
+export function teclasLista(e: React.KeyboardEvent, combobox: ReturnType<typeof useCombobox>, cantidad: number, elegirUnico: () => void) {
+  if (!combobox.dropdownOpened) return;
+  const nadaMarcado = combobox.getSelectedOptionIndex() === -1;
+  if (cantidad === 1 && nadaMarcado && (e.key === "Tab" || e.key === "Enter")) {
+    if (e.key === "Enter") e.preventDefault();
+    elegirUnico();
+    combobox.closeDropdown();
+    return;
+  }
+  if (e.key === "Tab" && cantidad > 1) {
+    e.preventDefault();
+    if (e.shiftKey) combobox.selectPreviousOption();
+    else combobox.selectNextOption();
+  }
+}
+
 export function ComboBox({ value, options, placeholder = "Buscar...", error = false, tabIndex, onChange }: Props) {
   const [search, setSearch] = useState(value?.name || "");
 
@@ -59,16 +81,7 @@ export function ComboBox({ value, options, placeholder = "Buscar...", error = fa
             // Reset to selected value — no free text allowed
             setSearch(value?.name || "");
           }}
-          onKeyDown={(e) => {
-            if (!combobox.dropdownOpened) return;
-            if (e.key === "Tab" && filtered.length > 0) {
-              e.preventDefault();
-              combobox.selectNextOption();
-            } else if (e.key === "Enter" && filtered.length === 1) {
-              e.preventDefault();
-              handleSubmit(String(filtered[0].id));
-            }
-          }}
+          onKeyDown={(e) => teclasLista(e, combobox, filtered.length, () => handleSubmit(String(filtered[0].id)))}
         />
       </Combobox.Target>
 
