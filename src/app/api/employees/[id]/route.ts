@@ -20,9 +20,9 @@ export const PUT = withAuth(async (request: NextRequest, payload, ctx) => {
   const target = await prisma.employee.findUnique({ where: { id: empId } });
   if (!target) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
-  if (payload.role === "MANAGER" && target.role === "ADMIN") {
+  if (payload.role === "MANAGER" && (target.role === "ADMIN" || target.role === "TESORERO")) {
     return NextResponse.json(
-      { error: "Sin permisos para editar empleados ADMIN" },
+      { error: "Sin permisos para editar empleados ADMIN o TESORERO" },
       { status: 403 },
     );
   }
@@ -33,9 +33,9 @@ export const PUT = withAuth(async (request: NextRequest, payload, ctx) => {
     return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
   }
 
-  if (payload.role === "MANAGER" && role === "ADMIN") {
+  if (payload.role === "MANAGER" && (role === "ADMIN" || role === "TESORERO")) {
     return NextResponse.json(
-      { error: "Sin permisos para asignar rol ADMIN" },
+      { error: "Sin permisos para asignar rol ADMIN o TESORERO" },
       { status: 403 },
     );
   }

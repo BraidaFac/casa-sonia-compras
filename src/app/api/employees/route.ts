@@ -28,9 +28,9 @@ export const POST = withAuth(async (req: NextRequest, payload) => {
     return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
   }
 
-  if (payload.role === "MANAGER" && role === "ADMIN") {
+  if (payload.role === "MANAGER" && (role === "ADMIN" || role === "TESORERO")) {
     return NextResponse.json(
-      { error: "Sin permisos para crear empleados con rol ADMIN" },
+      { error: "Sin permisos para crear empleados con rol ADMIN o TESORERO" },
       { status: 403 },
     );
   }

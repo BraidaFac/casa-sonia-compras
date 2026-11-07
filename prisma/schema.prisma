@@ -23,6 +23,7 @@ enum Role {
   MANAGER
   EMPLEADO
   EMPLEADO_BASICO
+  TESORERO
 }
 
 model Employee {

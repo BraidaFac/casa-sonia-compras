@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestPayload } from "@/lib/auth";
-import type { TokenPayload } from "@/lib/auth";
-
-type Role = "ADMIN" | "MANAGER" | "EMPLEADO" | "EMPLEADO_BASICO";
+import type { Role, TokenPayload } from "@/lib/auth";
 
 interface WithAuthOptions {
   /** If provided, request is rejected with 403 if payload.role is not in this list */

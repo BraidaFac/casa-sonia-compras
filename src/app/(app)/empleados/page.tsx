@@ -14,6 +14,7 @@ const ROLE_LABEL: Record<string, string> = {
   MANAGER: "Manager",
   EMPLEADO: "Encargado",
   EMPLEADO_BASICO: "Empleado",
+  TESORERO: "Tesorero",
 };
 
 const ROLE_COLOR: Record<string, string> = {
@@ -21,6 +22,7 @@ const ROLE_COLOR: Record<string, string> = {
   MANAGER: "blue",
   EMPLEADO: "gray",
   EMPLEADO_BASICO: "dark",
+  TESORERO: "teal",
 };
 
 async function fetchEmployees(): Promise<EmployeeRecord[]> {
@@ -110,7 +112,7 @@ export default function EmpleadosPage() {
   function canActOn(emp: EmployeeRecord): boolean {
     if (!currentEmployee) return false;
     if (currentEmployee.role === "ADMIN") return true;
-    return emp.role !== "ADMIN";
+    return emp.role !== "ADMIN" && emp.role !== "TESORERO";
   }
 
   if (loadingMe || isLoading) {

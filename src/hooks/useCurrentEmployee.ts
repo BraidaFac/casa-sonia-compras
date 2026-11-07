@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import type { Role } from "@/lib/auth";
 
 export type CurrentEmployee = {
   employeeId: number;
   username: string;
   name: string;
-  role: "ADMIN" | "MANAGER" | "EMPLEADO" | "EMPLEADO_BASICO";
+  role: Role;
 };
 
 async function fetchCurrentEmployee(): Promise<CurrentEmployee> {
