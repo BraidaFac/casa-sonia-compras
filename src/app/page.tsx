@@ -8,8 +8,8 @@ export default async function Home() {
     const token = cookieStore.get("auth_token")?.value;
     if (token) {
       const payload = await verifyToken(token);
-      if (payload.role === "EMPLEADO_BASICO") {
-        redirect("/existencias");
+      if (payload.role === "TESORERO") {
+        redirect("/tesoreria");
       }
     }
   } catch {

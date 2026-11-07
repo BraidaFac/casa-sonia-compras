@@ -38,22 +38,26 @@ docs/                      esta documentación
 ## Autenticación y permisos
 
 - Login contra `employees` (bcrypt) → JWT HS256 de 365 días en cookie httpOnly `auth_token` con `employeeId`, `username`, `name`, `role`.
-- `src/proxy.ts`: exige token en todo salvo `/login`, `/api/auth/*` y estáticos; aplica bloqueos por prefijo para `EMPLEADO_BASICO` (allowlist) y `EMPLEADO` (bloquea `/empleados`).
+- `src/proxy.ts`: exige token en todo salvo `/login`, `/api/auth/*` y estáticos; aplica bloqueos por prefijo para `EMPLEADO_BASICO` y `TESORERO` (allowlist), `MANAGER` (bloquea Tesorería) y `EMPLEADO` (bloquea `/empleados` y Tesorería).
 - API: `withAuth(handler, { roles })` (`src/lib/withAuth.ts`) → 401 sin sesión, 403 si el rol no está. `requireRole` en `lib/auth.ts` existe pero no se usa.
 - Menú: filtros en `src/components/layout/Sidebar.tsx`.
 - **Agregar una sección nueva implica tocar las tres capas**: proxy (si algún rol no debe entrar), `withAuth` en cada ruta y el Sidebar.
 
 ### Matriz de permisos
 
-A = ADMIN, M = MANAGER, E = EMPLEADO ("Encargado"), B = EMPLEADO_BASICO ("Empleado"). "Todos" = cualquier autenticado.
+A = ADMIN, M = MANAGER, E = EMPLEADO ("Encargado"), B = EMPLEADO_BASICO ("Empleado"), T = TESORERO ("Tesorero"). "Todos" = cualquier autenticado salvo T: el proxy deja a T solo en `/tesoreria/**`, `/api/tesoreria/**` y `/api/auth/*`.
 
 **Páginas**
 
-| Página | A | M | E | B |
-|---|---|---|---|---|
-| /existencias, /promociones-vigentes | ✓ | ✓ | ✓ | ✓ |
-| /orders/**, /inventario/**, /odoo-orders | ✓ | ✓ | ✓ | — |
-| /empleados, /configuracion | ✓ | ✓ | — | — |
+| Página | A | M | E | B | T |
+|---|---|---|---|---|---|
+| /existencias, /promociones-vigentes | ✓ | ✓ | ✓ | ✓ | — |
+| /orders/**, /inventario/**, /odoo-orders | ✓ | ✓ | ✓ | — | — |
+| /empleados, /configuracion | ✓ | ✓ | — | — | — |
+| /tesoreria | ✓ | — | — | — | ✓ |
+| /tesoreria/extracto | ✓ | — | — | — | ✓ |
+| /tesoreria/resumen | ✓ | — | — | — | ✓ |
+| /configuracion → pestaña Tesorería | ✓ | — | — | — | — |
 
 **API**
 
@@ -76,6 +80,8 @@ A = ADMIN, M = MANAGER, E = EMPLEADO ("Encargado"), B = EMPLEADO_BASICO ("Emplea
 | /api/employees/** | todos | A, M |
 | /api/config/{medios-pago,bancos,descuentos,promociones}/** | todos | A, M |
 | /api/cache/clear | POST | A |
+| /api/tesoreria/** | todos | A, T |
+| /api/tesoreria/config | PUT | A |
 
 ## Integración con Odoo
 

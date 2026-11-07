@@ -3,7 +3,7 @@ import React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Tooltip } from "@mantine/core";
-import { ClipboardList, Store, Package, Search, ChevronLeft, ChevronRight, Users, LogOut, Settings, Tag } from "lucide-react";
+import { ClipboardList, Store, Package, Search, ChevronLeft, ChevronRight, Users, LogOut, Settings, Tag, Landmark } from "lucide-react";
 import { ROLE_LABELS } from "@/lib/auth";
 
 const NAV_ITEMS_TOP = [
@@ -11,6 +11,7 @@ const NAV_ITEMS_TOP = [
   { href: "/promociones-vigentes", label: "Promociones", icon: Tag },
   { href: "/orders", label: "Órdenes", icon: ClipboardList },
   { href: "/inventario", label: "Inventario", icon: Package },
+  { href: "/tesoreria", label: "Tesorería", icon: Landmark },
 ] as const;
 
 const NAV_ITEMS_BOTTOM = [
@@ -148,6 +149,8 @@ export function Sidebar({ initialRole, initialName }: { initialRole?: string; in
           if (role === "EMPLEADO_BASICO") {
             return item.href === "/existencias" || item.href === "/promociones-vigentes";
           }
+          if (role === "TESORERO") return item.href === "/tesoreria";
+          if (item.href === "/tesoreria") return role === "ADMIN";
           return true;
         }).map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
@@ -304,7 +307,7 @@ export function Sidebar({ initialRole, initialName }: { initialRole?: string; in
           </Tooltip>
         )}
 
-        {role !== "EMPLEADO_BASICO" && NAV_ITEMS_BOTTOM.map(({ href, label, icon: Icon }) => {
+        {role !== "EMPLEADO_BASICO" && role !== "TESORERO" && NAV_ITEMS_BOTTOM.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Tooltip key={href} label={label} disabled={!collapsed} position="right" withArrow>
