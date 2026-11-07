@@ -1,5 +1,6 @@
 // Tesorería ↔ Odoo: cliente con timeout y lecturas de catálogos.
 // Las escrituras contables viven en tesoreriaPasos.ts.
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { ChequeCartera, ChequeEmitido, FacturaPendiente, TipoComprobante } from "@/lib/tesoreria";
 
 const BASE_URL = `${process.env.ODOO_URL}/json/2`;
@@ -13,6 +14,11 @@ export class OdooTesoreriaError extends Error {
 }
 
 const LECTURA = new Set(["search_read", "search_count", "search", "read", "fields_get", "name_search", "formatted_read_group"]);
+
+const escrituras = new AsyncLocalStorage<{ hubo: boolean }>();
+
+/** Corre `fn` y deja `reg.hubo = true` si alguna escritura en Odoo respondió bien (aunque `fn` falle después). */
+export const registrarEscrituras = <T>(reg: { hubo: boolean }, fn: () => Promise<T>) => escrituras.run(reg, fn);
 
 export async function ot<T = unknown>(model: string, method: string, body: object = {}): Promise<T> {
   // Seguro: Tesorería no escribe en Odoo hasta habilitarlo explícitamente (base de prueba verificada)
@@ -38,6 +44,8 @@ export async function ot<T = unknown>(model: string, method: string, body: objec
     console.error(`[tesoreria] ${model}.${method} falló`, msg);
     throw new OdooTesoreriaError(msg, [502, 503, 504].includes(res.status), `${model}.${method}: ${msg}`);
   }
+  const reg = escrituras.getStore();
+  if (reg && !LECTURA.has(method)) reg.hubo = true;
   return res.json() as Promise<T>;
 }
 

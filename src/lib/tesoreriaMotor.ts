@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "../../prisma/generated/client";
 import { cargarConfig, contextoValidacion } from "@/lib/tesoreriaConfig";
-import { OdooTesoreriaError } from "@/lib/odooTesoreria";
+import { OdooTesoreriaError, registrarEscrituras } from "@/lib/odooTesoreria";
 import {
   bloqueoAnulacion,
   ejecutarPaso,
@@ -158,13 +158,16 @@ async function correr(opId: number, fase: Fase, empleado: { id: number; nombre: 
     await prisma.tesoreriaPaso.update({ where: { id: paso.id }, data: { estado: "EN_CURSO", intentos: { increment: 1 }, iniciadoEn: new Date(), error: null, errorTecnico: null } });
     await prisma.tesoreriaOperacion.update({ where: { id: opId }, data: { actualizadoEn: new Date() } });
     const ctx: CtxPaso = { ...ctxBase, ref: paso.referencia };
+    const reg = { hubo: false };
     try {
-      const r = await ejecutarPaso(paso.payload as unknown as PasoDef, ctx);
+      const r = await registrarEscrituras(reg, () => ejecutarPaso(paso.payload as unknown as PasoDef, ctx));
       await prisma.tesoreriaPaso.update({ where: { id: paso.id }, data: { estado: "OK", odooModelo: r.odooModelo, odooId: r.odooId, finalizadoEn: new Date() } });
       if (fase === "EJECUCION") ctxBase.resultados.set(paso.orden, r);
     } catch (err) {
       const e = err instanceof OdooTesoreriaError ? err : new OdooTesoreriaError("Error inesperado.", true, String(err));
-      const nadaHecho = fase === "EJECUCION" && !e.ambiguo && paso.id === pasos[0].id && !pasos.some((p) => p.estado === "OK");
+      // Si el paso llegó a crear algo en Odoo (p. ej. el pago, y falló al confirmarlo) no vuelve a borrador:
+      // con la misma referencia se reusaría ese registro con los datos viejos
+      const nadaHecho = fase === "EJECUCION" && !e.ambiguo && !reg.hubo && paso.id === pasos[0].id && !pasos.some((p) => p.estado === "OK");
       const mensaje = mensajeUsuario(e, paso.orden, fase);
       await prisma.tesoreriaPaso.update({ where: { id: paso.id }, data: { estado: "ERROR", error: mensaje, errorTecnico: e.tecnico, finalizadoEn: new Date() } });
       if (nadaHecho) {
