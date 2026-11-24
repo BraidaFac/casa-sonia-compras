@@ -61,6 +61,7 @@ export const POST = withAuth(async (req: NextRequest, payload) => {
     name?: string | null;
     countDate?: string | null;
     accountingDate?: string | null;
+    zeroUncounted?: boolean;
   };
 
   const { warehouseId, warehouseName, name, countDate, accountingDate } = body;
@@ -79,6 +80,7 @@ export const POST = withAuth(async (req: NextRequest, payload) => {
       name: name ?? null,
       countDate: countDate ?? null,
       accountingDate: accountingDate ?? null,
+      zeroUncounted: body.zeroUncounted === true,
       articles: [] as unknown as object[],
       createdById: payload.employeeId,
     },

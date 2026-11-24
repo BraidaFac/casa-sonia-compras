@@ -7,6 +7,35 @@ function extractLocalName(completeName: string): string {
   return parts[parts.length - 1] ?? completeName;
 }
 
+/** Ruta completa de cada categoría en Odoo (p. ej. "Hombres / Remeras / Remeras MC"). */
+export async function fetchCategoryCompleteNames(ids: number[]): Promise<Map<number, string>> {
+  if (ids.length === 0) return new Map();
+  const rows = (await odoo.searchRead(
+    "product.category",
+    [["id", "in", ids]],
+    ["id", "complete_name"],
+  )) as { id: number; complete_name: string }[];
+  return new Map(rows.map((r) => [r.id, r.complete_name]));
+}
+
+/** Completa categoryCompleteName en snapshots viejos que no lo tienen; si Odoo falla, los deja como están. */
+export async function withCategoryCompleteNames(data: SummaryDataResponse): Promise<SummaryDataResponse> {
+  const missing = data.categories.filter((c) => !c.categoryCompleteName).map((c) => c.categoryId);
+  if (missing.length === 0) return data;
+  try {
+    const names = await fetchCategoryCompleteNames(missing);
+    return {
+      categories: data.categories.map((c) => ({
+        ...c,
+        categoryCompleteName: c.categoryCompleteName ?? names.get(c.categoryId),
+      })),
+    };
+  } catch (err) {
+    console.error("[inventario] no se pudo leer complete_name de categorías:", err);
+    return data;
+  }
+}
+
 /**
  * Builds a SummaryDataResponse from current Odoo state for the given inventory.
  * Should be called BEFORE applying any stock adjustments to Odoo so that
@@ -40,6 +69,7 @@ export async function buildConfirmationSummary(
   }
 
   const categoryIds = Array.from(categoryMap.keys());
+  const completeNames = await fetchCategoryCompleteNames(categoryIds);
 
   const allProducts = await odoo.fetchAll<{
     id: number;
@@ -113,6 +143,7 @@ export async function buildConfirmationSummary(
   for (const [categoryId, meta] of categoryMap.entries()) {
     categories.push({
       ...meta,
+      categoryCompleteName: completeNames.get(categoryId),
       products: productsByCategory.get(categoryId) ?? [],
     });
   }

@@ -5,6 +5,7 @@ import { Modal, Button, Text, Group, Loader, Tooltip, TextInput } from "@mantine
 import { DateInput } from "@/components/ui/DateInput";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { CategoryPicker } from "@/components/inventario/CategoryPicker";
+import { LlevarACeroSwitch } from "@/components/inventario/LlevarACeroSwitch";
 import type { Warehouse } from "@/types";
 
 interface NuevoInventarioModalProps {
@@ -25,6 +26,7 @@ export function NuevoInventarioModal({ opened, onClose }: NuevoInventarioModalPr
   const [countDate, setCountDate] = useState<string | null>(todayStr());
   const [accountingDate, setAccountingDate] = useState<string | null>(todayStr());
   const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
+  const [zeroUncounted, setZeroUncounted] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const canSubmit =
@@ -41,6 +43,7 @@ export function NuevoInventarioModal({ opened, onClose }: NuevoInventarioModalPr
     setCountDate(todayStr());
     setAccountingDate(todayStr());
     setSelectedCategories([]);
+    setZeroUncounted(false);
     onClose();
   }
 
@@ -57,6 +60,7 @@ export function NuevoInventarioModal({ opened, onClose }: NuevoInventarioModalPr
           name: name.trim() || null,
           countDate,
           accountingDate,
+          zeroUncounted,
         }),
       });
       const { id } = await res.json();
@@ -211,6 +215,9 @@ export function NuevoInventarioModal({ opened, onClose }: NuevoInventarioModalPr
 
         {/* Categorías */}
         <CategoryPicker value={selectedCategories} onChange={setSelectedCategories} />
+
+        {/* Llevar a cero no contados */}
+        <LlevarACeroSwitch value={zeroUncounted} onChange={setZeroUncounted} />
       </div>
 
       <Group

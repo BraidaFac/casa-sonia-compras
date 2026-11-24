@@ -36,6 +36,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useInventory } from "@/hooks/useInventory";
 import { useCurrentEmployee } from "@/hooks/useCurrentEmployee";
 import { ResumenModal } from "@/components/inventario/ResumenModal";
+import { LlevarACeroSwitch } from "@/components/inventario/LlevarACeroSwitch";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { queryKeys } from "@/lib/queryKeys";
 import type { BarcodeLookupResult } from "@/hooks/useBarcodeLookup";
@@ -950,15 +951,18 @@ function InventarioCargarContent({
         )}
 
         {isReadonly && (
-          <Button
-            size="xs"
-            variant="subtle"
-            color="amber"
-            rightSection={<ArrowRight size={13} />}
-            onClick={() => setResumenOpen(true)}
-          >
-            Ver Resumen
-          </Button>
+          <Group gap="md">
+            <LlevarACeroSwitch value={inventory.zeroUncounted} readOnly />
+            <Button
+              size="xs"
+              variant="subtle"
+              color="amber"
+              rightSection={<ArrowRight size={13} />}
+              onClick={() => setResumenOpen(true)}
+            >
+              Ver Resumen
+            </Button>
+          </Group>
         )}
 
         {/* Scan feedback pill — centered below header */}

@@ -28,6 +28,7 @@ export const GET = withAuth(async (req: NextRequest, _payload, ctx) => {
     countDate: inv.countDate ?? null,
     accountingDate: inv.accountingDate ?? null,
     articles,
+    zeroUncounted: inv.zeroUncounted,
     odooRef: inv.odooRef,
     errorDetail: inv.errorDetail,
     createdAt: inv.createdAt.toISOString(),
@@ -43,9 +44,18 @@ export const PATCH = withAuth(async (req: NextRequest, _payload, ctx) => {
     name?: string | null;
     countDate?: string | null;
     accountingDate?: string | null;
+    zeroUncounted?: boolean;
   };
 
   const data: Record<string, unknown> = {};
+  if (typeof body.zeroUncounted === "boolean") {
+    // Tras confirmar, el valor registra con qué se confirmó: no se edita.
+    const current = await prisma.inventory.findUnique({ where: { id: parseInt(id) }, select: { status: true } });
+    if (current?.status !== "BORRADOR") {
+      return NextResponse.json({ error: "Solo se puede cambiar en un inventario en borrador" }, { status: 400 });
+    }
+    data.zeroUncounted = body.zeroUncounted;
+  }
   if (body.status !== undefined) data.status = body.status;
   if (body.articles !== undefined) {
     data.articles = body.articles as unknown as object[];

@@ -241,6 +241,8 @@ export interface LocalInventory {
   countDate: string | null;
   accountingDate: string | null;
   articles: InventoryArticle[];
+  /** "Llevar a cero no contados": elección del borrador / valor usado al confirmar. null = sin registro. */
+  zeroUncounted: boolean | null;
   odooRef: string | null;
   errorDetail: string | null;
   createdAt: string;

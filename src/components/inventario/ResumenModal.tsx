@@ -11,12 +11,19 @@ import {
   Radio,
   Stack,
   Loader,
-  Switch,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { Check, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { InventoryStatusBadge } from "@/components/inventario/InventoryStatusBadge";
+import { LlevarACeroSwitch } from "@/components/inventario/LlevarACeroSwitch";
+import {
+  calcularAdvertencias,
+  calcularImpactoLlevarACero,
+  nivelesCategoria,
+  rutaCategoria,
+  type Advertencias,
+} from "@/lib/inventarioResumen";
 import type { InventoryArticle, LocalInventory } from "@/types";
 import type {
   SummaryCategory,
@@ -49,9 +56,15 @@ export function ResumenModal({
   const [splitAction, setSplitAction] = useState<"discard" | "new_draft">(
     "discard",
   );
-  const [zeroUncounted, setZeroUncounted] = useState(true);
-
   const isBorrador = inventory.status === "BORRADOR";
+  // Borrador: la elección guardada (null = conteo previo al registro → apagado).
+  // Confirmado: el valor usado; null = confirmado con el default viejo (encendido).
+  const [zeroUncounted, setZeroUncounted] = useState(
+    isBorrador
+      ? (inventory.zeroUncounted ?? false)
+      : (inventory.zeroUncounted ?? true),
+  );
+  const [advertencias, setAdvertencias] = useState<Advertencias | null>(null);
 
   const { data: summaryData, isLoading: summaryLoading } =
     useQuery<SummaryDataResponse>({
@@ -91,6 +104,24 @@ export function ResumenModal({
   }
 
   function handleConfirmarClick() {
+    if (summaryData) {
+      const adv = calcularAdvertencias(
+        summaryData.categories.filter((c) =>
+          checkedCategoryIds.has(c.categoryId),
+        ),
+        articles,
+        zeroUncounted,
+      );
+      if (adv.categorias.length > 0 || adv.variantes.length > 0) {
+        setAdvertencias(adv);
+        return;
+      }
+    }
+    continuarConfirmacion();
+  }
+
+  function continuarConfirmacion() {
+    setAdvertencias(null);
     const unchecked = allCategoryIds.filter(
       (id) => !checkedCategoryIds.has(id),
     );
@@ -158,22 +189,6 @@ export function ResumenModal({
               Resumen #{inventory.id}
             </Text>
             <InventoryStatusBadge status={inventory.status} />
-            {isBorrador && (
-              <Switch
-                size="xs"
-                label="Llevar a cero no contados"
-                checked={zeroUncounted}
-                onChange={(e) => setZeroUncounted(e.currentTarget.checked)}
-                color="amber"
-                styles={{
-                  label: {
-                    fontSize: 11,
-                    color: "var(--text3)",
-                    cursor: "pointer",
-                  },
-                }}
-              />
-            )}
           </Group>
         }
         centered
@@ -223,6 +238,22 @@ export function ResumenModal({
 
           {!summaryLoading && summaryData && (
             <div>
+              <div style={{ marginBottom: 16 }}>
+                {isBorrador ? (
+                  <LlevarACeroSwitch
+                    value={zeroUncounted}
+                    onChange={setZeroUncounted}
+                    impacto={calcularImpactoLlevarACero(
+                      summaryData.categories.filter((c) =>
+                        checkedCategoryIds.has(c.categoryId),
+                      ),
+                      articles,
+                    )}
+                  />
+                ) : (
+                  <LlevarACeroSwitch value={inventory.zeroUncounted} readOnly />
+                )}
+              </div>
               <Text size="xs" c="dimmed" mb="sm">
                 Seleccioná las categorías a confirmar. Las categorías sin check
                 quedarán excluidas.
@@ -283,6 +314,13 @@ export function ResumenModal({
         </Group>
       </Modal>
 
+      {/* Advertencias no bloqueantes antes de confirmar */}
+      <AdvertenciasModal
+        advertencias={advertencias}
+        onVolver={() => setAdvertencias(null)}
+        onConfirmar={continuarConfirmacion}
+      />
+
       {/* Split dialog: qué hacer con categorías no chequeadas */}
       <Modal
         opened={splitDialogOpen}
@@ -306,8 +344,7 @@ export function ResumenModal({
         <Stack gap={4} mb="lg">
           {uncheckedCategories.map((c) => (
             <Text key={c.categoryId} size="sm" c="dimmed">
-              · {c.categoryParentName ? `${c.categoryParentName} › ` : ""}
-              {c.categoryName}
+              · {rutaCategoria(c).join(" › ")}
             </Text>
           ))}
         </Stack>
@@ -351,7 +388,108 @@ export function ResumenModal({
   );
 }
 
-// ── Lista plana de categorías con checkboxes ───────────────────────────────────
+// ── Advertencias previas a confirmar ─────────────────────────────────────────
+
+const MAX_VARIANTES_ADVERTENCIA = 50;
+
+function AdvertenciasModal({
+  advertencias,
+  onVolver,
+  onConfirmar,
+}: {
+  advertencias: Advertencias | null;
+  onVolver: () => void;
+  onConfirmar: () => void;
+}) {
+  const cats = advertencias?.categorias ?? [];
+  const vars = advertencias?.variantes ?? [];
+  const visibles = vars.slice(0, MAX_VARIANTES_ADVERTENCIA);
+  const porRuta = new Map<string, typeof visibles>();
+  for (const v of visibles)
+    porRuta.set(v.ruta, [...(porRuta.get(v.ruta) ?? []), v]);
+  const fmt = (n: number) => `${n > 0 ? "+" : ""}${n}`;
+
+  return (
+    <Modal
+      opened={advertencias !== null}
+      onClose={onVolver}
+      title={
+        <Group gap={8}>
+          <AlertTriangle size={18} color="var(--mantine-color-orange-5)" />
+          <Text
+            fw={700}
+            size="md"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Revisá antes de confirmar
+          </Text>
+        </Group>
+      }
+      centered
+      size="lg"
+      overlayProps={{ blur: 2, backgroundOpacity: 0.55 }}
+    >
+      <Stack gap="md">
+        {cats.length > 0 && (
+          <div>
+            <Text size="sm" fw={600} mb={4}>
+              Categorías con diferencia de más de 10 unidades
+            </Text>
+            {cats.map((c) => (
+              <Text key={c.ruta} size="sm" c="dimmed">
+                · {c.ruta}:{" "}
+                <Text span fw={600} c={c.diferencia > 0 ? "green.4" : "red.4"}>
+                  {fmt(c.diferencia)}
+                </Text>{" "}
+                unidades
+              </Text>
+            ))}
+          </div>
+        )}
+        {vars.length > 0 && (
+          <div>
+            <Text size="sm" fw={600} mb={4}>
+              Artículos con diferencia mayor al 10% de su stock ({vars.length})
+            </Text>
+            <div style={{ maxHeight: 320, overflowY: "auto" }}>
+              {[...porRuta.entries()].map(([ruta, items]) => (
+                <div key={ruta} style={{ marginBottom: 8 }}>
+                  <Text size="xs" fw={600} c="dimmed">
+                    {ruta}
+                  </Text>
+                  {items.map((v, i) => (
+                    <Text key={i} size="xs" c="dimmed" pl="md">
+                      · {v.nombre}: stock {v.stock} → contado {v.contado} (
+                      {fmt(v.diferencia)})
+                    </Text>
+                  ))}
+                </div>
+              ))}
+              {vars.length > visibles.length && (
+                <Text size="xs" c="dimmed">
+                  … y {vars.length - visibles.length} más
+                </Text>
+              )}
+            </div>
+          </div>
+        )}
+        <Text size="xs" c="dimmed">
+          Son advertencias: podés volver a revisar o confirmar igual.
+        </Text>
+        <Group justify="flex-end" gap="xs">
+          <Button size="sm" variant="subtle" color="gray" onClick={onVolver}>
+            Volver
+          </Button>
+          <Button size="sm" color="orange" onClick={onConfirmar}>
+            Confirmar igual
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+}
+
+// ── Lista de categorías con checkboxes (árbol) ───────────────────────────────────
 
 function CategoryCheckboxList({
   categories,
@@ -366,26 +504,50 @@ function CategoryCheckboxList({
   setCheckedIds: (v: Set<number>) => void;
   zeroUncounted: boolean;
 }) {
+  // Árbol de 3 niveles: nivel 1 (p. ej. Hombres) › nivel 2 (Remeras) › hoja (Remeras MC).
   const sorted = [...categories].sort((a, b) =>
-    a.categoryName.localeCompare(b.categoryName, "es"),
+    rutaCategoria(a)
+      .join(" / ")
+      .localeCompare(rutaCategoria(b).join(" / "), "es"),
   );
+  const niveles = sorted.map(nivelesCategoria);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {sorted.map((cat) => (
-        <LeafCategoryRow
-          key={cat.categoryId}
-          cat={cat}
-          articles={articles}
-          checked={checkedIds.has(cat.categoryId)}
-          onToggle={(v) => {
-            const next = new Set(checkedIds);
-            if (v) next.add(cat.categoryId);
-            else next.delete(cat.categoryId);
-            setCheckedIds(next);
-          }}
-          zeroUncounted={zeroUncounted}
-        />
-      ))}
+      {sorted.map((cat, i) => {
+        const { n1, n2 } = niveles[i];
+        const prev = niveles[i - 1];
+        const showN1 = n1 !== "" && n1 !== prev?.n1;
+        const showN2 = n2 !== "" && (showN1 || n2 !== prev?.n2);
+        return (
+          <div key={cat.categoryId}>
+            {showN1 && (
+              <Text size="sm" fw={700} mt="sm" mb={4} c="gray.3">
+                {n1}
+              </Text>
+            )}
+            {showN2 && (
+              <Text size="xs" fw={600} mb={4} c="dimmed" pl={n1 ? "md" : 0}>
+                {n2}
+              </Text>
+            )}
+            <div style={{ paddingLeft: n2 ? 32 : n1 ? 16 : 0 }}>
+              <LeafCategoryRow
+                key={cat.categoryId}
+                cat={cat}
+                articles={articles}
+                checked={checkedIds.has(cat.categoryId)}
+                onToggle={(v) => {
+                  const next = new Set(checkedIds);
+                  if (v) next.add(cat.categoryId);
+                  else next.delete(cat.categoryId);
+                  setCheckedIds(next);
+                }}
+                zeroUncounted={zeroUncounted}
+              />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -470,7 +632,9 @@ function LeafCategoryRow({
       const isCounted = countedMap.has(p.varianteId);
       const diff = isCounted
         ? countedMap.get(p.varianteId)! - p.qtyOnHand
-        : zeroUncounted ? -p.qtyOnHand : 0;
+        : zeroUncounted
+          ? -p.qtyOnHand
+          : 0;
       return {
         aggDiff: acc.aggDiff + diff,
         aggCostDiff: acc.aggCostDiff + diff * p.cost,
@@ -522,11 +686,11 @@ function LeafCategoryRow({
             <ChevronRight size={13} color="var(--mantine-color-amber-5)" />
           )}
           <Text size="sm" fw={500} c="amber.3" style={{ flex: 1 }}>
-            {cat.categoryParentName ? (
+            {cat.categoryCompleteName || !cat.categoryParentName ? null : (
               <span style={{ color: "var(--text3)", fontWeight: 400 }}>
                 {cat.categoryParentName} ›{" "}
               </span>
-            ) : null}
+            )}
             {cat.categoryName}
           </Text>
           <Text size="xs" c="dimmed" style={{ marginRight: 8 }}>
@@ -563,7 +727,13 @@ function LeafCategoryRow({
         </div>
       </div>
 
-      {expanded && <ProductTable cat={cat} countedMap={countedMap} zeroUncounted={zeroUncounted} />}
+      {expanded && (
+        <ProductTable
+          cat={cat}
+          countedMap={countedMap}
+          zeroUncounted={zeroUncounted}
+        />
+      )}
     </div>
   );
 }
@@ -632,14 +802,18 @@ function ProductTable({
         const isCounted = countedMap.has(v.varianteId);
         const diff = isCounted
           ? countedMap.get(v.varianteId)! - v.qtyOnHand
-          : zeroUncounted ? -v.qtyOnHand : 0;
+          : zeroUncounted
+            ? -v.qtyOnHand
+            : 0;
         return s + diff;
       }, 0),
       aggCostDiff: variants.reduce((s, v) => {
         const isCounted = countedMap.has(v.varianteId);
         const diff = isCounted
           ? countedMap.get(v.varianteId)! - v.qtyOnHand
-          : zeroUncounted ? -v.qtyOnHand : 0;
+          : zeroUncounted
+            ? -v.qtyOnHand
+            : 0;
         return s + diff * v.cost;
       }, 0),
     }),
@@ -698,7 +872,12 @@ function ProductTable({
       {/* Counted / partial groups */}
       <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
         {countedGroups.map((g) => (
-          <ProductGroup key={g.productoId} group={g} countedMap={countedMap} zeroUncounted={zeroUncounted} />
+          <ProductGroup
+            key={g.productoId}
+            group={g}
+            countedMap={countedMap}
+            zeroUncounted={zeroUncounted}
+          />
         ))}
       </div>
 
@@ -949,7 +1128,9 @@ function VariantRow({
   const isCounted = countedMap.has(variant.varianteId);
   const diff = isCounted
     ? counted - variant.qtyOnHand
-    : zeroUncounted ? -variant.qtyOnHand : 0;
+    : zeroUncounted
+      ? -variant.qtyOnHand
+      : 0;
   const diffColor =
     diff === 0
       ? "var(--text3)"

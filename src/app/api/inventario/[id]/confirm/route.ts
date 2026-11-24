@@ -47,13 +47,17 @@ export const POST = withAuth(async (req: NextRequest, payload, ctx) => {
 
   const excludedSet = new Set<number>(body.excludedCategoryIds ?? []);
   const spawnNewDraft = body.spawnNewDraft ?? false;
-  const zeroUncounted = body.zeroUncounted ?? true;
+  // Seguro por defecto: si no viene, no se lleva nada a cero.
+  const zeroUncounted = body.zeroUncounted === true;
 
   const includedArticles = articles.filter((a) => !excludedSet.has(a.categoryId));
   const excludedArticles = articles.filter((a) => excludedSet.has(a.categoryId));
 
   // Categories to process for uncounted-articles zeroing (only included ones)
   const includedCategoryIds = [...new Set(includedArticles.map((a) => a.categoryId))];
+
+  // Registrar el valor usado antes de tocar Odoo: queda aunque la confirmación falle.
+  await prisma.inventory.update({ where: { id: inv.id }, data: { zeroUncounted } });
 
   try {
     // Get warehouse internal location

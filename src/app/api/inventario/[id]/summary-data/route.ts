@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/withAuth";
 import { prisma } from "@/lib/prisma";
-import { buildConfirmationSummary } from "@/lib/inventoryConfirmationSummary";
+import { buildConfirmationSummary, withCategoryCompleteNames } from "@/lib/inventoryConfirmationSummary";
 import type { InventoryArticle } from "@/types";
 
 export interface SummaryProduct {
@@ -18,6 +18,8 @@ export interface SummaryCategory {
   categoryName: string;
   categoryParentId: number | null;
   categoryParentName: string | null;
+  /** Ruta completa en Odoo. Falta en snapshots confirmados antes de que se guardara. */
+  categoryCompleteName?: string;
   products: SummaryProduct[];
 }
 
@@ -38,7 +40,9 @@ export const GET = withAuth(async (req: NextRequest, _payload, ctx) => {
 
   // Confirmed inventories: return the stored snapshot taken at confirmation time
   if (inv.status === "CONFIRMADO" && inv.confirmationSummary) {
-    return NextResponse.json(inv.confirmationSummary as unknown as SummaryDataResponse);
+    return NextResponse.json(
+      await withCategoryCompleteNames(inv.confirmationSummary as unknown as SummaryDataResponse),
+    );
   }
 
   const articles = (inv.articles as unknown as InventoryArticle[]) ?? [];

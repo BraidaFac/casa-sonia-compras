@@ -96,6 +96,7 @@ model Inventory {
   articles            Json            @default("[]")
   articleCount        Int             @default(0) @map("article_count")
   confirmationSummary Json?           @map("confirmation_summary")
+  zeroUncounted       Boolean?        @map("zero_uncounted")
   odooRef             String?         @map("odoo_ref")
   errorDetail         String?         @map("error_detail") @db.Text
   createdById         Int?            @map("created_by_id")
