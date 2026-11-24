@@ -445,7 +445,9 @@ export async function syncProductImages(
   let templateImageWritten = false;
 
   for (const [colorName, images] of Object.entries(article.colorImages)) {
-    const validImages = images.filter((img) => img.base64 && !img.error);
+    // Las de Odoo cuentan aunque no traigan base64: nunca se re-suben, pero
+    // definen cuál es la principal.
+    const validImages = images.filter((img) => (img.isFromOdoo || img.base64) && !img.error);
     if (validImages.length === 0) continue;
 
     const resolvedColor = resolvedColors.find(
@@ -485,7 +487,7 @@ export async function syncProductImages(
     }
 
     // ── IMÁGENES ADICIONALES — solo crear las nuevas (sin odooId) ────────────
-    const newAdditionalImages = validImages.slice(1).filter((img) => !img.odooId);
+    const newAdditionalImages = validImages.slice(1).filter((img) => !img.isFromOdoo && !img.odooId);
 
     for (const img of newAdditionalImages) {
       try {

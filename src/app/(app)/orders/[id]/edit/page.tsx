@@ -14,7 +14,7 @@ import { OrderProgressModal } from "@/components/orders/OrderProgressModal";
 import { ErrorDetailModal } from "@/components/orders/ErrorDetailModal";
 import { ResumenModal } from "@/components/orders/ResumenModal";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { stripImagesForDB } from "@/lib/localOrders";
+import { stripImagesForDB, stripOdooImageData } from "@/lib/localOrders";
 import { validateForConfirm } from "@/lib/orderValidation";
 import type {
   Article,
@@ -96,7 +96,7 @@ export default function EditOrderPage({
         articles: localArticles,
         warehouseIds: selectedWarehouses.map((w) => w.id),
         editedArticleId: updatedArticle.id,
-        editedArticle: updatedArticle,
+        editedArticle: stripOdooImageData(updatedArticle),
       }),
     });
     if (!res.ok) {

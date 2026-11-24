@@ -26,6 +26,22 @@ export function stripImagesForDB(articles: Article[]): LocalArticle[] {
 }
 
 /**
+ * Quita base64/previewUrl de las imágenes que ya están en Odoo: el sync nunca
+ * las re-sube, y con varias fotos image_1920 el body supera el límite del proxy.
+ */
+export function stripOdooImageData(article: Article): Article {
+  return {
+    ...article,
+    colorImages: Object.fromEntries(
+      Object.entries(article.colorImages).map(([colorName, images]) => [
+        colorName,
+        images.map((img) => (img.isFromOdoo ? { ...img, base64: "", previewUrl: "" } : img)),
+      ]),
+    ),
+  };
+}
+
+/**
  * Restore previewUrl for isFromOdoo images using their odooId.
  * New images (not isFromOdoo, no tempPath) have no preview until re-uploaded.
  * This runs client-side or in GET handler — no Odoo calls here.
