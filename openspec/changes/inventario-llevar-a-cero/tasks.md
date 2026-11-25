@@ -19,7 +19,7 @@
 - [x] 3.3 `ResumenModal`: sacar el switch chico del header, inicializar con el valor del borrador (`null` → apagado), mostrar el bloque en el cuerpo con el impacto por categoría (ruta completa, variantes y unidades con stock que pasan a 0) y mandar el valor al confirmar. Verificar en dev con un borrador que tenga categorías parcialmente contadas.
 - [x] 3.4 Mostrar las categorías del Resumen con `categoryCompleteName`, con fallback "{padre} / {nombre}" para snapshots viejos. Verificar con un conteo confirmado viejo y con uno nuevo.
 - [x] 3.5 Conteo `CONFIRMADO`: mostrar el valor usado en el Resumen (bloque en solo lectura) y en el encabezado de `/inventario/[id]`. Verificar con #175 (no muestra badge) y con un conteo confirmado nuevo.
-- [x] 3.6 Resumen en árbol de 3 niveles (nivel 1 › nivel 2 › hoja), con checkbox y totales en la hoja, para borrador y confirmado. Verificar que en el #175 "Hombres › Remeras › Remeras MC" aparece en una rama separada de "Mujer › Parte Superior › …".
+- [x] 3.6 Resumen con tabs por nivel 1 ("Todas (N)" + una por rama, solo si hay más de una) y nivel 2 como prefijo de la hoja, con checkbox y totales en la hoja, para borrador y confirmado. Verificar que en el #175 aparecen las tabs "Hombres" y "Mujer" y que "Remeras › Remeras MC" queda en Hombres.
 - [x] 3.7 Diálogo de advertencias no bloqueantes al confirmar: categorías con `|diff neto| > 10` y variantes con stock > 0 y `|diff| > 10%` (incluye no contadas si la opción está activa; tope de 50 y "y N más"), con los botones "Volver" y "Confirmar igual", antes del diálogo de categorías sin confirmar. Verificar en dev: un borrador con ambos casos muestra el diálogo, uno sin casos confirma directo y "Volver" no confirma.
 
 ## 4. Cierre

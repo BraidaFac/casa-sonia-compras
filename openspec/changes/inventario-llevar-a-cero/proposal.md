@@ -9,7 +9,7 @@ El 20/11 se confirmó el conteo #175 (ropa de mujer) con "Llevar a cero no conta
 - "Llevar a cero no contados" pasa a estar **apagado por defecto**. **BREAKING** de comportamiento: quien confirme sin tocarlo ya no pone en 0 los no contados.
 - Se elige en el **alta** ("Nuevo inventario") con un control visible y una explicación de qué hace; se guarda en el borrador.
 - En el **Resumen** al confirmar se muestra el mismo control, grande y con texto explicativo, precargado con el valor del borrador y modificable. Cuando está activo, el Resumen informa cuántas variantes con stock se van a llevar a 0 y en qué categorías (con la ruta completa, p. ej. "Hombres / Remeras / Remeras MC").
-- El Resumen (borrador y confirmado) agrupa las categorías en un **árbol de 3 niveles** según su ruta en Odoo (p. ej. "Hombres › Remeras › Remeras MC" vs "Mujer › Parte Superior › Remeras MC"), para ver de un vistazo si se mezclan ramas.
+- El Resumen (borrador y confirmado) separa las categorías en **tabs por nivel 1** de su ruta en Odoo ("Todas", "Hombres", "Mujer", con contador), y cada categoría muestra el nivel 2 como prefijo ("Remeras › Remeras MC"), para ver de un vistazo si se mezclan ramas.
 - **Advertencias no bloqueantes antes de confirmar**: diálogo con las categorías con diferencia neta mayor a 10 unidades y las variantes con diferencia mayor al 10% de su stock en Odoo; se puede volver o "Confirmar igual".
 - El valor efectivamente usado al confirmar se **persiste** en el conteo y se muestra en el detalle/Resumen del conteo confirmado. Los conteos confirmados antes de este cambio no muestran nada.
 - Roles: sin cambios (crear: `ADMIN`, `MANAGER`, `EMPLEADO`; confirmar: `ADMIN`, `MANAGER`).
@@ -28,7 +28,7 @@ Fuera de alcance:
 
 ### Modified Capabilities
 
-- `inventario`: cambian "Crear un conteo" (se elige llevar a cero), "Resumen previo a confirmar" (control visible + impacto + valor guardado + árbol de 3 niveles) y "Confirmar el conteo en Odoo" (apagado por defecto, se persiste el valor); se agrega "Advertencias antes de confirmar".
+- `inventario`: cambian "Crear un conteo" (se elige llevar a cero), "Resumen previo a confirmar" (control visible + impacto + valor guardado + tabs por nivel 1) y "Confirmar el conteo en Odoo" (apagado por defecto, se persiste el valor); se agrega "Advertencias antes de confirmar".
 
 ## Impact
 

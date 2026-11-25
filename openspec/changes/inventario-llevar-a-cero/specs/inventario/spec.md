@@ -18,7 +18,7 @@ El sistema SHALL crear un conteo con depósito, fechas de conteo y contable (por
 - **THEN** el borrador queda con la opción activada y el Resumen la muestra activada al abrirlo
 
 ### Requirement: Resumen previo a confirmar
-Antes de confirmar, el sistema SHALL mostrar un resumen por categoría: contado vs stock en Odoo, diferencia en unidades y en costo, con aviso si la diferencia supera 10 unidades. Las categorías SHALL agruparse en un árbol de hasta 3 niveles según su ruta en Odoo, tanto en borradores como en confirmados; la selección para incluir o excluir sigue siendo por categoría.
+Antes de confirmar, el sistema SHALL mostrar un resumen por categoría: contado vs stock en Odoo, diferencia en unidades y en costo, con aviso si la diferencia supera 10 unidades. Las categorías SHALL poder filtrarse por el nivel 1 de su ruta en Odoo (tabs "Todas" y una por nivel 1, con su cantidad) y cada una SHALL mostrar su nivel intermedio como prefijo, tanto en borradores como en confirmados; la selección para incluir o excluir sigue siendo por categoría.
 
 #### Scenario: Ver resumen de un conteo confirmado
 - **WHEN** se abre el resumen de un conteo `CONFIRMADO`
@@ -26,11 +26,11 @@ Antes de confirmar, el sistema SHALL mostrar un resumen por categoría: contado 
 
 #### Scenario: Conteo con categorías de hombre y de mujer
 - **WHEN** un conteo tiene artículos de "Hombres / Remeras / Remeras MC" y de "Mujer / Parte Superior / Remeras MC"
-- **THEN** el resumen las muestra en ramas separadas del árbol ("Hombres › Remeras › Remeras MC" y "Mujer › Parte Superior › Remeras MC")
+- **THEN** el resumen muestra las tabs "Hombres" y "Mujer", y en cada una la categoría con su prefijo ("Remeras › Remeras MC" y "Parte Superior › Remeras MC")
 
 #### Scenario: Categoría con menos de 3 niveles
 - **WHEN** una categoría tiene una ruta de 1 o 2 niveles
-- **THEN** se muestra en el árbol con los niveles que tiene
+- **THEN** se muestra con los niveles que tiene, sin prefijo si no hay nivel intermedio
 
 ### Requirement: Confirmar el conteo en Odoo
 Solo `ADMIN` y `MANAGER` SHALL confirmar. Al confirmar, el sistema escribe `inventory_quantity` en los `stock.quant` de la primera ubicación interna del depósito (creándolos si faltan) y ejecuta `action_apply_inventory`. Opcionalmente lleva a cero las variantes no contadas de las categorías incluidas (apagado por defecto) y guarda en el conteo el valor usado. Las categorías desmarcadas se descartan o pasan a un nuevo conteo `BORRADOR`.

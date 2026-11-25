@@ -11,6 +11,7 @@ import {
   Radio,
   Stack,
   Loader,
+  Tabs,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { Check, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
@@ -489,7 +490,7 @@ function AdvertenciasModal({
   );
 }
 
-// ── Lista de categorías con checkboxes (árbol) ───────────────────────────────────
+// ── Lista de categorías con checkboxes (tabs por nivel 1) ──────────────────────
 
 function CategoryCheckboxList({
   categories,
@@ -504,51 +505,47 @@ function CategoryCheckboxList({
   setCheckedIds: (v: Set<number>) => void;
   zeroUncounted: boolean;
 }) {
-  // Árbol de 3 niveles: nivel 1 (p. ej. Hombres) › nivel 2 (Remeras) › hoja (Remeras MC).
-  const sorted = [...categories].sort((a, b) =>
-    rutaCategoria(a)
-      .join(" / ")
-      .localeCompare(rutaCategoria(b).join(" / "), "es"),
-  );
-  const niveles = sorted.map(nivelesCategoria);
+  const [tab, setTab] = useState<string | null>("__todas");
+  // Ruta: nivel 1 (p. ej. Hombres) va en la tab; nivel 2 (Remeras) como prefijo de la hoja.
+  const items = [...categories]
+    .sort((a, b) =>
+      rutaCategoria(a).join(" / ").localeCompare(rutaCategoria(b).join(" / "), "es"),
+    )
+    .map((cat) => ({ cat, ...nivelesCategoria(cat) }));
+  const grupos = [...new Set(items.map((i) => i.n1))];
+  const visibles = tab === "__todas" ? items : items.filter((i) => i.n1 === tab);
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {sorted.map((cat, i) => {
-        const { n1, n2 } = niveles[i];
-        const prev = niveles[i - 1];
-        const showN1 = n1 !== "" && n1 !== prev?.n1;
-        const showN2 = n2 !== "" && (showN1 || n2 !== prev?.n2);
-        return (
-          <div key={cat.categoryId}>
-            {showN1 && (
-              <Text size="sm" fw={700} mt="sm" mb={4} c="gray.3">
-                {n1}
-              </Text>
-            )}
-            {showN2 && (
-              <Text size="xs" fw={600} mb={4} c="dimmed" pl={n1 ? "md" : 0}>
-                {n2}
-              </Text>
-            )}
-            <div style={{ paddingLeft: n2 ? 32 : n1 ? 16 : 0 }}>
-              <LeafCategoryRow
-                key={cat.categoryId}
-                cat={cat}
-                articles={articles}
-                checked={checkedIds.has(cat.categoryId)}
-                onToggle={(v) => {
-                  const next = new Set(checkedIds);
-                  if (v) next.add(cat.categoryId);
-                  else next.delete(cat.categoryId);
-                  setCheckedIds(next);
-                }}
-                zeroUncounted={zeroUncounted}
-              />
-            </div>
-          </div>
-        );
-      })}
-    </div>
+    <Stack gap={6}>
+      {grupos.length > 1 && (
+        <Tabs value={tab} onChange={setTab} color="amber">
+          <Tabs.List>
+            <Tabs.Tab value="__todas">Todas ({items.length})</Tabs.Tab>
+            {grupos.map((g) => (
+              <Tabs.Tab key={g} value={g}>
+                {g || "Sin rama"} ({items.filter((i) => i.n1 === g).length})
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs>
+      )}
+      {visibles.map(({ cat, n2 }) => (
+        <LeafCategoryRow
+          key={cat.categoryId}
+          cat={cat}
+          prefijo={n2}
+          articles={articles}
+          checked={checkedIds.has(cat.categoryId)}
+          onToggle={(v) => {
+            const next = new Set(checkedIds);
+            if (v) next.add(cat.categoryId);
+            else next.delete(cat.categoryId);
+            setCheckedIds(next);
+          }}
+          zeroUncounted={zeroUncounted}
+        />
+      ))}
+    </Stack>
   );
 }
 
@@ -612,12 +609,14 @@ function StatPill({
 
 function LeafCategoryRow({
   cat,
+  prefijo,
   articles,
   checked,
   onToggle,
   zeroUncounted,
 }: {
   cat: SummaryCategory;
+  prefijo: string;
   articles: InventoryArticle[];
   checked: boolean;
   onToggle: (v: boolean) => void;
@@ -686,9 +685,9 @@ function LeafCategoryRow({
             <ChevronRight size={13} color="var(--mantine-color-amber-5)" />
           )}
           <Text size="sm" fw={500} c="amber.3" style={{ flex: 1 }}>
-            {cat.categoryCompleteName || !cat.categoryParentName ? null : (
+            {prefijo && (
               <span style={{ color: "var(--text3)", fontWeight: 400 }}>
-                {cat.categoryParentName} ›{" "}
+                {prefijo} ›{" "}
               </span>
             )}
             {cat.categoryName}
