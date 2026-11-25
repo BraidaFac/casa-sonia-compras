@@ -66,7 +66,7 @@ El resumen SHALL mostrar de forma destacada la opción "Llevar a cero no contado
 
 #### Scenario: Valor usado en un conteo confirmado
 - **WHEN** se abre el detalle o el resumen de un conteo `CONFIRMADO`
-- **THEN** se muestra si se confirmó llevando a cero los no contados ("Sí" / "No"), o "Sin registro" si se confirmó antes de que se guardara ese dato
+- **THEN** se muestra un indicador "No contados llevados a 0" o "No contados sin tocar" según el valor usado, y ninguno si se confirmó antes de que se guardara ese dato
 
 ### Requirement: Advertencias antes de confirmar
 Al pulsar confirmar, el sistema SHALL mostrar un diálogo de advertencias si alguna categoría incluida tiene una diferencia neta mayor a 10 unidades o alguna variante tiene una diferencia mayor al 10% de su stock en Odoo. Las advertencias SHALL ser no bloqueantes: el usuario puede volver al resumen o confirmar igual.

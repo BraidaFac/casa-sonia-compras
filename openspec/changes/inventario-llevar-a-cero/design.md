@@ -16,13 +16,13 @@ Ver proposal.md (Why). Hoy la opción vive solo en el estado del modal `ResumenM
 
 ## Decisions
 
-1. **Columna `zeroUncounted Boolean?` (`zero_uncounted`) en `Inventory`.** Guarda la elección del borrador y, tras confirmar, el valor usado. `null` solo aparece en conteos anteriores a la migración: en un confirmado se muestra "Sin registro" y en un borrador se interpreta como apagado. Alternativa descartada: guardarlo dentro de `confirmationSummary` (JSON). No sirve para el borrador y es más difícil de consultar.
+1. **Columna `zeroUncounted Boolean?` (`zero_uncounted`) en `Inventory`.** Guarda la elección del borrador y, tras confirmar, el valor usado. `null` solo aparece en conteos anteriores a la migración: en un confirmado no se muestra nada y en un borrador se interpreta como apagado. Alternativa descartada: guardarlo dentro de `confirmationSummary` (JSON). No sirve para el borrador y es más difícil de consultar.
 2. **Default del servidor = `false`.** El `?? true` del confirm pasa a ser `?? false`. El alta usa `false` si no viene el dato.
 3. **El confirm persiste el valor antes de tocar Odoo.** Al inicio del try se hace `update` de `zeroUncounted` con el valor recibido. Así queda registrado aunque la confirmación falle, y el `update` final de `CONFIRMADO` no necesita repetirlo. Alternativa descartada: guardarlo solo al confirmar con éxito, porque se perdería la elección hecha en el Resumen si falla.
 4. **Control visible = Mantine `Switch` tamaño `md` dentro de un bloque destacado** (borde y fondo de aviso con tokens `--cs-*`, título "Llevar a cero no contados" y una línea que explica que pone en 0 todo producto de cada categoría con algo contado que no esté en este conteo). Va en el cuerpo del modal, no en el header. Se reutiliza el mismo componente en el alta y en el Resumen. Se crea un componente chico `LlevarACeroSwitch` en `src/components/inventario/`. Antes de crearlo hay que revisar `src/components/ui`.
 5. **Impacto en el Resumen calculado en el cliente.** Con la opción activa, se suma por categoría incluida la cantidad de variantes no contadas con `qtyOnHand > 0` y sus unidades. Se muestra en el bloque del switch como lista "ruta completa: N variantes / U unidades".
 6. **Ruta completa y árbol de 3 niveles.** `buildConfirmationSummary` (y por lo tanto `summary-data`) agrega `categoryCompleteName` leyendo `complete_name` de `product.category` para los ids involucrados, en un solo `search_read`. El Resumen arma el árbol partiendo esa ruta por " / ": nivel 1 (p. ej. "Hombres"), nivel 2 ("Remeras") y hoja ("Remeras MC"). Una ruta de más de 3 niveles junta los intermedios en el nivel 2, y una de menos se muestra con los que tenga. La hoja sigue siendo la unidad que se marca, excluye y confirma. Los snapshots confirmados viejos no tienen `categoryCompleteName`: al abrirlos, el endpoint del resumen lo completa leyendo `complete_name` en vivo por `categoryId`. Esto muestra la ruta actual de la categoría y no la que tenía al confirmar, lo que alcanza para leerlo. Si la lectura falla, se usa `"{padre} / {nombre}"`.
-7. **Mostrar el valor usado** en el Resumen de un conteo `CONFIRMADO` (bloque del switch en solo lectura: "Sí" / "No" / "Sin registro") y en el encabezado del detalle `/inventario/[id]` cuando está confirmado.
+7. **Mostrar el valor usado** en el Resumen de un conteo `CONFIRMADO` (badge "No contados llevados a 0" / "No contados sin tocar"; nada si no hay dato) y en el encabezado del detalle `/inventario/[id]` cuando está confirmado.
 
 8. **Advertencias en el cliente, en un `Modal` propio.** Se calculan con el mismo `diff` por variante que ya usa el Resumen, sobre las categorías incluidas:
    - **Por categoría:** se advierte si `|Σ diff| > 10`, que es el mismo criterio del ícono actual.
@@ -40,5 +40,5 @@ Ver proposal.md (Why). Hoy la opción vive solo en el estado del modal `ResumenM
 
 ## Migration Plan
 
-- `pnpm db:migrate` agrega la columna nullable, sin backfill: los conteos previos quedan en `null` ("Sin registro").
+- `pnpm db:migrate` agrega la columna nullable, sin backfill: los conteos previos quedan en `null` (no se muestra el badge).
 - Deploy normal. Rollback: revertir el código. La columna nullable no molesta.

@@ -24,17 +24,12 @@ const EXPLICACION =
 /** Opción "Llevar a cero no contados": bloque destacado, editable (alta/resumen) o de solo lectura (confirmado). */
 export function LlevarACeroSwitch({ value, onChange, readOnly = false, impacto }: Props) {
   if (readOnly) {
-    const label = value === null ? "Sin registro" : value ? "Sí" : "No";
-    const color = value === null ? "gray" : value ? "orange" : "green";
+    // Conteos confirmados antes de registrar la opción: no hay dato, no se muestra nada.
+    if (value === null) return null;
     return (
-      <Group gap="xs">
-        <Text size="sm" c="dimmed">
-          Se confirmó llevando a cero los no contados:
-        </Text>
-        <Badge color={color} variant="light">
-          {label}
-        </Badge>
-      </Group>
+      <Badge color={value ? "orange" : "gray"} variant="light">
+        {value ? "No contados llevados a 0" : "No contados sin tocar"}
+      </Badge>
     );
   }
 

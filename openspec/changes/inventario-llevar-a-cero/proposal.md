@@ -11,7 +11,7 @@ El 20/11 se confirmó el conteo #175 (ropa de mujer) con "Llevar a cero no conta
 - En el **Resumen** al confirmar se muestra el mismo control, grande y con texto explicativo, precargado con el valor del borrador y modificable. Cuando está activo, el Resumen informa cuántas variantes con stock se van a llevar a 0 y en qué categorías (con la ruta completa, p. ej. "Hombres / Remeras / Remeras MC").
 - El Resumen (borrador y confirmado) agrupa las categorías en un **árbol de 3 niveles** según su ruta en Odoo (p. ej. "Hombres › Remeras › Remeras MC" vs "Mujer › Parte Superior › Remeras MC"), para ver de un vistazo si se mezclan ramas.
 - **Advertencias no bloqueantes antes de confirmar**: diálogo con las categorías con diferencia neta mayor a 10 unidades y las variantes con diferencia mayor al 10% de su stock en Odoo; se puede volver o "Confirmar igual".
-- El valor efectivamente usado al confirmar se **persiste** en el conteo y se muestra en el detalle/Resumen del conteo confirmado. Los conteos confirmados antes de este cambio muestran "Sin registro".
+- El valor efectivamente usado al confirmar se **persiste** en el conteo y se muestra en el detalle/Resumen del conteo confirmado. Los conteos confirmados antes de este cambio no muestran nada.
 - Roles: sin cambios (crear: `ADMIN`, `MANAGER`, `EMPLEADO`; confirmar: `ADMIN`, `MANAGER`).
 - Odoo: sin cambios en lo que se lee/escribe (`stock.location`, `stock.quant`, `product.product`, `action_apply_inventory`).
 
